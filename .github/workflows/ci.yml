@@ -43,6 +43,6 @@ jobs:
           go-package: './...'
 
       - name: Run Gosec
-        uses: securego/gosec@v2
+        uses: securego/gosec@v2.28.0
         with:
           args: './...'
