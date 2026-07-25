@@ -42,7 +42,8 @@ jobs:
           go-version-file: 'go.mod'
           go-package: './...'
 
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
       - name: Run Gosec
-        uses: securego/gosec@v2.28.0
-        with:
-          args: './...'
+        run: $(go env GOPATH)/bin/gosec ./...
