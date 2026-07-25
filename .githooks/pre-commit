@@ -1,0 +1,14 @@
+#!/bin/bash
+
+go mod tidy
+
+STAGED_GO_FILES=$(git diff --cached --name-only -- '*.go')
+
+if [[ $STAGED_GO_FILES == "" ]]; then
+  echo "No Go files to update"
+else
+    for file in $STAGED_GO_FILES; do
+      go fmt "$file"
+      go add "$file"
+    done
+fi
