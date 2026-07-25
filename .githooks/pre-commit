@@ -9,6 +9,6 @@ if [[ $STAGED_GO_FILES == "" ]]; then
 else
     for file in $STAGED_GO_FILES; do
       go fmt "$file"
-      go add "$file"
+      git add "$file"
     done
 fi
