@@ -1,0 +1,14 @@
+INSERT INTO orgs (id, public_id, name)
+VALUES
+    (1, '30ee7153-9b48-4560-8cbf-972587a60fda', 'University of Aratuwa'),
+    (2, 'f1810095-f8a0-4e27-83df-d88b3256604d', 'MedSync'),
+    (3, 'afb118ba-2ade-4422-9f20-04754fd1d4a7', 'Pied Piper')
+ON CONFLICT (id) DO UPDATE
+SET
+    public_id = EXCLUDED.public_id,
+    name = EXCLUDED.name;
+
+SELECT setval(
+    pg_get_serial_sequence('orgs', 'id'),
+    (SELECT MAX(id) FROM orgs)
+);
