@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 )
 
 func main() {
-
 	ctx := context.Background()
 
 	// TODO: Use pgxpool
@@ -30,36 +28,14 @@ func main() {
 
 	queries := repository.New(conn)
 
-	r := http.NewServeMux()
-
-	// TODO: Extract the handlers to a separate file
-	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := w.Write([]byte("Hello World")); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
-
-	r.HandleFunc("/orgs", func(w http.ResponseWriter, r *http.Request) {
-		orgs, err := queries.GetOrgs(r.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		err = json.NewEncoder(w).Encode(orgs)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	})
+	router := NewRouter(queries)
+	router.SetupRoutes()
 
 	s := http.Server{
 		WriteTimeout: time.Second * 5,
 		ReadTimeout:  time.Second * 5,
 		Addr:         ":8080",
-		Handler:      r,
+		Handler:      router.Handler(),
 	}
 
 	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

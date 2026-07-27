@@ -40,4 +40,4 @@ seed:
 
 # Run the server
 run:
-	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/api/main.go
+	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/api
