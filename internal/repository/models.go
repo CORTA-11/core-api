@@ -5,15 +5,449 @@
 package repository
 
 import (
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type BookingStatus string
+
+const (
+	BookingStatusCONFIRMED BookingStatus = "CONFIRMED"
+	BookingStatusCANCELLED BookingStatus = "CANCELLED"
+	BookingStatusPENDING   BookingStatus = "PENDING"
+	BookingStatusCONFLICT  BookingStatus = "CONFLICT"
+)
+
+func (e *BookingStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = BookingStatus(s)
+	case string:
+		*e = BookingStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for BookingStatus: %T", src)
+	}
+	return nil
+}
+
+type NullBookingStatus struct {
+	BookingStatus BookingStatus `json:"booking_status"`
+	Valid         bool          `json:"valid"` // Valid is true if BookingStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullBookingStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.BookingStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.BookingStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullBookingStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.BookingStatus), nil
+}
+
+type OrgRole string
+
+const (
+	OrgRoleORGADMIN OrgRole = "ORG_ADMIN"
+	OrgRoleORGUSER  OrgRole = "ORG_USER"
+)
+
+func (e *OrgRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = OrgRole(s)
+	case string:
+		*e = OrgRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for OrgRole: %T", src)
+	}
+	return nil
+}
+
+type NullOrgRole struct {
+	OrgRole OrgRole `json:"org_role"`
+	Valid   bool    `json:"valid"` // Valid is true if OrgRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullOrgRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.OrgRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.OrgRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullOrgRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.OrgRole), nil
+}
+
+type ResourceStatus string
+
+const (
+	ResourceStatusAVAILABLE   ResourceStatus = "AVAILABLE"
+	ResourceStatusBOOKED      ResourceStatus = "BOOKED"
+	ResourceStatusMAINTENANCE ResourceStatus = "MAINTENANCE"
+)
+
+func (e *ResourceStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ResourceStatus(s)
+	case string:
+		*e = ResourceStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ResourceStatus: %T", src)
+	}
+	return nil
+}
+
+type NullResourceStatus struct {
+	ResourceStatus ResourceStatus `json:"resource_status"`
+	Valid          bool           `json:"valid"` // Valid is true if ResourceStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullResourceStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ResourceStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ResourceStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullResourceStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ResourceStatus), nil
+}
+
+type ResourceType string
+
+const (
+	ResourceTypeHARDWARE ResourceType = "HARDWARE"
+	ResourceTypeSOFTWARE ResourceType = "SOFTWARE"
+	ResourceTypeROOM     ResourceType = "ROOM"
+	ResourceTypeOTHER    ResourceType = "OTHER"
+)
+
+func (e *ResourceType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ResourceType(s)
+	case string:
+		*e = ResourceType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ResourceType: %T", src)
+	}
+	return nil
+}
+
+type NullResourceType struct {
+	ResourceType ResourceType `json:"resource_type"`
+	Valid        bool         `json:"valid"` // Valid is true if ResourceType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullResourceType) Scan(value interface{}) error {
+	if value == nil {
+		ns.ResourceType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ResourceType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullResourceType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ResourceType), nil
+}
+
+type TaskPriority string
+
+const (
+	TaskPriorityLOW    TaskPriority = "LOW"
+	TaskPriorityMEDIUM TaskPriority = "MEDIUM"
+	TaskPriorityHIGH   TaskPriority = "HIGH"
+	TaskPriorityURGENT TaskPriority = "URGENT"
+)
+
+func (e *TaskPriority) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TaskPriority(s)
+	case string:
+		*e = TaskPriority(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TaskPriority: %T", src)
+	}
+	return nil
+}
+
+type NullTaskPriority struct {
+	TaskPriority TaskPriority `json:"task_priority"`
+	Valid        bool         `json:"valid"` // Valid is true if TaskPriority is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTaskPriority) Scan(value interface{}) error {
+	if value == nil {
+		ns.TaskPriority, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TaskPriority.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTaskPriority) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TaskPriority), nil
+}
+
+type TaskStatus string
+
+const (
+	TaskStatusBACKLOG    TaskStatus = "BACKLOG"
+	TaskStatusTODO       TaskStatus = "TODO"
+	TaskStatusINPROGRESS TaskStatus = "IN_PROGRESS"
+	TaskStatusINREVIEW   TaskStatus = "IN_REVIEW"
+	TaskStatusDONE       TaskStatus = "DONE"
+)
+
+func (e *TaskStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TaskStatus(s)
+	case string:
+		*e = TaskStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TaskStatus: %T", src)
+	}
+	return nil
+}
+
+type NullTaskStatus struct {
+	TaskStatus TaskStatus `json:"task_status"`
+	Valid      bool       `json:"valid"` // Valid is true if TaskStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTaskStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.TaskStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TaskStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTaskStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TaskStatus), nil
+}
+
+type TeamRole string
+
+const (
+	TeamRoleTEAMLEADER  TeamRole = "TEAM_LEADER"
+	TeamRoleCONTRIBUTOR TeamRole = "CONTRIBUTOR"
+)
+
+func (e *TeamRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = TeamRole(s)
+	case string:
+		*e = TeamRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for TeamRole: %T", src)
+	}
+	return nil
+}
+
+type NullTeamRole struct {
+	TeamRole TeamRole `json:"team_role"`
+	Valid    bool     `json:"valid"` // Valid is true if TeamRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullTeamRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.TeamRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.TeamRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullTeamRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.TeamRole), nil
+}
+
+type AuditLog struct {
+	ID        uuid.UUID   `json:"id"`
+	OrgID     int64       `json:"org_id"`
+	UserID    int64       `json:"user_id"`
+	TeamID    pgtype.Int8 `json:"team_id"`
+	Action    string      `json:"action"`
+	Metadata  []byte      `json:"metadata"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+type Booking struct {
+	ID             uuid.UUID     `json:"id"`
+	ResourceID     uuid.UUID     `json:"resource_id"`
+	ReservedUserID int64         `json:"reserved_user_id"`
+	ReservedTeamID int64         `json:"reserved_team_id"`
+	StartTime      time.Time     `json:"start_time"`
+	EndTime        time.Time     `json:"end_time"`
+	Status         BookingStatus `json:"status"`
+	Purpose        pgtype.Text   `json:"purpose"`
+	CreatedAt      time.Time     `json:"created_at"`
+}
+
+type Channel struct {
+	ID        uuid.UUID `json:"id"`
+	TeamID    int64     `json:"team_id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ChatMessage struct {
+	ID        uuid.UUID          `json:"id"`
+	ChannelID uuid.UUID          `json:"channel_id"`
+	SenderID  int64              `json:"sender_id"`
+	ReplyToID pgtype.UUID        `json:"reply_to_id"`
+	Message   string             `json:"message"`
+	CreatedAt time.Time          `json:"created_at"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type Document struct {
+	ID           uuid.UUID `json:"id"`
+	AuthorID     int64     `json:"author_id"`
+	TeamID       int64     `json:"team_id"`
+	Title        string    `json:"title"`
+	IsEncrypted  bool      `json:"is_encrypted"`
+	Version      int32     `json:"version"`
+	LastEditedBy int64     `json:"last_edited_by"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type DocumentHistory struct {
+	ID         uuid.UUID   `json:"id"`
+	DocumentID uuid.UUID   `json:"document_id"`
+	Version    int32       `json:"version"`
+	EditedBy   pgtype.Int8 `json:"edited_by"`
+	EditedAt   time.Time   `json:"edited_at"`
+}
+
 type Org struct {
-	ID        int32     `json:"id"`
+	ID        int64     `json:"id"`
 	PublicID  uuid.UUID `json:"public_id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type OrganizationSetting struct {
+	ID            int64     `json:"id"`
+	OrgID         int64     `json:"org_id"`
+	AllowCloudLlm bool      `json:"allow_cloud_llm"`
+	RetentionDays int32     `json:"retention_days"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
+type Resource struct {
+	ID                uuid.UUID      `json:"id"`
+	OrgID             int64          `json:"org_id"`
+	Name              string         `json:"name"`
+	Type              ResourceType   `json:"type"`
+	Description       pgtype.Text    `json:"description"`
+	AvailableCapacity int32          `json:"available_capacity"`
+	Status            ResourceStatus `json:"status"`
+	RequiresApproval  bool           `json:"requires_approval"`
+	CreatedAt         time.Time      `json:"created_at"`
+}
+
+type Task struct {
+	ID              uuid.UUID          `json:"id"`
+	TeamID          int64              `json:"team_id"`
+	ReporterID      int64              `json:"reporter_id"`
+	AssigneeID      pgtype.Int8        `json:"assignee_id"`
+	SourceMessageID pgtype.UUID        `json:"source_message_id"`
+	Title           string             `json:"title"`
+	Description     pgtype.Text        `json:"description"`
+	Status          TaskStatus         `json:"status"`
+	Priority        TaskPriority       `json:"priority"`
+	DueDate         pgtype.Timestamptz `json:"due_date"`
+	AiGenerated     bool               `json:"ai_generated"`
+	CreatedAt       time.Time          `json:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at"`
+}
+
+type Team struct {
+	ID            int64       `json:"id"`
+	PublicID      uuid.UUID   `json:"public_id"`
+	OrgID         int64       `json:"org_id"`
+	Name          string      `json:"name"`
+	Description   pgtype.Text `json:"description"`
+	CreatedByUser int64       `json:"created_by_user"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     time.Time   `json:"updated_at"`
+}
+
+type TeamMember struct {
+	TeamID   int64     `json:"team_id"`
+	UserID   int64     `json:"user_id"`
+	Role     TeamRole  `json:"role"`
+	JoinedAt time.Time `json:"joined_at"`
+}
+
+type User struct {
+	ID           int64              `json:"id"`
+	OrgID        int64              `json:"org_id"`
+	Active       bool               `json:"active"`
+	Email        string             `json:"email"`
+	PasswordHash string             `json:"password_hash"`
+	Name         string             `json:"name"`
+	AvatarUrl    pgtype.Text        `json:"avatar_url"`
+	OrgRole      OrgRole            `json:"org_role"`
+	LastActiveAt pgtype.Timestamptz `json:"last_active_at"`
+	CreatedAt    time.Time          `json:"created_at"`
 }

@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS document_history;
+DROP TABLE IF EXISTS documents;
+DROP TABLE IF EXISTS bookings;
+DROP TABLE IF EXISTS resources;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS chat_messages;
+DROP TABLE IF EXISTS channels;
+DROP TABLE IF EXISTS team_members;
+DROP TABLE IF EXISTS teams;
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS organization_settings;
+
+DROP TYPE IF EXISTS booking_status;
+DROP TYPE IF EXISTS resource_status;
+DROP TYPE IF EXISTS resource_type;
+DROP TYPE IF EXISTS task_priority;
+DROP TYPE IF EXISTS task_status;
+DROP TYPE IF EXISTS team_role;
+DROP TYPE IF EXISTS org_role;
