@@ -405,6 +405,15 @@ type Resource struct {
 	CreatedAt         time.Time      `json:"created_at"`
 }
 
+type Session struct {
+	ID           uuid.UUID `json:"id"`
+	UserID       int64     `json:"user_id"`
+	RefreshToken string    `json:"refresh_token"`
+	IsBlocked    bool      `json:"is_blocked"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
 type Task struct {
 	ID              uuid.UUID          `json:"id"`
 	TeamID          int64              `json:"team_id"`

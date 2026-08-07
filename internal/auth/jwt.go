@@ -20,13 +20,14 @@ type CustomClaims struct {
 
 // GenerateToken creates a signed JWT for the authenticated user
 func GenerateToken(userID, orgID int64, orgRole string) (string, error) {
+	now := time.Now()
 	claims := CustomClaims{
 		UserID:  userID,
 		OrgID:   orgID,
 		OrgRole: orgRole,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(now.Add(AccessTokenTTL())),
+			IssuedAt:  jwt.NewNumericDate(now),
 		},
 	}
 

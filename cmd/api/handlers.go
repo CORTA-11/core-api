@@ -24,12 +24,15 @@ func NewRouter(queries *repository.Queries) *Router {
 
 func (router *Router) SetupRoutes() {
 	router.mux.Use(middleware.Logger)
+	router.mux.Use(corsMiddleware)
 	router.mux.Get("/", router.handleRoot())
 
 	// Public routes
 	router.mux.Route("/auth", func(r chi.Router) {
 		r.Post("/register", router.registerUser())
 		r.Post("/login", router.loginUser())
+		r.Post("/refresh", router.refreshSession())
+		r.Post("/logout", router.logoutUser())
 	})
 
 	// Protected routes (Any logged-in user)
@@ -60,6 +63,24 @@ func (router *Router) getAdminSettings() http.HandlerFunc {
 
 func (router *Router) Handler() http.Handler {
 	return router.mux
+}
+
+// corsMiddleware allows the local Next.js UI to call the API directly during development.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (router *Router) handleRoot() http.HandlerFunc {

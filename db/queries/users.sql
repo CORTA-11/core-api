@@ -7,3 +7,8 @@ RETURNING id, org_id, email, name, org_role, created_at;
 SELECT id, org_id, email, password_hash, name, org_role, active 
 FROM users 
 WHERE email = $1;
+
+-- name: GetUserByID :one
+SELECT id, org_id, email, name, org_role, active, avatar_url
+FROM users
+WHERE id = $1;

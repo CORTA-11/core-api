@@ -87,3 +87,34 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 	)
 	return i, err
 }
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, org_id, email, name, org_role, active, avatar_url
+FROM users
+WHERE id = $1
+`
+
+type GetUserByIDRow struct {
+	ID        int64       `json:"id"`
+	OrgID     int64       `json:"org_id"`
+	Email     string      `json:"email"`
+	Name      string      `json:"name"`
+	OrgRole   OrgRole     `json:"org_role"`
+	Active    bool        `json:"active"`
+	AvatarUrl pgtype.Text `json:"avatar_url"`
+}
+
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i GetUserByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.OrgID,
+		&i.Email,
+		&i.Name,
+		&i.OrgRole,
+		&i.Active,
+		&i.AvatarUrl,
+	)
+	return i, err
+}
