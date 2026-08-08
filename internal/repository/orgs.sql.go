@@ -11,14 +11,33 @@ import (
 	"github.com/google/uuid"
 )
 
+const createOrg = `-- name: CreateOrg :one
+INSERT INTO orgs (name)
+VALUES ($1)
+RETURNING id, public_id, name, created_at, updated_at
+`
+
+func (q *Queries) CreateOrg(ctx context.Context, name string) (Org, error) {
+	row := q.db.QueryRow(ctx, createOrg, name)
+	var i Org
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getOrgID = `-- name: GetOrgID :one
 SELECT id FROM orgs
 WHERE public_id = $1
 `
 
-func (q *Queries) GetOrgID(ctx context.Context, publicID uuid.UUID) (int32, error) {
+func (q *Queries) GetOrgID(ctx context.Context, publicID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, getOrgID, publicID)
-	var id int32
+	var id int64
 	err := row.Scan(&id)
 	return id, err
 }
@@ -28,7 +47,7 @@ SELECT name FROM orgs
 WHERE id = $1
 `
 
-func (q *Queries) GetOrgName(ctx context.Context, id int32) (string, error) {
+func (q *Queries) GetOrgName(ctx context.Context, id int64) (string, error) {
 	row := q.db.QueryRow(ctx, getOrgName, id)
 	var name string
 	err := row.Scan(&name)
