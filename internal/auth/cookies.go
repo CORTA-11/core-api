@@ -2,7 +2,6 @@ package auth
 
 import (
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -11,13 +10,14 @@ const RefreshCookieName = "corta_refresh"
 
 // SetRefreshCookie stores the refresh token in an httpOnly cookie.
 // Path is "/" so it works through the Next.js /api proxy in local development.
+// Secure is always true (browsers allow Secure cookies on http://localhost).
 func SetRefreshCookie(w http.ResponseWriter, token string, ttl time.Duration) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     RefreshCookieName,
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   cookieSecure(),
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int(ttl.Seconds()),
 		Expires:  time.Now().Add(ttl),
@@ -31,7 +31,7 @@ func ClearRefreshCookie(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   cookieSecure(),
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
@@ -46,8 +46,4 @@ func RefreshTokenFromRequest(r *http.Request, bodyToken string) string {
 		}
 	}
 	return strings.TrimSpace(bodyToken)
-}
-
-func cookieSecure() bool {
-	return strings.EqualFold(os.Getenv("COOKIE_SECURE"), "true")
 }

@@ -135,6 +135,7 @@ func (router *Router) registerUser() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
+		// #nosec G117 -- access_token is intentionally returned to the authenticated client
 		_ = json.NewEncoder(w).Encode(response)
 	}
 }
@@ -191,6 +192,7 @@ func (router *Router) loginUser() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		// #nosec G117 -- access_token is intentionally returned to the authenticated client
 		_ = json.NewEncoder(w).Encode(response)
 	}
 }
@@ -261,6 +263,7 @@ func (router *Router) refreshSession() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		// #nosec G117 -- access_token is intentionally returned to the authenticated client
 		_ = json.NewEncoder(w).Encode(response)
 	}
 }
