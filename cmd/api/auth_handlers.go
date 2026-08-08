@@ -21,18 +21,16 @@ type AuthUser struct {
 	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
+// AuthResponse returns only the access token + user.
+// Refresh token is delivered via httpOnly cookie only.
 type AuthResponse struct {
-	Token        string   `json:"token"`
-	RefreshToken string   `json:"refresh_token"`
-	User         AuthUser `json:"user"`
+	AccessToken string   `json:"access_token"`
+	User        AuthUser `json:"user"`
 }
 
 type RegisterRequest struct {
-	// Mode is "create_org" or "join_org".
-	Mode string `json:"mode"`
-	// OrgName is required when mode is create_org.
-	OrgName string `json:"org_name"`
-	// OrgPublicID is required when mode is join_org.
+	Mode        string `json:"mode"`
+	OrgName     string `json:"org_name"`
 	OrgPublicID string `json:"org_public_id"`
 	Email       string `json:"email"`
 	Password    string `json:"password"`
@@ -129,7 +127,7 @@ func (router *Router) registerUser() http.HandlerFunc {
 			OrgRole: string(user.OrgRole),
 		}
 
-		response, err := router.issueAuthResponse(r, authUser)
+		response, err := router.issueAuthResponse(w, r, authUser)
 		if err != nil {
 			http.Error(w, "failed to create session", http.StatusInternalServerError)
 			return
@@ -137,7 +135,6 @@ func (router *Router) registerUser() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		// #nosec G117 -- refresh token is intentionally returned to the client for session bootstrap
 		_ = json.NewEncoder(w).Encode(response)
 	}
 }
@@ -186,7 +183,7 @@ func (router *Router) loginUser() http.HandlerFunc {
 			OrgRole: string(user.OrgRole),
 		}
 
-		response, err := router.issueAuthResponse(r, authUser)
+		response, err := router.issueAuthResponse(w, r, authUser)
 		if err != nil {
 			http.Error(w, "failed to create session", http.StatusInternalServerError)
 			return
@@ -194,7 +191,6 @@ func (router *Router) loginUser() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		// #nosec G117 -- refresh token is intentionally returned to the client for session bootstrap
 		_ = json.NewEncoder(w).Encode(response)
 	}
 }
@@ -206,43 +202,43 @@ type RefreshRequest struct {
 func (router *Router) refreshSession() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req RefreshRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request payload", http.StatusBadRequest)
+		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		refreshToken := auth.RefreshTokenFromRequest(r, req.RefreshToken)
+		if refreshToken == "" {
+			http.Error(w, "refresh token missing", http.StatusUnauthorized)
 			return
 		}
 
-		req.RefreshToken = strings.TrimSpace(req.RefreshToken)
-		if req.RefreshToken == "" {
-			http.Error(w, "refresh_token is required", http.StatusBadRequest)
-			return
-		}
-
-		session, err := router.queries.GetSessionByRefreshToken(r.Context(), req.RefreshToken)
+		session, err := router.queries.GetSessionByRefreshToken(r.Context(), refreshToken)
 		if err != nil {
+			auth.ClearRefreshCookie(w)
 			http.Error(w, "invalid refresh token", http.StatusUnauthorized)
 			return
 		}
 
 		if session.IsBlocked || time.Now().After(session.ExpiresAt) {
-			_ = router.queries.BlockSession(r.Context(), req.RefreshToken)
+			_ = router.queries.BlockSession(r.Context(), refreshToken)
+			auth.ClearRefreshCookie(w)
 			http.Error(w, "refresh token expired or revoked", http.StatusUnauthorized)
 			return
 		}
 
 		user, err := router.queries.GetUserByID(r.Context(), session.UserID)
 		if err != nil {
+			auth.ClearRefreshCookie(w)
 			http.Error(w, "user not found", http.StatusUnauthorized)
 			return
 		}
 
 		if !user.Active {
-			_ = router.queries.BlockSession(r.Context(), req.RefreshToken)
+			_ = router.queries.BlockSession(r.Context(), refreshToken)
+			auth.ClearRefreshCookie(w)
 			http.Error(w, "user account is deactivated", http.StatusForbidden)
 			return
 		}
 
-		// Rotate refresh token: block the old session, then create a new one.
-		if err := router.queries.BlockSession(r.Context(), req.RefreshToken); err != nil {
+		if err := router.queries.BlockSession(r.Context(), refreshToken); err != nil {
 			http.Error(w, "failed to rotate session", http.StatusInternalServerError)
 			return
 		}
@@ -256,7 +252,7 @@ func (router *Router) refreshSession() http.HandlerFunc {
 			AvatarURL: textOrEmpty(user.AvatarUrl),
 		}
 
-		response, err := router.issueAuthResponse(r, authUser)
+		response, err := router.issueAuthResponse(w, r, authUser)
 		if err != nil {
 			http.Error(w, "failed to create session", http.StatusInternalServerError)
 			return
@@ -264,7 +260,6 @@ func (router *Router) refreshSession() http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		// #nosec G117 -- refresh token is intentionally returned to the client for session bootstrap
 		_ = json.NewEncoder(w).Encode(response)
 	}
 }
@@ -276,20 +271,14 @@ type LogoutRequest struct {
 func (router *Router) logoutUser() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req LogoutRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request payload", http.StatusBadRequest)
-			return
+		_ = json.NewDecoder(r.Body).Decode(&req)
+
+		refreshToken := auth.RefreshTokenFromRequest(r, req.RefreshToken)
+		if refreshToken != "" {
+			_ = router.queries.BlockSession(r.Context(), refreshToken)
 		}
 
-		req.RefreshToken = strings.TrimSpace(req.RefreshToken)
-		if req.RefreshToken == "" {
-			http.Error(w, "refresh_token is required", http.StatusBadRequest)
-			return
-		}
-
-		// Idempotent: blocking an unknown/already-blocked token is still success.
-		_ = router.queries.BlockSession(r.Context(), req.RefreshToken)
-
+		auth.ClearRefreshCookie(w)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -325,7 +314,7 @@ func (router *Router) getMe() http.HandlerFunc {
 	}
 }
 
-func (router *Router) issueAuthResponse(r *http.Request, user AuthUser) (AuthResponse, error) {
+func (router *Router) issueAuthResponse(w http.ResponseWriter, r *http.Request, user AuthUser) (AuthResponse, error) {
 	accessToken, err := auth.GenerateToken(user.ID, user.OrgID, user.OrgRole)
 	if err != nil {
 		return AuthResponse{}, err
@@ -336,19 +325,21 @@ func (router *Router) issueAuthResponse(r *http.Request, user AuthUser) (AuthRes
 		return AuthResponse{}, err
 	}
 
+	ttl := auth.RefreshTokenTTL()
 	_, err = router.queries.CreateSession(r.Context(), repository.CreateSessionParams{
 		UserID:       user.ID,
 		RefreshToken: refreshToken,
-		ExpiresAt:    time.Now().Add(auth.RefreshTokenTTL()),
+		ExpiresAt:    time.Now().Add(ttl),
 	})
 	if err != nil {
 		return AuthResponse{}, err
 	}
 
+	auth.SetRefreshCookie(w, refreshToken, ttl)
+
 	return AuthResponse{
-		Token:        accessToken,
-		RefreshToken: refreshToken,
-		User:         user,
+		AccessToken: accessToken,
+		User:        user,
 	}, nil
 }
 
