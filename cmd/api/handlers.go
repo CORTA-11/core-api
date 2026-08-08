@@ -57,7 +57,9 @@ func (router *Router) getAdminSettings() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// If the code reaches here, we guarantee the user is an ORG_ADMIN
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"message": "Welcome to the admin panel!"}`))
+		if _, err := w.Write([]byte(`{"message": "Welcome to the admin panel!"}`)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
