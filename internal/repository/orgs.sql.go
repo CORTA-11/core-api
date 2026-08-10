@@ -77,3 +77,28 @@ func (q *Queries) GetOrgs(ctx context.Context) ([]string, error) {
 	}
 	return items, nil
 }
+
+const updateOrg = `-- name: UpdateOrg :one
+UPDATE orgs
+SET name = $2, updated_at = NOW()
+WHERE public_id = $1
+RETURNING id, public_id, name, created_at, updated_at
+`
+
+type UpdateOrgParams struct {
+	PublicID uuid.UUID `json:"public_id"`
+	Name     string    `json:"name"`
+}
+
+func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Org, error) {
+	row := q.db.QueryRow(ctx, updateOrg, arg.PublicID, arg.Name)
+	var i Org
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Name,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

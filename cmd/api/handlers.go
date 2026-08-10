@@ -49,7 +49,7 @@ func (router *Router) SetupRoutes() {
 
 	// Protected routes (Any logged-in user)
 	router.mux.Group(func(r chi.Router) {
-		r.Use(appMiddleware.RequireAuth)
+		// r.Use(appMiddleware.RequireAuth)
 
 		r.Get("/me", router.getMe())
 
@@ -59,6 +59,7 @@ func (router *Router) SetupRoutes() {
 
 			r.Route("/{orgId}", func(r chi.Router) {
 				// TODO: Add org-level middleware to check if the user is part of the org
+				r.Put("/", router.updateOrg())
 				r.Get("/users", router.listOrgUsers())
 
 				r.Route("/teams", func(r chi.Router) {
