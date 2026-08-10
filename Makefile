@@ -5,6 +5,11 @@ include .env
 # ===========================
 DATABASE_URL := postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 
+INTERNAL_API_KEY ?= dev-internal-key-change-me
+JWT_SECRET ?= your-super-secret-key-change-in-production
+REDIS_URL ?= redis://localhost:6379/0
+REDIS_CHAT_CHANNEL ?= corta:chat:events
+
 test:
 	go test ./...
 
@@ -40,4 +45,9 @@ seed:
 
 # Run the server
 run:
-	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/api
+	DATABASE_URL="$(DATABASE_URL)" \
+	INTERNAL_API_KEY="$(INTERNAL_API_KEY)" \
+	JWT_SECRET="$(JWT_SECRET)" \
+	REDIS_URL="$(REDIS_URL)" \
+	REDIS_CHAT_CHANNEL="$(REDIS_CHAT_CHANNEL)" \
+	go run ./cmd/api

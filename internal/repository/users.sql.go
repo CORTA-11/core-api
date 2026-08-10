@@ -118,3 +118,49 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, er
 	)
 	return i, err
 }
+
+const listUsersByOrg = `-- name: ListUsersByOrg :many
+SELECT id, org_id, email, name, org_role, active, avatar_url
+FROM users
+WHERE org_id = $1
+  AND active = true
+ORDER BY name ASC
+`
+
+type ListUsersByOrgRow struct {
+	ID        int64       `json:"id"`
+	OrgID     int64       `json:"org_id"`
+	Email     string      `json:"email"`
+	Name      string      `json:"name"`
+	OrgRole   OrgRole     `json:"org_role"`
+	Active    bool        `json:"active"`
+	AvatarUrl pgtype.Text `json:"avatar_url"`
+}
+
+func (q *Queries) ListUsersByOrg(ctx context.Context, orgID int64) ([]ListUsersByOrgRow, error) {
+	rows, err := q.db.Query(ctx, listUsersByOrg, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUsersByOrgRow
+	for rows.Next() {
+		var i ListUsersByOrgRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrgID,
+			&i.Email,
+			&i.Name,
+			&i.OrgRole,
+			&i.Active,
+			&i.AvatarUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
