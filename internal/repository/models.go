@@ -377,11 +377,12 @@ type DocumentHistory struct {
 }
 
 type Org struct {
-	ID        int64     `json:"id"`
-	PublicID  uuid.UUID `json:"public_id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        int64              `json:"id"`
+	PublicID  uuid.UUID          `json:"public_id"`
+	Name      string             `json:"name"`
+	CreatedAt time.Time          `json:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at"`
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type OrganizationSetting struct {

@@ -56,10 +56,12 @@ func (router *Router) SetupRoutes() {
 		r.Route("/orgs", func(r chi.Router) {
 			r.Get("/", router.getOrgs())
 			r.Post("/", router.createOrg())
+			r.Post("/restore", router.restoreOrg())
 
 			r.Route("/{orgId}", func(r chi.Router) {
 				// TODO: Add org-level middleware to check if the user is part of the org
 				r.Put("/", router.updateOrg())
+				r.Delete("/", router.deleteOrg())
 				r.Get("/users", router.listOrgUsers())
 
 				r.Route("/teams", func(r chi.Router) {
