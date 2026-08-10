@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -9,6 +11,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/auth"
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -68,6 +71,7 @@ func (router *Router) registerUser() http.HandlerFunc {
 
 			org, err := router.queries.CreateOrg(r.Context(), req.OrgName)
 			if err != nil {
+				log.Printf("register: create org failed: %v", err)
 				http.Error(w, "failed to create organization", http.StatusInternalServerError)
 				return
 			}
@@ -115,6 +119,7 @@ func (router *Router) registerUser() http.HandlerFunc {
 			OrgRole:      orgRole,
 		})
 		if err != nil {
+			log.Printf("register: create user failed: %v", err)
 			http.Error(w, "failed to create user", http.StatusInternalServerError)
 			return
 		}
@@ -161,6 +166,9 @@ func (router *Router) loginUser() http.HandlerFunc {
 
 		user, err := router.queries.GetUserByEmail(r.Context(), req.Email)
 		if err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				log.Printf("login: lookup failed: %v", err)
+			}
 			http.Error(w, "invalid credentials", http.StatusUnauthorized)
 			return
 		}

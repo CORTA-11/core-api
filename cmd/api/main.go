@@ -8,36 +8,39 @@ import (
 	"os"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/realtime"
 	"github.com/CORTA-11/core-api/internal/repository"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// TODO: Use pgxpool
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatalf("unable to connect to database: %v\n", err)
 	}
-	defer func() {
-		if err := conn.Close(ctx); err != nil {
-			log.Printf("error closing database connection: %v", err)
-		}
-	}()
+	defer pool.Close()
 
-	queries := repository.New(conn)
+	if err := pool.Ping(ctx); err != nil {
+		log.Fatalf("unable to ping database: %v\n", err)
+	}
 
-	router := NewRouter(queries)
+	queries := repository.New(pool)
+	publisher := realtime.NewPublisherFromEnv()
+	defer func() { _ = publisher.Close() }()
+
+	router := NewRouter(pool, queries, publisher)
 	router.SetupRoutes()
 
 	s := http.Server{
-		WriteTimeout: time.Second * 5,
-		ReadTimeout:  time.Second * 5,
+		WriteTimeout: time.Second * 15,
+		ReadTimeout:  time.Second * 15,
 		Addr:         ":8080",
 		Handler:      router.Handler(),
 	}
 
+	log.Printf("core-api listening on %s", s.Addr)
 	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server failed: %v", err)
 	}

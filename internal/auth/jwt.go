@@ -2,13 +2,19 @@ package auth
 
 import (
 	"errors"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-// In a real application, load this from your .env file!
-var jwtSecret = []byte("your-super-secret-key-change-in-production")
+func jwtSecret() []byte {
+	if secret := os.Getenv("JWT_SECRET"); secret != "" {
+		return []byte(secret)
+	}
+	// Dev default — keep in sync with socket-server.
+	return []byte("your-super-secret-key-change-in-production")
+}
 
 // CustomClaims allows us to embed the user's ID and Role into the token payload
 type CustomClaims struct {
@@ -32,7 +38,7 @@ func GenerateToken(userID, orgID int64, orgRole string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtSecret)
+	return token.SignedString(jwtSecret())
 }
 
 func ValidateToken(tokenString string) (*CustomClaims, error) {
@@ -41,7 +47,7 @@ func ValidateToken(tokenString string) (*CustomClaims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
-		return jwtSecret, nil
+		return jwtSecret(), nil
 	})
 
 	if err != nil {

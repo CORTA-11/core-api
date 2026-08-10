@@ -12,3 +12,10 @@ WHERE email = $1;
 SELECT id, org_id, email, name, org_role, active, avatar_url
 FROM users
 WHERE id = $1;
+
+-- name: ListUsersByOrg :many
+SELECT id, org_id, email, name, org_role, active, avatar_url
+FROM users
+WHERE org_id = $1
+  AND active = true
+ORDER BY name ASC;
