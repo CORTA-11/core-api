@@ -30,7 +30,7 @@ func NewRouter(db *pgxpool.Pool, queries *repository.Queries, publisher *realtim
 
 func (router *Router) SetupRoutes() {
 	router.mux.Use(middleware.Logger)
-	router.mux.Use(corsMiddleware)
+	router.mux.Use(appMiddleware.CorsMiddleware)
 	router.mux.Get("/", router.handleRoot())
 
 	// Public routes
@@ -51,82 +51,66 @@ func (router *Router) SetupRoutes() {
 	router.mux.Group(func(r chi.Router) {
 		r.Use(appMiddleware.RequireAuth)
 
-		r.Get("/orgs", router.getOrgs())
 		r.Get("/me", router.getMe())
 
-		r.Get("/orgs/{orgId}/users", router.listOrgUsers())
-		r.Get("/orgs/{orgId}/teams", router.listTeams())
-		r.Post("/orgs/{orgId}/teams", router.createTeam())
-		r.Get("/teams/{teamPublicId}", router.getTeam())
-		r.Get("/teams/{teamPublicId}/members", router.listTeamMembers())
-		r.Post("/teams/{teamPublicId}/members", router.addTeamMember())
-		r.Delete("/teams/{teamPublicId}/members/{userId}", router.removeTeamMember())
-		r.Put("/teams/{teamPublicId}/leader", router.assignTeamLeader())
-		r.Post("/teams/{teamPublicId}/leave", router.leaveTeam())
+		r.Route("/orgs", func(r chi.Router) {
+			r.Get("/", router.getOrgs())
+			r.Post("/", router.createOrg())
 
-		r.Get("/teams/{teamPublicId}/chat/messages", router.listChatMessages())
-		r.Post("/teams/{teamPublicId}/chat/messages", router.createChatMessage())
-		r.Delete("/teams/{teamPublicId}/chat/messages/{messageId}", router.deleteChatMessage())
+			r.Route("/{orgId}", func(r chi.Router) {
+				// TODO: Add org-level middleware to check if the user is part of the org
+				r.Get("/users", router.listOrgUsers())
+
+				r.Route("/teams", func(r chi.Router) {
+					// TODO: Verify team belongs to org
+					// TODO: Add team-level middleware to check if the user is part of the team
+					r.Get("/", router.listTeams())
+					r.Post("/", router.createTeam())
+
+					r.Route("/{teamPublicId}", func(r chi.Router) {
+						r.Get("/", router.getTeam())
+
+						r.Get("/members", router.listTeamMembers())
+						r.Post("/members", router.addTeamMember())
+						r.Delete("/members/{userId}", router.removeTeamMember())
+
+						r.Put("/leader", router.assignTeamLeader())
+						r.Post("/leave", router.leaveTeam())
+
+						r.Route("/chat", func(r chi.Router) {
+							r.Get("/messages", router.listChatMessages())
+							r.Post("/messages", router.createChatMessage())
+							r.Delete("/messages/{messageId}", router.deleteChatMessage())
+						})
+					})
+
+				})
+			})
+
+		})
+
+		// Admin-only routes
+		router.mux.Group(func(r chi.Router) {
+			r.Use(appMiddleware.RequireRoles("ORG_ADMIN"))
+		})
 	})
-
-	// Admin-only routes
-	router.mux.Group(func(r chi.Router) {
-		r.Use(appMiddleware.RequireAuth)
-		r.Use(appMiddleware.RequireRoles("ORG_ADMIN"))
-
-		r.Get("/admin/settings", router.getAdminSettings())
-	})
-}
-
-func (router *Router) getAdminSettings() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if _, err := w.Write([]byte(`{"message": "Welcome to the admin panel!"}`)); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	}
 }
 
 func (router *Router) Handler() http.Handler {
 	return router.mux
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-		if origin == "http://localhost:3000" || origin == "http://127.0.0.1:3000" {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-		}
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func (router *Router) handleRoot() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if _, err := w.Write([]byte("Hello World")); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		var response struct {
+			Message string `json:"message"`
 		}
-	}
-}
-
-func (router *Router) getOrgs() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		orgs, err := router.queries.GetOrgs(r.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		response.Message = "Hello World"
 
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 
-		if err := json.NewEncoder(w).Encode(orgs); err != nil {
+		if err := json.NewEncoder(w).Encode(response); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}
