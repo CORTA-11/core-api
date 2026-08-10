@@ -38,7 +38,7 @@ func NewPublisherFromEnv() *Publisher {
 
 	opts, err := redis.ParseURL(redisURL)
 	if err != nil {
-		log.Printf("realtime: invalid REDIS_URL %q: %v (realtime disabled)", redisURL, err)
+		log.Printf("realtime: invalid REDIS_URL: %v (realtime disabled)", err)
 		return &Publisher{}
 	}
 
@@ -49,6 +49,7 @@ func NewPublisherFromEnv() *Publisher {
 		log.Printf("realtime: redis ping failed: %v (will retry on publish)", err)
 	}
 
+	// #nosec G706 -- channel comes from startup env config and uses %q formatting
 	log.Printf("realtime: publishing chat events to redis channel %q", channel)
 	return &Publisher{client: client, channel: channel}
 }
