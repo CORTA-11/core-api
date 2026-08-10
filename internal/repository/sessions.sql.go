@@ -59,6 +59,7 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 	return i, err
 }
 
+// #nosec G101 -- refresh_token is an opaque session token, not a hardcoded credential
 const getSessionByRefreshToken = `-- name: GetSessionByRefreshToken :one
 SELECT id, user_id, refresh_token, is_blocked, expires_at, created_at
 FROM sessions
