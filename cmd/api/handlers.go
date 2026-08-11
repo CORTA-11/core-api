@@ -49,7 +49,7 @@ func (router *Router) SetupRoutes() {
 
 	// Protected routes (Any logged-in user)
 	router.mux.Group(func(r chi.Router) {
-		// r.Use(appMiddleware.RequireAuth)
+		r.Use(appMiddleware.RequireAuth)
 
 		r.Get("/me", router.getMe())
 
