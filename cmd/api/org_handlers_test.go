@@ -8,9 +8,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/auth"
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -362,6 +364,99 @@ func TestRestoreOrgValidationAndErrors(t *testing.T) {
 			assert.Equal(t, tt.wantBody, rec.Body.String())
 		})
 	}
+}
+
+func TestOrgRoutesSmoke(t *testing.T) {
+	prevSecret := os.Getenv("JWT_SECRET")
+	t.Setenv("JWT_SECRET", "route-smoke-secret")
+	t.Cleanup(func() {
+		if prevSecret == "" {
+			return
+		}
+		_ = os.Setenv("JWT_SECRET", prevSecret)
+	})
+
+	orgID := uuid.MustParse("77777777-7777-7777-7777-777777777777")
+	now := time.Date(2026, time.August, 12, 10, 34, 0, 0, time.UTC)
+	store := &mockOrgStore{
+		orgs: []string{"Acme"},
+		createOrgRow: repository.CreateOrgRow{
+			PublicID:  orgID,
+			Name:      "Acme",
+			CreatedAt: now,
+		},
+		updateOrgRow: repository.UpdateOrgRow{
+			PublicID:  orgID,
+			Name:      "Renamed",
+			CreatedAt: now.Add(-time.Hour),
+			UpdatedAt: now,
+		},
+		softDeleteOrg: repository.Org{
+			PublicID:  orgID,
+			Name:      "Acme",
+			CreatedAt: now.Add(-time.Hour),
+			UpdatedAt: now,
+			DeletedAt: pgtype.Timestamptz{Time: now, Valid: true},
+		},
+		restoreOrgRow: repository.RestoreOrgRow{
+			PublicID:  orgID,
+			Name:      "Acme",
+			CreatedAt: now.Add(-time.Hour),
+			UpdatedAt: now,
+		},
+	}
+
+	router := &Router{mux: chi.NewRouter(), orgs: store}
+	router.SetupRoutes()
+
+	token, err := auth.GenerateToken(100, 200, "ORG_USER")
+	require.NoError(t, err)
+
+	requestWithAuth := func(method, target, body string) *http.Request {
+		req := httptest.NewRequest(method, target, bytes.NewBufferString(body))
+		req.Header.Set("Authorization", "Bearer "+token)
+		return req
+	}
+
+	t.Run("get", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		router.Handler().ServeHTTP(rec, requestWithAuth(http.MethodGet, "/orgs/", ""))
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.JSONEq(t, `["Acme"]`, rec.Body.String())
+	})
+
+	t.Run("create", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		router.Handler().ServeHTTP(rec, requestWithAuth(http.MethodPost, "/orgs/", `{"name":"Acme"}`))
+
+		require.Equal(t, http.StatusCreated, rec.Code)
+		assert.Equal(t, "Acme", store.lastCreateName)
+	})
+
+	t.Run("update", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		router.Handler().ServeHTTP(rec, requestWithAuth(http.MethodPut, "/orgs/"+orgID.String()+"/", `{"name":"Renamed"}`))
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, repository.UpdateOrgParams{PublicID: orgID, Name: "Renamed"}, store.lastUpdateArg)
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		router.Handler().ServeHTTP(rec, requestWithAuth(http.MethodDelete, "/orgs/"+orgID.String()+"/", ""))
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, orgID, store.lastDeleteID)
+	})
+
+	t.Run("restore", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		router.Handler().ServeHTTP(rec, requestWithAuth(http.MethodPost, "/orgs/restore", `{"public_id":"`+orgID.String()+`"}`))
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, orgID, store.lastRestoreID)
+	})
 }
 
 func withChiURLParam(r *http.Request, key, value string) *http.Request {
