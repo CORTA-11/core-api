@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -13,9 +14,17 @@ import (
 	"github.com/google/uuid"
 )
 
+type orgStore interface {
+	GetOrgs(ctx context.Context) ([]string, error)
+	CreateOrg(ctx context.Context, name string) (repository.CreateOrgRow, error)
+	UpdateOrg(ctx context.Context, arg repository.UpdateOrgParams) (repository.UpdateOrgRow, error)
+	SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (repository.Org, error)
+	RestoreOrg(ctx context.Context, publicID uuid.UUID) (repository.RestoreOrgRow, error)
+}
+
 func (router *Router) getOrgs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		orgs, err := router.queries.GetOrgs(r.Context())
+		orgs, err := router.orgs.GetOrgs(r.Context())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -52,7 +61,7 @@ func (router *Router) createOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.queries.CreateOrg(r.Context(), req.Name)
+		org, err := router.orgs.CreateOrg(r.Context(), req.Name)
 		if err != nil {
 			http.Error(w, "failed to create organization", http.StatusInternalServerError)
 			return
@@ -109,7 +118,7 @@ func (router *Router) updateOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.queries.UpdateOrg(r.Context(), repository.UpdateOrgParams{
+		org, err := router.orgs.UpdateOrg(r.Context(), repository.UpdateOrgParams{
 			PublicID: orgID,
 			Name:     req.Name,
 		})
@@ -155,7 +164,7 @@ func (router *Router) deleteOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.queries.SoftDeleteOrg(r.Context(), orgID)
+		org, err := router.orgs.SoftDeleteOrg(r.Context(), orgID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "organization not found", http.StatusNotFound)
@@ -214,7 +223,7 @@ func (router *Router) restoreOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.queries.RestoreOrg(r.Context(), orgID)
+		org, err := router.orgs.RestoreOrg(r.Context(), orgID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "organization not found or already active", http.StatusNotFound)
