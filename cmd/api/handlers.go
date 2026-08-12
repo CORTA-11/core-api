@@ -16,6 +16,7 @@ type Router struct {
 	mux       *chi.Mux
 	db        *pgxpool.Pool
 	queries   *repository.Queries
+	orgs      orgStore
 	publisher *realtime.Publisher
 }
 
@@ -24,6 +25,7 @@ func NewRouter(db *pgxpool.Pool, queries *repository.Queries, publisher *realtim
 		mux:       chi.NewRouter(),
 		db:        db,
 		queries:   queries,
+		orgs:      queries,
 		publisher: publisher,
 	}
 }
