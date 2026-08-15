@@ -8,8 +8,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/realtime"
+	"github.com/CORTA-11/core-api/cmd/api/handlers"
 	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -27,10 +28,10 @@ func main() {
 	}
 
 	queries := repository.New(pool)
-	publisher := realtime.NewPublisherFromEnv()
-	defer func() { _ = publisher.Close() }()
 
-	router := NewRouter(pool, queries, publisher)
+	orgService := service.NewOrgService(pool, queries)
+
+	router := handlers.NewRouter(pool, queries, orgService)
 	router.SetupRoutes()
 
 	s := http.Server{

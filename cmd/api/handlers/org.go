@@ -1,30 +1,20 @@
-package main
+package handlers
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
-type orgStore interface {
-	GetOrgs(ctx context.Context) ([]string, error)
-	CreateOrg(ctx context.Context, name string) (repository.CreateOrgRow, error)
-	UpdateOrg(ctx context.Context, arg repository.UpdateOrgParams) (repository.UpdateOrgRow, error)
-	SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (repository.Org, error)
-	RestoreOrg(ctx context.Context, publicID uuid.UUID) (repository.RestoreOrgRow, error)
-}
-
 func (router *Router) getOrgs() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		orgs, err := router.orgs.GetOrgs(r.Context())
+		ctx := r.Context()
+		orgs, err := router.orgService.GetOrgs(ctx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -61,7 +51,8 @@ func (router *Router) createOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.orgs.CreateOrg(r.Context(), req.Name)
+		ctx := r.Context()
+		org, err := router.orgService.CreateOrg(ctx, req.Name)
 		if err != nil {
 			http.Error(w, "failed to create organization", http.StatusInternalServerError)
 			return
@@ -70,17 +61,7 @@ func (router *Router) createOrg() http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 
-		var response struct {
-			PublicID  string    `json:"public_id"`
-			Name      string    `json:"name"`
-			CreatedAt time.Time `json:"created_at"`
-		}
-
-		response.PublicID = org.PublicID.String()
-		response.Name = org.Name
-		response.CreatedAt = org.CreatedAt
-
-		if err := json.NewEncoder(w).Encode(response); err != nil {
+		if err := json.NewEncoder(w).Encode(org); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -89,7 +70,12 @@ func (router *Router) createOrg() http.HandlerFunc {
 
 func (router *Router) updateOrg() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		orgIDStr := chi.URLParam(r, "orgId")
+		ctx := r.Context()
+		orgIDStr := chi.URLParam(r, "orgID")
+		if orgIDStr == "" {
+			http.Error(w, "organization id is required", http.StatusBadRequest)
+			return
+		}
 
 		orgID, err := uuid.Parse(orgIDStr)
 		if err != nil {
@@ -118,10 +104,7 @@ func (router *Router) updateOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.orgs.UpdateOrg(r.Context(), repository.UpdateOrgParams{
-			PublicID: orgID,
-			Name:     req.Name,
-		})
+		org, err := router.orgService.UpdateOrg(ctx, orgID, req.Name)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "organization not found", http.StatusNotFound)
@@ -132,22 +115,10 @@ func (router *Router) updateOrg() http.HandlerFunc {
 			return
 		}
 
-		var response struct {
-			PublicID  string    `json:"public_id"`
-			Name      string    `json:"name"`
-			CreatedAt time.Time `json:"created_at"`
-			UpdatedAt time.Time `json:"updated_at"`
-		}
-
-		response.PublicID = org.PublicID.String()
-		response.Name = org.Name
-		response.CreatedAt = org.CreatedAt
-		response.UpdatedAt = org.UpdatedAt
-
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if err := json.NewEncoder(w).Encode(response); err != nil {
+		if err := json.NewEncoder(w).Encode(org); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -156,7 +127,8 @@ func (router *Router) updateOrg() http.HandlerFunc {
 
 func (router *Router) deleteOrg() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		orgIDStr := chi.URLParam(r, "orgId")
+		ctx := r.Context()
+		orgIDStr := chi.URLParam(r, "orgID")
 
 		orgID, err := uuid.Parse(orgIDStr)
 		if err != nil {
@@ -164,7 +136,7 @@ func (router *Router) deleteOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.orgs.SoftDeleteOrg(r.Context(), orgID)
+		org, err := router.orgService.SoftDeleteOrg(ctx, orgID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "organization not found", http.StatusNotFound)
@@ -175,30 +147,10 @@ func (router *Router) deleteOrg() http.HandlerFunc {
 			return
 		}
 
-		response := struct {
-			PublicID  string     `json:"public_id"`
-			Name      string     `json:"name"`
-			CreatedAt time.Time  `json:"created_at"`
-			UpdatedAt time.Time  `json:"updated_at"`
-			DeletedAt *time.Time `json:"deleted_at"`
-		}{
-			PublicID:  org.PublicID.String(),
-			Name:      org.Name,
-			CreatedAt: org.CreatedAt,
-			UpdatedAt: org.UpdatedAt,
-		}
-
-		var deletedAt *time.Time
-
-		if org.DeletedAt.Valid {
-			deletedAt = &org.DeletedAt.Time
-		}
-		response.DeletedAt = deletedAt
-
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if err := json.NewEncoder(w).Encode(response); err != nil {
+		if err := json.NewEncoder(w).Encode(org); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -207,7 +159,7 @@ func (router *Router) deleteOrg() http.HandlerFunc {
 
 func (router *Router) restoreOrg() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-
+		ctx := r.Context()
 		var req struct {
 			PublicID string `json:"public_id"`
 		}
@@ -223,7 +175,7 @@ func (router *Router) restoreOrg() http.HandlerFunc {
 			return
 		}
 
-		org, err := router.orgs.RestoreOrg(r.Context(), orgID)
+		org, err := router.orgService.RestoreOrg(ctx, orgID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "organization not found or already active", http.StatusNotFound)
@@ -234,24 +186,10 @@ func (router *Router) restoreOrg() http.HandlerFunc {
 			return
 		}
 
-		response := struct {
-			PublicID  string     `json:"public_id"`
-			Name      string     `json:"name"`
-			CreatedAt time.Time  `json:"created_at"`
-			UpdatedAt time.Time  `json:"updated_at"`
-			DeletedAt *time.Time `json:"deleted_at"`
-		}{
-			PublicID:  org.PublicID.String(),
-			Name:      org.Name,
-			CreatedAt: org.CreatedAt,
-			UpdatedAt: org.UpdatedAt,
-			DeletedAt: nil,
-		}
-
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
-		if err := json.NewEncoder(w).Encode(response); err != nil {
+		if err := json.NewEncoder(w).Encode(org); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

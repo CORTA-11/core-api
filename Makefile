@@ -23,21 +23,22 @@ sec:
 	govulncheck ./...
 	gosec -exclude-generated ./...
 
+PUBLIC_MIGRATION_PATH=./cmd/migrate
 # Migrate schema to the most up-to-date version
 migrate-up-all:
-	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/migrate up-all
+	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" up-all
 
 # Remove all schema migrations
 migrate-down-all:
-	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/migrate down-all
+	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" down-all
 
 # Migrate schema up one version
 migrate-up:
-	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/migrate up
+	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" up
 
 # Remove the last migration
 migrate-down:
-	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/migrate down
+	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" down
 
 # Fill tables with seed data
 seed:
