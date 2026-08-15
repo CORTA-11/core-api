@@ -7,34 +7,33 @@ package repository
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 )
 
 const createOrg = `-- name: CreateOrg :one
-INSERT INTO orgs (name)
-VALUES ($1)
-RETURNING id, public_id, name, created_at, updated_at
+INSERT INTO orgs (name, public_id, schema_name)
+VALUES ($1, $2, $3)
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
 `
 
-type CreateOrgRow struct {
-	ID        int64     `json:"id"`
-	PublicID  uuid.UUID `json:"public_id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+type CreateOrgParams struct {
+	Name       string    `json:"name"`
+	PublicID   uuid.UUID `json:"public_id"`
+	SchemaName string    `json:"schema_name"`
 }
 
-func (q *Queries) CreateOrg(ctx context.Context, name string) (CreateOrgRow, error) {
-	row := q.db.QueryRow(ctx, createOrg, name)
-	var i CreateOrgRow
+func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Org, error) {
+	row := q.db.QueryRow(ctx, createOrg, arg.Name, arg.PublicID, arg.SchemaName)
+	var i Org
 	err := row.Scan(
 		&i.ID,
 		&i.PublicID,
 		&i.Name,
+		&i.SchemaName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -53,36 +52,53 @@ func (q *Queries) GetOrgID(ctx context.Context, publicID uuid.UUID) (int64, erro
 }
 
 const getOrgName = `-- name: GetOrgName :one
-SELECT name FROM orgs
+SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at FROM orgs
 WHERE id = $1
 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetOrgName(ctx context.Context, id int64) (string, error) {
+func (q *Queries) GetOrgName(ctx context.Context, id int64) (Org, error) {
 	row := q.db.QueryRow(ctx, getOrgName, id)
-	var name string
-	err := row.Scan(&name)
-	return name, err
+	var i Org
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Name,
+		&i.SchemaName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const getOrgs = `-- name: GetOrgs :many
-SELECT name FROM orgs
-WHERE deleted_at IS NULL
+SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at FROM orgs
+WHERE deleted_at is NULL
+ORDER BY name ASC
 `
 
-func (q *Queries) GetOrgs(ctx context.Context) ([]string, error) {
+func (q *Queries) GetOrgs(ctx context.Context) ([]Org, error) {
 	rows, err := q.db.Query(ctx, getOrgs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []string
+	var items []Org
 	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
+		var i Org
+		if err := rows.Scan(
+			&i.ID,
+			&i.PublicID,
+			&i.Name,
+			&i.SchemaName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
 			return nil, err
 		}
-		items = append(items, name)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -90,31 +106,37 @@ func (q *Queries) GetOrgs(ctx context.Context) ([]string, error) {
 	return items, nil
 }
 
+const getSchemaFromID = `-- name: GetSchemaFromID :one
+SELECT schema_name FROM orgs
+WHERE id = $1
+`
+
+func (q *Queries) GetSchemaFromID(ctx context.Context, id int64) (string, error) {
+	row := q.db.QueryRow(ctx, getSchemaFromID, id)
+	var schema_name string
+	err := row.Scan(&schema_name)
+	return schema_name, err
+}
+
 const restoreOrg = `-- name: RestoreOrg :one
 UPDATE orgs
 SET deleted_at = NULL, updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NOT NULL
-RETURNING id, public_id, name, created_at, updated_at
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
 `
 
-type RestoreOrgRow struct {
-	ID        int64     `json:"id"`
-	PublicID  uuid.UUID `json:"public_id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-func (q *Queries) RestoreOrg(ctx context.Context, publicID uuid.UUID) (RestoreOrgRow, error) {
+func (q *Queries) RestoreOrg(ctx context.Context, publicID uuid.UUID) (Org, error) {
 	row := q.db.QueryRow(ctx, restoreOrg, publicID)
-	var i RestoreOrgRow
+	var i Org
 	err := row.Scan(
 		&i.ID,
 		&i.PublicID,
 		&i.Name,
+		&i.SchemaName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -124,7 +146,7 @@ UPDATE orgs
 SET deleted_at = NOW(), updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NULL
-RETURNING id, public_id, name, created_at, updated_at, deleted_at
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
 `
 
 func (q *Queries) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (Org, error) {
@@ -134,6 +156,7 @@ func (q *Queries) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (Org, e
 		&i.ID,
 		&i.PublicID,
 		&i.Name,
+		&i.SchemaName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -146,7 +169,7 @@ UPDATE orgs
 SET name = $2, updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NULL
-RETURNING id, public_id, name, created_at, updated_at
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
 `
 
 type UpdateOrgParams struct {
@@ -154,23 +177,17 @@ type UpdateOrgParams struct {
 	Name     string    `json:"name"`
 }
 
-type UpdateOrgRow struct {
-	ID        int64     `json:"id"`
-	PublicID  uuid.UUID `json:"public_id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (UpdateOrgRow, error) {
+func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Org, error) {
 	row := q.db.QueryRow(ctx, updateOrg, arg.PublicID, arg.Name)
-	var i UpdateOrgRow
+	var i Org
 	err := row.Scan(
 		&i.ID,
 		&i.PublicID,
 		&i.Name,
+		&i.SchemaName,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }

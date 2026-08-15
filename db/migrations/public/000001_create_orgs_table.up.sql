@@ -8,7 +8,12 @@ CREATE TABLE orgs (
 
     name VARCHAR(255) NOT NULL,
 
+    schema_name VARCHAR(255) NOT NULL
+        CONSTRAINT orgs_schema_name_unique UNIQUE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    deleted_at TIMESTAMPTZ DEFAULT NULL
 );

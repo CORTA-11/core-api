@@ -1,2 +1,0 @@
-ALTER TABLE orgs
-ADD COLUMN deleted_at TIMESTAMPTZ;

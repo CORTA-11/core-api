@@ -14,8 +14,9 @@ func main() {
 		log.Fatal("usage: migrate [up|up-all|down|down-all]")
 	}
 
+	const publicMigrationsDir = "file://db/migrations/public"
 	m, err := migrate.New(
-		"file://db/migrations",
+		publicMigrationsDir,
 		os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Fatal(err)
