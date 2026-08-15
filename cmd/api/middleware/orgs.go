@@ -3,24 +3,30 @@ package middleware
 import (
 	"context"
 	"net/http"
-	"strconv"
 )
+
+type contextKey string
+
+const orgIDKey contextKey = "orgID"
 
 func SetOrgIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		orgIDStr := r.Header.Get("X-Org-ID")
-		if orgIDStr == "" {
+		orgID := r.Header.Get("X-Org-ID")
+		if orgID == "" {
 			http.Error(w, "organization id header is missing", http.StatusBadRequest)
 			return
 		}
 
-		orgID, err := strconv.ParseInt(orgIDStr, 10, 64)
-		if err != nil {
-			http.Error(w, "organization id header is invalid", http.StatusBadRequest)
-			return
-		}
-
-		r = r.WithContext(context.WithValue(r.Context(), "orgID", orgID))
-		next.ServeHTTP(w, r)
+		ctx := WithOrgID(r.Context(), orgID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func WithOrgID(ctx context.Context, orgID string) context.Context {
+	return context.WithValue(ctx, orgIDKey, orgID)
+}
+
+func OrgIDFromContext(ctx context.Context) (string, bool) {
+	orgID, ok := ctx.Value(orgIDKey).(string)
+	return orgID, ok
 }

@@ -41,7 +41,7 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 	qtx := o.queries.WithTx(tx)
 
 	// insert into public.orgs
-	setPathPublicQuery := fmt.Sprintf("SET LOCAL search_path TO public")
+	setPathPublicQuery := "SET LOCAL search_path TO public"
 	_, err = tx.Exec(ctx, setPathPublicQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set search path: %w", err)
@@ -99,7 +99,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	qtx := o.queries.WithTx(tx)
 
 	// insert into public.orgs
-	setPathPublicQuery := fmt.Sprintf("SET LOCAL search_path TO public")
+	setPathPublicQuery := "SET LOCAL search_path TO public"
 	_, err = tx.Exec(ctx, setPathPublicQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set search path: %w", err)
