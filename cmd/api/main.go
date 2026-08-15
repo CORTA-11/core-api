@@ -30,8 +30,9 @@ func main() {
 	queries := repository.New(pool)
 
 	orgService := service.NewOrgService(pool, queries)
+	teamService := service.NewTeamService(pool, queries)
 
-	router := handlers.NewRouter(pool, queries, orgService)
+	router := handlers.NewRouter(pool, queries, orgService, teamService)
 	router.SetupRoutes()
 
 	s := http.Server{

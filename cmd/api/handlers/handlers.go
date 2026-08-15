@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	middleware2 "github.com/CORTA-11/core-api/cmd/api/middleware"
+	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -13,25 +13,27 @@ import (
 )
 
 type Router struct {
-	mux        *chi.Mux
-	db         *pgxpool.Pool
-	queries    *repository.Queries
-	orgService service.OrgService
+	mux         *chi.Mux
+	db          *pgxpool.Pool
+	queries     *repository.Queries
+	orgService  service.OrgService
+	teamService service.TeamService
 }
 
-func NewRouter(db *pgxpool.Pool, queries *repository.Queries, orgService service.OrgService) *Router {
+func NewRouter(db *pgxpool.Pool, queries *repository.Queries, orgService service.OrgService, teamService service.TeamService) *Router {
 	return &Router{
-		mux:        chi.NewRouter(),
-		db:         db,
-		queries:    queries,
-		orgService: orgService,
+		mux:         chi.NewRouter(),
+		db:          db,
+		queries:     queries,
+		orgService:  orgService,
+		teamService: teamService,
 	}
 }
 
 func (router *Router) SetupRoutes() {
 	r := router.mux
 	r.Use(middleware.Logger)
-	r.Use(middleware2.CorsMiddleware)
+	r.Use(appMiddleware.CorsMiddleware)
 
 	r.Get("/", router.handleRoot())
 
@@ -56,9 +58,10 @@ func orgRouter(router *Router) chi.Router {
 
 func teamRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
-	r.Use(middleware2.SetOrgIDMiddleware)
+	r.Use(appMiddleware.SetOrgIDMiddleware)
 
 	r.Get("/", router.getTeams())
+	r.Post("/", router.createTeam())
 
 	return r
 }
