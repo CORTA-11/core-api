@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"strings"
@@ -121,7 +121,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 func MigrateSchema(schemaName string) error {
 	dbURL, err := url.Parse(os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Printf("failed to parse DATABASE_URL: %v", err)
+		slog.Error("failed to parse database URL", "error", err)
 		return fmt.Errorf("parse database URL: %w", err)
 	}
 	q := dbURL.Query()
@@ -133,11 +133,21 @@ func MigrateSchema(schemaName string) error {
 		dbURL.String(),
 	)
 	if err != nil {
-		log.Printf("failed to create migration instance: %v", err)
+		slog.Error("failed to create tenant migrator", "error", err)
 		return fmt.Errorf("create tenant migrator: %w", err)
 	}
+	defer func() {
+		sourceErr, databaseErr := m.Close()
+		if sourceErr != nil {
+			slog.Error("failed to close tenant migration source", "error", sourceErr)
+		}
+		if databaseErr != nil {
+			slog.Error("failed to close tenant migration database", "error", databaseErr)
+		}
+	}()
+
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		log.Printf("failed to run migration: %v", err)
+		slog.Error("failed to run tenant migration", "error", err)
 		return fmt.Errorf("run tenant migrations: %w", err)
 	}
 	return nil

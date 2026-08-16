@@ -97,7 +97,7 @@ func TestGetTeams(t *testing.T) {
 		response := performTeamRequest(t, teamService, http.MethodGet, "/", "", orgID.String())
 
 		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "database unavailable\n", response.Body.String())
+		assert.Equal(t, "failed to get teams\n", response.Body.String())
 	})
 }
 

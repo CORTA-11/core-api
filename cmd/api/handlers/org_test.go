@@ -110,7 +110,7 @@ func TestGetOrgs(t *testing.T) {
 		response := performOrgRequest(t, orgService, http.MethodGet, "/", "")
 
 		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "database unavailable\n", response.Body.String())
+		assert.Equal(t, "failed to get organizations\n", response.Body.String())
 	})
 }
 

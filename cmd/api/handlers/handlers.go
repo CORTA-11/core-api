@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
@@ -105,6 +106,7 @@ func (router *Router) handleRoot() http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 
 		if err := json.NewEncoder(w).Encode(response); err != nil {
+			slog.ErrorContext(r.Context(), "failed to encode response", "error", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	}

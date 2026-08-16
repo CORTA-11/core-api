@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -15,16 +15,24 @@ import (
 )
 
 func main() {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelInfo,
+		AddSource: true,
+	}))
+	slog.SetDefault(logger)
+
 	ctx := context.Background()
 
 	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
-		log.Fatalf("unable to connect to database: %v\n", err)
+		slog.Error("unable to connect to database", "error", err)
+		return
 	}
 	defer pool.Close()
 
 	if err := pool.Ping(ctx); err != nil {
-		log.Fatalf("unable to ping database: %v\n", err)
+		slog.Error("unable to ping database", "error", err)
+		return
 	}
 
 	queries := repository.New(pool)
@@ -48,10 +56,12 @@ func main() {
 		ReadTimeout:  time.Second * 15,
 		Addr:         ":8080",
 		Handler:      router.Handler(),
+		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
 
-	log.Printf("core-api listening on %s", s.Addr)
+	slog.Info("core-api listening", "addr", s.Addr)
 	if err := s.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("server failed: %v", err)
+		slog.Error("server failed", "error", err)
+		return
 	}
 }
