@@ -44,6 +44,7 @@ func NewRouter(conf RouterConf) *Router {
 func (router *Router) SetupRoutes() {
 	r := router.mux
 	r.Use(middleware.Logger)
+	r.Use(appMiddleware.Recoverer)
 	r.Use(appMiddleware.CorsMiddleware)
 
 	r.Get("/", router.handleRoot())
