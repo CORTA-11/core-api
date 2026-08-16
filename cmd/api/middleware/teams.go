@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 
 	"github.com/CORTA-11/core-api/internal/service"
@@ -21,13 +22,26 @@ func TeamMiddleware(teamService service.TeamService) func(http.Handler) http.Han
 				return
 			}
 
-			orgIDStr, _ := OrgIDFromContext(ctx)
-			orgID, _ := uuid.Parse(orgIDStr)
+			orgIDStr, ok := OrgIDFromContext(ctx)
+			if !ok {
+				slog.ErrorContext(ctx, "organization ID missing from request context")
+				http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+				return
+			}
+
+			orgID, err := uuid.Parse(orgIDStr)
+			if err != nil {
+				slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
+				http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+				return
+			}
+
 			schemaName := service.SchemaName(orgID)
 
 			teamID, err := teamService.GetTeamID(ctx, slug, schemaName)
 			if err != nil {
-				http.Error(w, "failed to get teamID", http.StatusInternalServerError)
+				slog.ErrorContext(ctx, "failed to get team ID", "error", err)
+				http.Error(w, "failed to get team ID", http.StatusInternalServerError)
 				return
 			}
 

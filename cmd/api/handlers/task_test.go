@@ -134,7 +134,7 @@ func TestGetTasks(t *testing.T) {
 		response := performTaskRequest(t, teamService(), taskService, http.MethodGet, teamSlug, "", orgID.String())
 
 		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "failed to fetch tasks: %q\n", response.Body.String())
+		assert.Equal(t, "failed to fetch tasks\n", response.Body.String())
 	})
 }
 
@@ -225,6 +225,6 @@ func TestTaskRoutesRejectInvalidRequestContext(t *testing.T) {
 		response := performTaskRequest(t, teamService, &stubTaskService{}, http.MethodGet, "unknown-team", "", orgID.String())
 
 		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "failed to get teamID\n", response.Body.String())
+		assert.Equal(t, "failed to get team ID\n", response.Body.String())
 	})
 }
