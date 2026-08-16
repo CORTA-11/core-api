@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/google/uuid"
 )
 
@@ -14,6 +15,23 @@ type Organization struct {
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
 	DeletedAt  time.Time `json:"deleted_at"`
+}
+
+func mapDBOrgToDomain(row repository.Org) Organization {
+	var deletedAt time.Time
+
+	if row.DeletedAt.Valid {
+		deletedAt = row.DeletedAt.Time
+	}
+
+	return Organization{
+		PublicID:   row.PublicID,
+		Name:       row.Name,
+		SchemaName: row.SchemaName,
+		CreatedAt:  row.CreatedAt,
+		UpdatedAt:  row.UpdatedAt,
+		DeletedAt:  deletedAt,
+	}
 }
 
 type OrgService interface {

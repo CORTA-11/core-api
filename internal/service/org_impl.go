@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/golang-migrate/migrate/v4"
@@ -36,7 +35,7 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	qtx := o.queries.WithTx(tx)
 
@@ -67,23 +66,6 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 	return domainOrgs, nil
 }
 
-func mapDBOrgToDomain(row repository.Org) Organization {
-	var deletedAt time.Time
-
-	if row.DeletedAt.Valid {
-		deletedAt = row.DeletedAt.Time
-	}
-
-	return Organization{
-		PublicID:   row.PublicID,
-		Name:       row.Name,
-		SchemaName: row.SchemaName,
-		CreatedAt:  row.CreatedAt,
-		UpdatedAt:  row.UpdatedAt,
-		DeletedAt:  deletedAt,
-	}
-}
-
 func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization, error) {
 	// create schema name org_<uuid without dashed>
 	publicID := uuid.New()
@@ -94,7 +76,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	qtx := o.queries.WithTx(tx)
 
@@ -127,7 +109,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	}
 
 	// do tenant migrations
-	err = MigrateSchema(err, schemaName)
+	err = MigrateSchema(schemaName)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +118,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	return &ret, nil
 }
 
-func MigrateSchema(err error, schemaName string) error {
+func MigrateSchema(schemaName string) error {
 	dbURL, err := url.Parse(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		log.Printf("failed to parse DATABASE_URL: %v", err)

@@ -25,7 +25,7 @@ func (t *taskService) GetTasks(ctx context.Context, schema string, teamID int) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %q", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := setSchema(ctx, tx, schema); err != nil {
 		return nil, fmt.Errorf("failed to set search_path: %q", err)
@@ -38,7 +38,9 @@ func (t *taskService) GetTasks(ctx context.Context, schema string, teamID int) (
 		return nil, fmt.Errorf("failed to fetch tasks: %q", err)
 	}
 
-	tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %q", err)
+	}
 
 	domainTasks := make([]Task, 0, len(tasks))
 
@@ -49,20 +51,12 @@ func (t *taskService) GetTasks(ctx context.Context, schema string, teamID int) (
 	return domainTasks, nil
 }
 
-func mapDBTaskToDomain(row repository.Task) Task {
-	return Task{
-		Description: row.Description,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
-	}
-}
-
 func (t *taskService) CreateTask(ctx context.Context, schema string, teamID int, desc string) (*Task, error) {
 	tx, err := t.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %q", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := setSchema(ctx, tx, schema); err != nil {
 		return nil, fmt.Errorf("failed to set search_path: %q", err)
@@ -78,7 +72,9 @@ func (t *taskService) CreateTask(ctx context.Context, schema string, teamID int,
 		return nil, fmt.Errorf("failed to create task: %q", err)
 	}
 
-	tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %q", err)
+	}
 
 	ret := mapDBTaskToDomain(task)
 
