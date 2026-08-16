@@ -6,9 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/CORTA-11/core-api/cmd/api/handlers"
+	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -41,12 +43,24 @@ func main() {
 	teamService := service.NewTeamService(pool, queries)
 	taskService := service.NewTaskService(pool, queries)
 
+	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
+	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
+	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
+	minioBucketName := os.Getenv("MINIO_BUCKET_NAME")
+	minioUseSSL, _ := strconv.ParseBool(os.Getenv("MINIO_USE_SSL"))
+
+	minioClient := appMinio.NewMinioClient(minioEndpoint, minioAccessKey, minioSecretKey, minioUseSSL)
+	appMinio.CreateBucket(context.Background(), minioClient, minioBucketName)
+
+	fileService := service.NewFileService(minioClient, minioBucketName)
+
 	router := handlers.NewRouter(handlers.RouterConf{
 		DB:          pool,
 		Queries:     queries,
 		OrgService:  &orgService,
 		TeamService: &teamService,
 		TaskService: &taskService,
+		FileService: &fileService,
 	})
 
 	router.SetupRoutes()
