@@ -26,7 +26,7 @@ func (t *teamService) GetTeams(ctx context.Context, schema string) ([]Team, erro
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %q", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := setSchema(ctx, tx, schema); err != nil {
 		return nil, fmt.Errorf("failed to set search_path: %q", err)
@@ -39,7 +39,9 @@ func (t *teamService) GetTeams(ctx context.Context, schema string) ([]Team, erro
 		return nil, fmt.Errorf("failed to fetch teams: %q", err)
 	}
 
-	tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %q", err)
+	}
 
 	domainTeams := make([]Team, 0, len(teams))
 
@@ -55,7 +57,7 @@ func (t *teamService) CreateTeam(ctx context.Context, name, schema string) (*Tea
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %q", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := setSchema(ctx, tx, schema); err != nil {
 		return nil, fmt.Errorf("failed to set search_path: %q", err)
@@ -73,7 +75,9 @@ func (t *teamService) CreateTeam(ctx context.Context, name, schema string) (*Tea
 		return nil, fmt.Errorf("failed to create team: %q", err)
 	}
 
-	tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %q", err)
+	}
 
 	ret := mapDBTeamToDomain(team)
 
@@ -85,7 +89,7 @@ func (t *teamService) GetTeamID(ctx context.Context, slug, schema string) (int, 
 	if err != nil {
 		return -1, fmt.Errorf("failed to start transaction: %q", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	if err := setSchema(ctx, tx, schema); err != nil {
 		return -1, fmt.Errorf("failed to set search_path: %q", err)
@@ -98,7 +102,9 @@ func (t *teamService) GetTeamID(ctx context.Context, slug, schema string) (int, 
 		return -1, fmt.Errorf("failed to get teamID: %q", err)
 	}
 
-	tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return -1, fmt.Errorf("failed to commit transaction: %q", err)
+	}
 
 	return int(teamID), nil
 }
