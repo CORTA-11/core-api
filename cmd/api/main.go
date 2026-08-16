@@ -31,8 +31,16 @@ func main() {
 
 	orgService := service.NewOrgService(pool, queries)
 	teamService := service.NewTeamService(pool, queries)
+	taskService := service.NewTaskService(pool, queries)
 
-	router := handlers.NewRouter(pool, queries, orgService, teamService)
+	router := handlers.NewRouter(handlers.RouterConf{
+		DB:          pool,
+		Queries:     queries,
+		OrgService:  &orgService,
+		TeamService: &teamService,
+		TaskService: &taskService,
+	})
+
 	router.SetupRoutes()
 
 	s := http.Server{

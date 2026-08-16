@@ -18,15 +18,25 @@ type Router struct {
 	queries     *repository.Queries
 	orgService  service.OrgService
 	teamService service.TeamService
+	taskService service.TaskService
 }
 
-func NewRouter(db *pgxpool.Pool, queries *repository.Queries, orgService service.OrgService, teamService service.TeamService) *Router {
+type RouterConf struct {
+	DB          *pgxpool.Pool
+	Queries     *repository.Queries
+	OrgService  *service.OrgService
+	TeamService *service.TeamService
+	TaskService *service.TaskService
+}
+
+func NewRouter(conf RouterConf) *Router {
 	return &Router{
 		mux:         chi.NewRouter(),
-		db:          db,
-		queries:     queries,
-		orgService:  orgService,
-		teamService: teamService,
+		db:          conf.DB,
+		queries:     conf.Queries,
+		orgService:  *conf.OrgService,
+		teamService: *conf.TeamService,
+		taskService: *conf.TaskService,
 	}
 }
 
@@ -42,6 +52,9 @@ func (router *Router) SetupRoutes() {
 
 	// Team routes
 	r.Mount("/teams", teamRouter(router))
+
+	// Task routes
+	r.Mount("/{teamID}/tasks", taskRouter(router))
 }
 
 func orgRouter(router *Router) chi.Router {
@@ -62,6 +75,16 @@ func teamRouter(router *Router) chi.Router {
 
 	r.Get("/", router.getTeams())
 	r.Post("/", router.createTeam())
+
+	return r
+}
+
+func taskRouter(router *Router) chi.Router {
+	r := chi.NewRouter()
+	r.Use(appMiddleware.SetOrgIDMiddleware)
+
+	r.Get("/", router.getTasks())
+	r.Post("/", router.createTask())
 
 	return r
 }
