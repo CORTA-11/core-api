@@ -20,6 +20,7 @@ type Router struct {
 	orgService  service.OrgService
 	teamService service.TeamService
 	taskService service.TaskService
+	fileService service.FileService
 }
 
 type RouterConf struct {
@@ -28,6 +29,7 @@ type RouterConf struct {
 	OrgService  *service.OrgService
 	TeamService *service.TeamService
 	TaskService *service.TaskService
+	FileService *service.FileService
 }
 
 func NewRouter(conf RouterConf) *Router {
@@ -38,6 +40,7 @@ func NewRouter(conf RouterConf) *Router {
 		orgService:  *conf.OrgService,
 		teamService: *conf.TeamService,
 		taskService: *conf.TaskService,
+		fileService: *conf.FileService,
 	}
 }
 
@@ -57,6 +60,9 @@ func (router *Router) SetupRoutes() {
 
 	// Task routes
 	r.Mount("/{team}/tasks", taskRouter(router))
+
+	// File routes
+	r.Mount("/{team}/files", fileRouter(router))
 }
 
 func orgRouter(router *Router) chi.Router {
@@ -88,6 +94,18 @@ func taskRouter(router *Router) chi.Router {
 
 	r.Get("/", router.getTasks())
 	r.Post("/", router.createTask())
+
+	return r
+}
+
+func fileRouter(router *Router) chi.Router {
+	r := chi.NewRouter()
+	r.Use(appMiddleware.OrgMiddleware)
+	r.Use(appMiddleware.TeamMiddleware(router.teamService))
+
+	r.Get("/", router.getFiles())
+	r.Get("/download/{filename}", router.downloadFile())
+	r.Post("/upload", router.uploadFile())
 
 	return r
 }
