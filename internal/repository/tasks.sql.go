@@ -36,13 +36,15 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 }
 
 const getTasks = `-- name: GetTasks :many
-SELECT id, team_id, description, created_at, updated_at FROM tasks
-WHERE team_id = $1
-ORDER BY created_at ASC
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.created_at, tasks.updated_at
+FROM tasks
+JOIN teams ON teams.id = tasks.team_id
+WHERE teams.id = $1
+ORDER BY tasks.created_at ASC
 `
 
-func (q *Queries) GetTasks(ctx context.Context, teamID pgtype.Int8) ([]Task, error) {
-	rows, err := q.db.Query(ctx, getTasks, teamID)
+func (q *Queries) GetTasks(ctx context.Context, id int64) ([]Task, error) {
+	rows, err := q.db.Query(ctx, getTasks, id)
 	if err != nil {
 		return nil, err
 	}

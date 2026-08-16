@@ -1,7 +1,9 @@
 -- name: GetTasks :many
-SELECT * FROM tasks
-WHERE team_id = $1
-ORDER BY created_at ASC;
+SELECT tasks.*
+FROM tasks
+JOIN teams ON teams.id = tasks.team_id
+WHERE teams.id = $1
+ORDER BY tasks.created_at ASC;
 
 -- name: CreateTask :one
 INSERT INTO tasks (team_id, description)

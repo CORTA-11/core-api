@@ -10,25 +10,43 @@ import (
 )
 
 const createTeam = `-- name: CreateTeam :one
-INSERT INTO teams (name)
-VALUES ($1)
-RETURNING id, name, created_at, updated_at
+INSERT INTO teams (name, slug)
+VALUES ($1, $2)
+RETURNING id, name, slug, created_at, updated_at
 `
 
-func (q *Queries) CreateTeam(ctx context.Context, name string) (Team, error) {
-	row := q.db.QueryRow(ctx, createTeam, name)
+type CreateTeamParams struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, error) {
+	row := q.db.QueryRow(ctx, createTeam, arg.Name, arg.Slug)
 	var i Team
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
+		&i.Slug,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
+const getTeamID = `-- name: GetTeamID :one
+SELECT id FROM teams
+WHERE slug = $1
+`
+
+func (q *Queries) GetTeamID(ctx context.Context, slug string) (int64, error) {
+	row := q.db.QueryRow(ctx, getTeamID, slug)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getTeams = `-- name: GetTeams :many
-SELECT id, name, created_at, updated_at FROM teams
+SELECT id, name, slug, created_at, updated_at FROM teams
 `
 
 func (q *Queries) GetTeams(ctx context.Context) ([]Team, error) {
@@ -43,6 +61,7 @@ func (q *Queries) GetTeams(ctx context.Context) ([]Team, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
+			&i.Slug,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {

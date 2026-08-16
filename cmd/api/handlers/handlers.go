@@ -54,7 +54,7 @@ func (router *Router) SetupRoutes() {
 	r.Mount("/teams", teamRouter(router))
 
 	// Task routes
-	r.Mount("/{teamID}/tasks", taskRouter(router))
+	r.Mount("/{team}/tasks", taskRouter(router))
 }
 
 func orgRouter(router *Router) chi.Router {
@@ -71,7 +71,7 @@ func orgRouter(router *Router) chi.Router {
 
 func teamRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
-	r.Use(appMiddleware.SetOrgIDMiddleware)
+	r.Use(appMiddleware.OrgMiddleware)
 
 	r.Get("/", router.getTeams())
 	r.Post("/", router.createTeam())
@@ -81,7 +81,8 @@ func teamRouter(router *Router) chi.Router {
 
 func taskRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
-	r.Use(appMiddleware.SetOrgIDMiddleware)
+	r.Use(appMiddleware.OrgMiddleware)
+	r.Use(appMiddleware.TeamMiddleware(router.teamService))
 
 	r.Get("/", router.getTasks())
 	r.Post("/", router.createTask())

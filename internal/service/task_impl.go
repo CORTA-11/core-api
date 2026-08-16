@@ -33,7 +33,7 @@ func (t *taskService) GetTasks(ctx context.Context, schema string, teamID int) (
 
 	qtx := t.queries.WithTx(tx)
 
-	tasks, err := qtx.GetTasks(ctx, intToPgtypeInt8(teamID))
+	tasks, err := qtx.GetTasks(ctx, int64(teamID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch tasks: %q", err)
 	}

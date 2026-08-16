@@ -9,7 +9,7 @@ type contextKey string
 
 const orgIDKey contextKey = "orgID"
 
-func SetOrgIDMiddleware(next http.Handler) http.Handler {
+func OrgMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		orgID := r.Header.Get("X-Org-ID")
 		if orgID == "" {
