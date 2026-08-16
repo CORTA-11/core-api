@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/CORTA-11/core-api/internal/repository"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,12 +18,6 @@ func NewTeamService(pool *pgxpool.Pool, queries *repository.Queries) TeamService
 		pool:    pool,
 		queries: queries,
 	}
-}
-
-func setSchema(ctx context.Context, tx pgx.Tx, schema string) error {
-	setSearchPathQuery := fmt.Sprintf("SET LOCAL search_path TO %s", schema)
-	_, err := tx.Exec(ctx, setSearchPathQuery)
-	return err
 }
 
 func (t *teamService) GetTeams(ctx context.Context, schema string) ([]Team, error) {
