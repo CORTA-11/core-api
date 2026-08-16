@@ -95,6 +95,21 @@ func TestUploadFileUsesOrganizationAndTeamScope(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code)
 }
 
+func TestUploadFileEscapesFileNameInResponse(t *testing.T) {
+	orgID := uuid.New()
+	fileService := &stubFileService{
+		uploadFileFn: func(context.Context, uuid.UUID, int, string, io.Reader) error {
+			return nil
+		},
+	}
+
+	response := performFileRequest(t, fileService, http.MethodPost, "/upload", orgID.String(), `<script>alert("xss")<script>.txt`)
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Equal(t, "text/plain; charset=utf-8", response.Header().Get("Content-Type"))
+	assert.Equal(t, "File &lt;script&gt;alert(&#34;xss&#34;)&lt;script&gt;.txt uploaded successfully.", response.Body.String())
+}
+
 func TestDownloadFileUsesOrganizationAndTeamScope(t *testing.T) {
 	orgID := uuid.MustParse("5dc89da9-f554-43ea-970b-d1ca15e2f921")
 	fileService := &stubFileService{

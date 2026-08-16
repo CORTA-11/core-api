@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -46,7 +47,8 @@ func (router *Router) uploadFile() http.HandlerFunc {
 			http.Error(w, "failed to upload file", http.StatusInternalServerError)
 			return
 		}
-		if _, err := fmt.Fprintf(w, "File %s uploaded successfully.", header.Filename); err != nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		if _, err := fmt.Fprintf(w, "File %s uploaded successfully.", html.EscapeString(header.Filename)); err != nil {
 			slog.ErrorContext(ctx, "failed to write upload response", "error", err)
 		}
 	}
