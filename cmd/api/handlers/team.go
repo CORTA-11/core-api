@@ -3,15 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 
 	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
+	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/google/uuid"
 )
-
-func SchemaName(orgID uuid.UUID) string {
-	return "org_" + strings.ReplaceAll(orgID.String(), "-", "")
-}
 
 func (router *Router) getTeams() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -20,7 +16,7 @@ func (router *Router) getTeams() http.HandlerFunc {
 		orgIDStr, _ := appMiddleware.OrgIDFromContext(r.Context())
 		orgID, _ := uuid.Parse(orgIDStr)
 
-		schemaName := SchemaName(orgID)
+		schemaName := service.SchemaName(orgID)
 
 		teams, err := router.teamService.GetTeams(ctx, schemaName)
 		if err != nil {
@@ -63,7 +59,7 @@ func (router *Router) createTeam() http.HandlerFunc {
 		orgIDStr, _ := appMiddleware.OrgIDFromContext(r.Context())
 		orgID, _ := uuid.Parse(orgIDStr)
 
-		schemaName := SchemaName(orgID)
+		schemaName := service.SchemaName(orgID)
 
 		team, err := router.teamService.CreateTeam(ctx, req.Name, schemaName)
 		if err != nil {

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -49,14 +50,6 @@ func (t *teamService) GetTeams(ctx context.Context, schema string) ([]Team, erro
 	return domainTeams, nil
 }
 
-func mapDBTeamToDomain(row repository.Team) Team {
-	return Team{
-		Name:      row.Name,
-		CreatedAt: row.CreatedAt,
-		UpdatedAt: row.UpdatedAt,
-	}
-}
-
 func (t *teamService) CreateTeam(ctx context.Context, name, schema string) (*Team, error) {
 	tx, err := t.pool.Begin(ctx)
 	if err != nil {
@@ -70,7 +63,12 @@ func (t *teamService) CreateTeam(ctx context.Context, name, schema string) (*Tea
 
 	qtx := t.queries.WithTx(tx)
 
-	team, err := qtx.CreateTeam(ctx, name)
+	slug := strings.ReplaceAll(strings.ToLower(name), " ", "-")
+
+	team, err := qtx.CreateTeam(ctx, repository.CreateTeamParams{
+		Name: name,
+		Slug: slug,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create team: %q", err)
 	}
@@ -80,4 +78,27 @@ func (t *teamService) CreateTeam(ctx context.Context, name, schema string) (*Tea
 	ret := mapDBTeamToDomain(team)
 
 	return &ret, nil
+}
+
+func (t *teamService) GetTeamID(ctx context.Context, slug, schema string) (int, error) {
+	tx, err := t.pool.Begin(ctx)
+	if err != nil {
+		return -1, fmt.Errorf("failed to start transaction: %q", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := setSchema(ctx, tx, schema); err != nil {
+		return -1, fmt.Errorf("failed to set search_path: %q", err)
+	}
+
+	qtx := t.queries.WithTx(tx)
+
+	teamID, err := qtx.GetTeamID(ctx, slug)
+	if err != nil {
+		return -1, fmt.Errorf("failed to get teamID: %q", err)
+	}
+
+	tx.Commit(ctx)
+
+	return int(teamID), nil
 }

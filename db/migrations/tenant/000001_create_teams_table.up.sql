@@ -6,6 +6,9 @@ CREATE TABLE teams (
     name VARCHAR(255) NOT NULL
         CONSTRAINT teams_name_unique UNIQUE,
 
+    slug VARCHAR(255) NOT NULL
+        CONSTRAINT teams_slug_unique UNIQUE,
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
