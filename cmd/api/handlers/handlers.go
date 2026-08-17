@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 type Router struct {
@@ -21,6 +22,7 @@ type Router struct {
 	teamService service.TeamService
 	taskService service.TaskService
 	fileService service.FileService
+	rdb         *redis.Client
 }
 
 type RouterConf struct {
@@ -30,6 +32,7 @@ type RouterConf struct {
 	TeamService *service.TeamService
 	TaskService *service.TaskService
 	FileService *service.FileService
+	RDB         *redis.Client
 }
 
 func NewRouter(conf RouterConf) *Router {
@@ -41,6 +44,7 @@ func NewRouter(conf RouterConf) *Router {
 		teamService: *conf.TeamService,
 		taskService: *conf.TaskService,
 		fileService: *conf.FileService,
+		rdb:         conf.RDB,
 	}
 }
 
@@ -90,7 +94,7 @@ func teamRouter(router *Router) chi.Router {
 func taskRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
 	r.Use(appMiddleware.OrgMiddleware)
-	r.Use(appMiddleware.TeamMiddleware(router.teamService))
+	r.Use(appMiddleware.TeamMiddleware(router.teamService, router.rdb))
 
 	r.Get("/", router.getTasks())
 	r.Post("/", router.createTask())
@@ -101,7 +105,7 @@ func taskRouter(router *Router) chi.Router {
 func fileRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
 	r.Use(appMiddleware.OrgMiddleware)
-	r.Use(appMiddleware.TeamMiddleware(router.teamService))
+	r.Use(appMiddleware.TeamMiddleware(router.teamService, router.rdb))
 
 	r.Get("/", router.getFiles())
 	r.Get("/download/{filename}", router.downloadFile())
