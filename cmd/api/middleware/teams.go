@@ -39,6 +39,11 @@ func TeamMiddleware(teamService service.TeamService) func(http.Handler) http.Han
 			schemaName := service.SchemaName(orgID)
 
 			teamID, err := teamService.GetTeamID(ctx, slug, schemaName)
+			if err != nil {
+				slog.ErrorContext(ctx, "failed to get team ID", "error", err)
+				http.Error(w, "failed to get team ID", http.StatusInternalServerError)
+				return
+			}
 
 			ctx = WithTeamID(ctx, teamID)
 			next.ServeHTTP(w, r.WithContext(ctx))
