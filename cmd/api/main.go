@@ -63,7 +63,7 @@ func main() {
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
-	defer rdb.Close()
+	defer func() { _ = rdb.Close() }()
 
 	cacheService := service.NewCacheService(rdb)
 

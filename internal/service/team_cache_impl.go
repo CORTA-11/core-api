@@ -34,8 +34,8 @@ func (c *CachedTeamService) GetTeamID(ctx context.Context, slug, schema string) 
 	key := fmt.Sprintf("team:%s:schema:%s", slug, schema)
 	cachedTeamID, err := c.cache.Get(ctx, key)
 
-	switch {
-	case err == nil:
+	switch err {
+	case nil:
 		// Cache hit
 		slog.InfoContext(ctx, "teamID found in Redis cache", "key", key)
 
@@ -49,7 +49,7 @@ func (c *CachedTeamService) GetTeamID(ctx context.Context, slug, schema string) 
 			return 0, err
 		}
 
-	case err == ErrCacheMiss:
+	case ErrCacheMiss:
 		slog.InfoContext(ctx, "teamID cache miss", "key", key)
 
 		teamID, err = c.baseTeamService.GetTeamID(ctx, slug, schema)
