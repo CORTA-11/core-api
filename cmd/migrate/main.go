@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"log"
+	"log/slog"
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -45,8 +47,10 @@ func main() {
 		log.Fatalf("unknown command: %s. Use up or down", os.Args[1])
 	}
 
-	if err != nil {
-		log.Fatal(err)
+	if errors.Is(err, migrate.ErrNoChange) {
+		slog.Warn("no change occured", "error", err)
+	} else if err != nil {
+		slog.Error("error occured", "error", err)
 	}
 
 	// #nosec G706 -- command-line argument is only used by trusted developers
