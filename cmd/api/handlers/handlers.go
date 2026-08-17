@@ -14,33 +14,39 @@ import (
 )
 
 type Router struct {
-	mux         *chi.Mux
-	db          *pgxpool.Pool
-	queries     *repository.Queries
-	orgService  service.OrgService
-	teamService service.TeamService
-	taskService service.TaskService
-	fileService service.FileService
+	mux          *chi.Mux
+	db           *pgxpool.Pool
+	queries      *repository.Queries
+	orgService   service.OrgService
+	teamService  service.TeamService
+	taskService  service.TaskService
+	fileService  service.FileService
+	userService  service.UserService
+	tokenService service.TokenService
 }
 
 type RouterConf struct {
-	DB          *pgxpool.Pool
-	Queries     *repository.Queries
-	OrgService  *service.OrgService
-	TeamService *service.TeamService
-	TaskService *service.TaskService
-	FileService *service.FileService
+	DB           *pgxpool.Pool
+	Queries      *repository.Queries
+	OrgService   *service.OrgService
+	TeamService  *service.TeamService
+	TaskService  *service.TaskService
+	FileService  *service.FileService
+	UserService  *service.UserService
+	TokenService *service.TokenService
 }
 
 func NewRouter(conf RouterConf) *Router {
 	return &Router{
-		mux:         chi.NewRouter(),
-		db:          conf.DB,
-		queries:     conf.Queries,
-		orgService:  *conf.OrgService,
-		teamService: *conf.TeamService,
-		taskService: *conf.TaskService,
-		fileService: *conf.FileService,
+		mux:          chi.NewRouter(),
+		db:           conf.DB,
+		queries:      conf.Queries,
+		orgService:   *conf.OrgService,
+		teamService:  *conf.TeamService,
+		taskService:  *conf.TaskService,
+		fileService:  *conf.FileService,
+		userService:  *conf.UserService,
+		tokenService: *conf.TokenService,
 	}
 }
 
@@ -63,6 +69,9 @@ func (router *Router) SetupRoutes() {
 
 	// File routes
 	r.Mount("/{team}/files", fileRouter(router))
+
+	r.Mount("/users", userRouter(router))
+
 }
 
 func orgRouter(router *Router) chi.Router {
@@ -106,6 +115,18 @@ func fileRouter(router *Router) chi.Router {
 	r.Get("/", router.getFiles())
 	r.Get("/download/{filename}", router.downloadFile())
 	r.Post("/upload", router.uploadFile())
+
+	return r
+}
+
+func userRouter(router *Router) chi.Router {
+	r := chi.NewRouter()
+
+	r.Get("/", router.getUsers())
+	r.Post("/", router.createUser())
+	r.Post("/login", router.loginUser())
+	r.Put("/{userID}", router.updateUser())
+	r.Delete("/{userID}", router.deleteUser())
 
 	return r
 }
