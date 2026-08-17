@@ -50,6 +50,9 @@ func (router *Router) SetupRoutes() {
 	r.Use(appMiddleware.Recoverer)
 	r.Use(appMiddleware.CorsMiddleware)
 
+	// TODO: only allow for super admin
+	r.Mount("/debug", middleware.Profiler())
+
 	r.Get("/", router.handleRoot())
 
 	// Organization routes
