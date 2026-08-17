@@ -14,6 +14,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -54,11 +55,25 @@ func main() {
 
 	fileService := service.NewFileService(minioClient, minioBucketName)
 
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPort := os.Getenv("REDIS_PORT")
+	redisAddr := redisHost + ":" + redisPort
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
+	defer func() { _ = rdb.Close() }()
+
+	cacheService := service.NewCacheService(rdb)
+
+	cachedTeamService := service.NewCachedTeamService(teamService, cacheService)
+
 	router := handlers.NewRouter(handlers.RouterConf{
 		DB:          pool,
 		Queries:     queries,
 		OrgService:  &orgService,
-		TeamService: &teamService,
+		TeamService: &cachedTeamService,
 		TaskService: &taskService,
 		FileService: &fileService,
 	})
