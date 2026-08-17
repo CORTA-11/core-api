@@ -21,6 +21,11 @@ type Org struct {
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type OrgUser struct {
+	OrgID  int64 `json:"org_id"`
+	UserID int64 `json:"user_id"`
+}
+
 type Task struct {
 	ID          int64       `json:"id"`
 	TeamID      pgtype.Int8 `json:"team_id"`
@@ -35,4 +40,15 @@ type Team struct {
 	Slug      string    `json:"slug"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type User struct {
+	ID           int64              `json:"id"`
+	UserID       uuid.UUID          `json:"user_id"`
+	Email        string             `json:"email"`
+	PasswordHash string             `json:"password_hash"`
+	DisplayName  string             `json:"display_name"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
 }

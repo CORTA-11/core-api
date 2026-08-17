@@ -1,0 +1,181 @@
+package service
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/pashagolub/pgxmock/v3"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+)
+
+type mockTokenService struct {
+	mock.Mock
+}
+
+func (m *mockTokenService) GenerateToken(userPublicID uuid.UUID, email string) (string, error) {
+	args := m.Called(userPublicID, email)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockTokenService) VerifyToken(tokenString string) (*JWTClaims, error) {
+	args := m.Called(tokenString)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*JWTClaims), args.Error(1)
+}
+
+func TestUserServiceImpl(t *testing.T) {
+	userPublicID := uuid.New()
+	email := "john@example.com"
+	displayName := "John Doe"
+	now := time.Now().UTC()
+
+	columns := []string{"id", "user_id", "email", "password_hash", "display_name", "created_at", "updated_at", "deleted_at"}
+
+	t.Run("GetUsers returns all users successfully", func(t *testing.T) {
+		mockPool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mockPool.Close()
+
+		mockPool.ExpectQuery("(?s)GetAllUsers :many.*SELECT").
+			WillReturnRows(pgxmock.NewRows(columns).
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+
+		tokenSvc := new(mockTokenService)
+		queries := repository.New(mockPool)
+		svc := NewUserService(mockPool, queries, tokenSvc)
+
+		users, err := svc.GetUsers(context.Background())
+		require.NoError(t, err)
+		require.Len(t, users, 1)
+		assert.Equal(t, userPublicID, users[0].PublicID)
+		assert.Equal(t, email, users[0].Email)
+		assert.Equal(t, displayName, users[0].Name)
+	})
+
+	t.Run("GetUserByID returns a single domain user", func(t *testing.T) {
+		mockPool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mockPool.Close()
+
+		mockPool.ExpectQuery("(?s)GetUserByID :one.*SELECT").
+			WithArgs(userPublicID).
+			WillReturnRows(pgxmock.NewRows(columns).
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+
+		tokenSvc := new(mockTokenService)
+		queries := repository.New(mockPool)
+		svc := NewUserService(mockPool, queries, tokenSvc)
+
+		user, err := svc.GetUserByID(context.Background(), userPublicID.String())
+		require.NoError(t, err)
+		require.NotNil(t, user)
+		assert.Equal(t, userPublicID, user.PublicID)
+		assert.Equal(t, email, user.Email)
+	})
+
+	t.Run("CreateUser creates user inside transaction and hashes password", func(t *testing.T) {
+		mockPool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mockPool.Close()
+
+		mockPool.ExpectBegin()
+		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
+			WithArgs(email).
+			WillReturnError(pgx.ErrNoRows)
+		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
+		mockPool.ExpectQuery("(?s)CreateUser :one.*INSERT").
+			WithArgs(email, pgxmock.AnyArg(), displayName).
+			WillReturnRows(pgxmock.NewRows(columns).
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+		mockPool.ExpectCommit()
+
+		tokenSvc := new(mockTokenService)
+		queries := repository.New(mockPool)
+		svc := NewUserService(mockPool, queries, tokenSvc)
+
+		user, err := svc.CreateUser(context.Background(), displayName, email, "password123")
+		require.NoError(t, err)
+		require.NotNil(t, user)
+		assert.Equal(t, userPublicID, user.PublicID)
+		assert.Equal(t, email, user.Email)
+		assert.NoError(t, mockPool.ExpectationsWereMet())
+	})
+
+	t.Run("CreateUser returns ErrEmailAlreadyInUse when email already registered", func(t *testing.T) {
+		mockPool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mockPool.Close()
+
+		mockPool.ExpectBegin()
+		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
+			WithArgs(email).
+			WillReturnRows(pgxmock.NewRows(columns).
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+		mockPool.ExpectRollback()
+
+		tokenSvc := new(mockTokenService)
+		queries := repository.New(mockPool)
+		svc := NewUserService(mockPool, queries, tokenSvc)
+
+		_, err = svc.CreateUser(context.Background(), displayName, email, "password123")
+		assert.ErrorIs(t, err, ErrEmailAlreadyInUse)
+		assert.NoError(t, mockPool.ExpectationsWereMet())
+	})
+
+	t.Run("Login authenticates valid credentials and returns JWT token", func(t *testing.T) {
+		mockPool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mockPool.Close()
+
+		rawPassword := "password123"
+		hashedPassword, err := HashPassword(rawPassword)
+		require.NoError(t, err)
+
+		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
+			WithArgs(email).
+			WillReturnRows(pgxmock.NewRows(columns).
+				AddRow(int64(1), userPublicID, email, hashedPassword, displayName, now, now, pgtype.Timestamptz{Valid: false}))
+
+		tokenSvc := new(mockTokenService)
+		tokenSvc.On("GenerateToken", userPublicID, email).Return("valid-jwt-token", nil)
+
+		queries := repository.New(mockPool)
+		svc := NewUserService(mockPool, queries, tokenSvc)
+
+		token, user, err := svc.Login(context.Background(), email, rawPassword)
+		require.NoError(t, err)
+		assert.Equal(t, "valid-jwt-token", token)
+		assert.Equal(t, userPublicID, user.PublicID)
+		tokenSvc.AssertExpectations(t)
+	})
+
+	t.Run("Login returns ErrInvalidCredentials on password mismatch", func(t *testing.T) {
+		mockPool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		defer mockPool.Close()
+
+		hashedPassword, err := HashPassword("password123")
+		require.NoError(t, err)
+
+		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
+			WithArgs(email).
+			WillReturnRows(pgxmock.NewRows(columns).
+				AddRow(int64(1), userPublicID, email, hashedPassword, displayName, now, now, pgtype.Timestamptz{Valid: false}))
+
+		tokenSvc := new(mockTokenService)
+		queries := repository.New(mockPool)
+		svc := NewUserService(mockPool, queries, tokenSvc)
+
+		_, _, err = svc.Login(context.Background(), email, "wrong-password")
+		assert.ErrorIs(t, err, ErrInvalidCredentials)
+	})
+}
