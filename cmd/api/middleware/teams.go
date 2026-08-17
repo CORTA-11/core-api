@@ -2,20 +2,17 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 )
 
 const teamIDKey contextKey = "teamID"
 
-func TeamMiddleware(teamService service.TeamService, rdb *redis.Client) func(http.Handler) http.Handler {
+func TeamMiddleware(teamService service.TeamService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -41,47 +38,7 @@ func TeamMiddleware(teamService service.TeamService, rdb *redis.Client) func(htt
 
 			schemaName := service.SchemaName(orgID)
 
-			var teamID int
-
-			// Check redis cache
-			key := fmt.Sprintf("team:%s:schema:%s", slug, schemaName)
-			cachedTeamID, err := rdb.Get(ctx, key).Result()
-
-			switch {
-			case err == nil:
-				// Cache hit
-				slog.InfoContext(ctx, "teamID found in Redis cache", "key", key)
-
-				teamID, err = strconv.Atoi(cachedTeamID)
-				if err != nil {
-					slog.ErrorContext(ctx, "invalid cached team ID",
-						"key", key,
-						"value", cachedTeamID,
-						"error", err.Error(),
-					)
-					http.Error(w, "invalid cached team ID", http.StatusInternalServerError)
-					return
-				}
-
-			case err == redis.Nil:
-				slog.InfoContext(ctx, "teamID cache miss", "key", key)
-
-				teamID, err = teamService.GetTeamID(ctx, slug, schemaName)
-				if err != nil {
-					slog.ErrorContext(ctx, "failed to get team ID", "error", err)
-					http.Error(w, "failed to get team ID", http.StatusInternalServerError)
-					return
-				}
-
-				// Populate redis
-				err := rdb.Set(ctx, key, teamID, 0).Err()
-				if err != nil {
-					slog.ErrorContext(ctx, "failed to set redis value", "error", err.Error())
-				}
-
-			default:
-				slog.ErrorContext(ctx, "redis GET failed", "key", key, "error", err.Error())
-			}
+			teamID, err := teamService.GetTeamID(ctx, slug, schemaName)
 
 			ctx = WithTeamID(ctx, teamID)
 			next.ServeHTTP(w, r.WithContext(ctx))

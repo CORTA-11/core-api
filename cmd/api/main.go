@@ -65,14 +65,17 @@ func main() {
 	})
 	defer rdb.Close()
 
+	cacheService := service.NewCacheService(rdb)
+
+	cachedTeamService := service.NewCachedTeamService(teamService, cacheService)
+
 	router := handlers.NewRouter(handlers.RouterConf{
 		DB:          pool,
 		Queries:     queries,
 		OrgService:  &orgService,
-		TeamService: &teamService,
+		TeamService: &cachedTeamService,
 		TaskService: &taskService,
 		FileService: &fileService,
-		RDB:         rdb,
 	})
 
 	router.SetupRoutes()
