@@ -109,6 +109,8 @@ func taskRouter(router *Router) chi.Router {
 
 	r.Get("/", router.getTasks())
 	r.Post("/", router.createTask())
+	r.Put("/{taskID}", router.updateTask())
+	r.Delete("/{taskID}", router.deleteTask())
 
 	return r
 }
