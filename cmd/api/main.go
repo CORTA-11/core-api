@@ -44,7 +44,9 @@ func main() {
 	teamService := service.NewTeamService(pool, queries)
 	taskService := service.NewTaskService(pool, queries)
 	tokenService := service.NewTokenService()
-	userService := service.NewUserService(pool, queries, tokenService)
+	passwordService := service.NewPasswordService()
+	userService := service.NewUserService(pool, queries, tokenService, passwordService)
+	orgUserService := service.NewOrgUserService(pool, queries)
 
 	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
 	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
@@ -72,14 +74,15 @@ func main() {
 	cachedTeamService := service.NewCachedTeamService(teamService, cacheService)
 
 	router := handlers.NewRouter(handlers.RouterConf{
-		DB:           pool,
-		Queries:      queries,
-		OrgService:   &orgService,
-		TeamService:  &cachedTeamService,
-		TaskService:  &taskService,
-		UserService:  &userService,
-		FileService:  &fileService,
-		TokenService: &tokenService,
+		DB:             pool,
+		Queries:        queries,
+		OrgService:     &orgService,
+		TeamService:    &cachedTeamService,
+		TaskService:    &taskService,
+		UserService:    &userService,
+		FileService:    &fileService,
+		TokenService:   &tokenService,
+		OrgUserService: &orgUserService,
 	})
 
 	router.SetupRoutes()

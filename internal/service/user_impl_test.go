@@ -32,6 +32,20 @@ func (m *mockTokenService) VerifyToken(tokenString string) (*JWTClaims, error) {
 	return args.Get(0).(*JWTClaims), args.Error(1)
 }
 
+type mockPasswordService struct {
+	mock.Mock
+}
+
+func (m *mockPasswordService) HashPassword(password string) (string, error) {
+	args := m.Called(password)
+	return args.String(0), args.Error(1)
+}
+
+func (m *mockPasswordService) VerifyPassword(password, encodedHash string) (bool, error) {
+	args := m.Called(password, encodedHash)
+	return args.Bool(0), args.Error(1)
+}
+
 func TestUserServiceImpl(t *testing.T) {
 	userPublicID := uuid.New()
 	email := "john@example.com"
@@ -50,8 +64,9 @@ func TestUserServiceImpl(t *testing.T) {
 				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
 
 		tokenSvc := new(mockTokenService)
+		passwordSvc := new(mockPasswordService)
 		queries := repository.New(mockPool)
-		svc := NewUserService(mockPool, queries, tokenSvc)
+		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		users, err := svc.GetUsers(context.Background())
 		require.NoError(t, err)
@@ -72,8 +87,9 @@ func TestUserServiceImpl(t *testing.T) {
 				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
 
 		tokenSvc := new(mockTokenService)
+		passwordSvc := new(mockPasswordService)
 		queries := repository.New(mockPool)
-		svc := NewUserService(mockPool, queries, tokenSvc)
+		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		user, err := svc.GetUserByID(context.Background(), userPublicID.String())
 		require.NoError(t, err)
@@ -93,14 +109,17 @@ func TestUserServiceImpl(t *testing.T) {
 			WillReturnError(pgx.ErrNoRows)
 		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
 		mockPool.ExpectQuery("(?s)CreateUser :one.*INSERT").
-			WithArgs(email, pgxmock.AnyArg(), displayName).
+			WithArgs(email, "hashed-password", displayName).
 			WillReturnRows(pgxmock.NewRows(columns).
 				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
 		mockPool.ExpectCommit()
 
 		tokenSvc := new(mockTokenService)
+		passwordSvc := new(mockPasswordService)
+		passwordSvc.On("HashPassword", "password123").Return("hashed-password", nil)
+
 		queries := repository.New(mockPool)
-		svc := NewUserService(mockPool, queries, tokenSvc)
+		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		user, err := svc.CreateUser(context.Background(), displayName, email, "password123")
 		require.NoError(t, err)
@@ -108,6 +127,7 @@ func TestUserServiceImpl(t *testing.T) {
 		assert.Equal(t, userPublicID, user.PublicID)
 		assert.Equal(t, email, user.Email)
 		assert.NoError(t, mockPool.ExpectationsWereMet())
+		passwordSvc.AssertExpectations(t)
 	})
 
 	t.Run("CreateUser returns ErrEmailAlreadyInUse when email already registered", func(t *testing.T) {
@@ -123,8 +143,11 @@ func TestUserServiceImpl(t *testing.T) {
 		mockPool.ExpectRollback()
 
 		tokenSvc := new(mockTokenService)
+		passwordSvc := new(mockPasswordService)
+		passwordSvc.On("HashPassword", "password123").Return("hashed-password", nil)
+
 		queries := repository.New(mockPool)
-		svc := NewUserService(mockPool, queries, tokenSvc)
+		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		_, err = svc.CreateUser(context.Background(), displayName, email, "password123")
 		assert.ErrorIs(t, err, ErrEmailAlreadyInUse)
@@ -136,26 +159,26 @@ func TestUserServiceImpl(t *testing.T) {
 		require.NoError(t, err)
 		defer mockPool.Close()
 
-		rawPassword := "password123"
-		hashedPassword, err := HashPassword(rawPassword)
-		require.NoError(t, err)
-
 		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
 			WithArgs(email).
 			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, hashedPassword, displayName, now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
 
 		tokenSvc := new(mockTokenService)
 		tokenSvc.On("GenerateToken", userPublicID, email).Return("valid-jwt-token", nil)
 
-		queries := repository.New(mockPool)
-		svc := NewUserService(mockPool, queries, tokenSvc)
+		passwordSvc := new(mockPasswordService)
+		passwordSvc.On("VerifyPassword", "password123", "hashed-password").Return(true, nil)
 
-		token, user, err := svc.Login(context.Background(), email, rawPassword)
+		queries := repository.New(mockPool)
+		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
+
+		token, user, err := svc.Login(context.Background(), email, "password123")
 		require.NoError(t, err)
 		assert.Equal(t, "valid-jwt-token", token)
 		assert.Equal(t, userPublicID, user.PublicID)
 		tokenSvc.AssertExpectations(t)
+		passwordSvc.AssertExpectations(t)
 	})
 
 	t.Run("Login returns ErrInvalidCredentials on password mismatch", func(t *testing.T) {
@@ -163,19 +186,20 @@ func TestUserServiceImpl(t *testing.T) {
 		require.NoError(t, err)
 		defer mockPool.Close()
 
-		hashedPassword, err := HashPassword("password123")
-		require.NoError(t, err)
-
 		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
 			WithArgs(email).
 			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, hashedPassword, displayName, now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
 
 		tokenSvc := new(mockTokenService)
+		passwordSvc := new(mockPasswordService)
+		passwordSvc.On("VerifyPassword", "wrong-password", "hashed-password").Return(false, nil)
+
 		queries := repository.New(mockPool)
-		svc := NewUserService(mockPool, queries, tokenSvc)
+		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		_, _, err = svc.Login(context.Background(), email, "wrong-password")
 		assert.ErrorIs(t, err, ErrInvalidCredentials)
+		passwordSvc.AssertExpectations(t)
 	})
 }

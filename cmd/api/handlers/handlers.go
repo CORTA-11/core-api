@@ -14,39 +14,42 @@ import (
 )
 
 type Router struct {
-	mux          *chi.Mux
-	db           *pgxpool.Pool
-	queries      *repository.Queries
-	orgService   service.OrgService
-	teamService  service.TeamService
-	taskService  service.TaskService
-	fileService  service.FileService
-	userService  service.UserService
-	tokenService service.TokenService
+	mux            *chi.Mux
+	db             *pgxpool.Pool
+	queries        *repository.Queries
+	orgService     service.OrgService
+	teamService    service.TeamService
+	taskService    service.TaskService
+	fileService    service.FileService
+	userService    service.UserService
+	tokenService   service.TokenService
+	orgUserService service.OrgUserService
 }
 
 type RouterConf struct {
-	DB           *pgxpool.Pool
-	Queries      *repository.Queries
-	OrgService   *service.OrgService
-	TeamService  *service.TeamService
-	TaskService  *service.TaskService
-	FileService  *service.FileService
-	UserService  *service.UserService
-	TokenService *service.TokenService
+	DB             *pgxpool.Pool
+	Queries        *repository.Queries
+	OrgService     *service.OrgService
+	TeamService    *service.TeamService
+	TaskService    *service.TaskService
+	FileService    *service.FileService
+	UserService    *service.UserService
+	TokenService   *service.TokenService
+	OrgUserService *service.OrgUserService
 }
 
 func NewRouter(conf RouterConf) *Router {
 	return &Router{
-		mux:          chi.NewRouter(),
-		db:           conf.DB,
-		queries:      conf.Queries,
-		orgService:   *conf.OrgService,
-		teamService:  *conf.TeamService,
-		taskService:  *conf.TaskService,
-		fileService:  *conf.FileService,
-		userService:  *conf.UserService,
-		tokenService: *conf.TokenService,
+		mux:            chi.NewRouter(),
+		db:             conf.DB,
+		queries:        conf.Queries,
+		orgService:     *conf.OrgService,
+		teamService:    *conf.TeamService,
+		taskService:    *conf.TaskService,
+		fileService:    *conf.FileService,
+		userService:    *conf.UserService,
+		tokenService:   *conf.TokenService,
+		orgUserService: *conf.OrgUserService,
 	}
 }
 

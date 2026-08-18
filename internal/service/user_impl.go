@@ -14,16 +14,18 @@ type pgxPool interface {
 }
 
 type userService struct {
-	pool         pgxPool
-	queries      *repository.Queries
-	tokenService TokenService
+	pool            pgxPool
+	queries         *repository.Queries
+	tokenService    TokenService
+	passwordService PasswordService
 }
 
-func NewUserService(pool pgxPool, queries *repository.Queries, tokenService TokenService) UserService {
+func NewUserService(pool pgxPool, queries *repository.Queries, tokenService TokenService, passwordService PasswordService) UserService {
 	return &userService{
-		pool:         pool,
-		queries:      queries,
-		tokenService: tokenService,
+		pool:            pool,
+		queries:         queries,
+		tokenService:    tokenService,
+		passwordService: passwordService,
 	}
 }
 
@@ -67,7 +69,7 @@ func (u *userService) GetUserByEmail(ctx context.Context, email string) (*User, 
 }
 
 func (u *userService) CreateUser(ctx context.Context, name string, email string, password string) (*User, error) {
-	hashedPassword, err := HashPassword(password)
+	hashedPassword, err := u.passwordService.HashPassword(password)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +122,7 @@ func (u *userService) UpdateUser(ctx context.Context, publicID string, name stri
 		return nil, err
 	}
 
-	hashedPassword, err := HashPassword(password)
+	hashedPassword, err := u.passwordService.HashPassword(password)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +164,7 @@ func (u *userService) Login(ctx context.Context, email string, password string) 
 		return "", nil, ErrInvalidCredentials
 	}
 
-	match, err := VerifyPassword(password, repoUser.PasswordHash)
+	match, err := u.passwordService.VerifyPassword(password, repoUser.PasswordHash)
 	if err != nil || !match {
 		return "", nil, ErrInvalidCredentials
 	}
