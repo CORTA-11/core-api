@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"golang.org/x/crypto/argon2"
@@ -89,13 +90,19 @@ func (s *passwordService) VerifyPassword(password, encodedHash string) (bool, er
 	if err != nil {
 		return false, fmt.Errorf("failed to decode argon2 salt: %w", err)
 	}
-	params.SaltLength = uint32(len(salt))
+	if len(salt) > math.MaxUint32 {
+		return false, errors.New("argon2 salt is too large")
+	}
+	params.SaltLength = uint32(len(salt)) // #nosec G115 -- length is bounded above by math.MaxUint32.
 
 	expectedHash, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
 		return false, fmt.Errorf("failed to decode argon2 hash: %w", err)
 	}
-	params.KeyLength = uint32(len(expectedHash))
+	if len(expectedHash) > math.MaxUint32 {
+		return false, errors.New("argon2 hash is too large")
+	}
+	params.KeyLength = uint32(len(expectedHash)) // #nosec G115 -- length is bounded above by math.MaxUint32.
 
 	actualHash := argon2.IDKey([]byte(password), salt, params.Iterations, params.Memory, params.Parallelism, params.KeyLength)
 
