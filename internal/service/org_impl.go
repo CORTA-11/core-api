@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/CORTA-11/core-api/internal/repository"
@@ -18,14 +17,16 @@ import (
 )
 
 type orgService struct {
-	pool    *pgxpool.Pool
-	queries *repository.Queries
+	pool        *pgxpool.Pool
+	queries     *repository.Queries
+	databaseURL string
 }
 
-func NewOrgService(pool *pgxpool.Pool, queries *repository.Queries) OrgService {
+func NewOrgService(pool *pgxpool.Pool, queries *repository.Queries, databaseURL string) OrgService {
 	return &orgService{
-		pool:    pool,
-		queries: queries,
+		pool:        pool,
+		queries:     queries,
+		databaseURL: databaseURL,
 	}
 }
 
@@ -109,7 +110,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	}
 
 	// do tenant migrations
-	err = MigrateSchema(schemaName)
+	err = MigrateSchema(o.databaseURL, schemaName)
 	if err != nil {
 		return nil, err
 	}
@@ -118,8 +119,8 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	return &ret, nil
 }
 
-func MigrateSchema(schemaName string) error {
-	dbURL, err := url.Parse(os.Getenv("DATABASE_URL"))
+func MigrateSchema(databaseURL, schemaName string) error {
+	dbURL, err := url.Parse(databaseURL)
 	if err != nil {
 		slog.Error("failed to parse database URL", "error", err)
 		return fmt.Errorf("parse database URL: %w", err)

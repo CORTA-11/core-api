@@ -14,7 +14,7 @@ import (
 func TestJWTMiddleware(t *testing.T) {
 	userPublicID := uuid.New()
 	email := "test@example.com"
-	tokenService := service.NewTokenService()
+	tokenService := service.NewTokenService("unit-test-jwt-secret")
 
 	// Generate a valid token for testing
 	validToken, err := tokenService.GenerateToken(userPublicID, email)

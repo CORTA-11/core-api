@@ -6,10 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
-	"time"
 
 	"github.com/CORTA-11/core-api/cmd/api/handlers"
+	"github.com/CORTA-11/core-api/internal/config"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
@@ -25,8 +24,13 @@ func main() {
 	slog.SetDefault(logger)
 
 	ctx := context.Background()
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("invalid configuration", "error", err)
+		return
+	}
 
-	pool, err := pgxpool.New(ctx, os.Getenv("DATABASE_URL"))
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("unable to connect to database", "error", err)
 		return
@@ -40,31 +44,23 @@ func main() {
 
 	queries := repository.New(pool)
 
-	orgService := service.NewOrgService(pool, queries)
+	orgService := service.NewOrgService(pool, queries, cfg.DatabaseURL)
 	teamService := service.NewTeamService(pool, queries)
 	taskService := service.NewTaskService(pool, queries)
-	tokenService := service.NewTokenService()
+	tokenService := service.NewTokenService(cfg.JWTSecret)
 	userService := service.NewUserService(pool, queries, tokenService)
 
-	minioEndpoint := os.Getenv("MINIO_ENDPOINT")
-	minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
-	minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
-	minioBucketName := os.Getenv("MINIO_BUCKET_NAME")
-	minioUseSSL, _ := strconv.ParseBool(os.Getenv("MINIO_USE_SSL"))
+	minioClient := appMinio.NewMinioClient(cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, cfg.MinIO.UseSSL)
+	appMinio.CreateBucket(context.Background(), minioClient, cfg.MinIO.Bucket)
 
-	minioClient := appMinio.NewMinioClient(minioEndpoint, minioAccessKey, minioSecretKey, minioUseSSL)
-	appMinio.CreateBucket(context.Background(), minioClient, minioBucketName)
+	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
 
-	fileService := service.NewFileService(minioClient, minioBucketName)
-
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPort := os.Getenv("REDIS_PORT")
-	redisAddr := redisHost + ":" + redisPort
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     redisAddr,
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
+	redisOptions, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		slog.Error("invalid Redis URL", "error", err)
+		return
+	}
+	rdb := redis.NewClient(redisOptions)
 	defer func() { _ = rdb.Close() }()
 
 	cacheService := service.NewCacheService(rdb)
@@ -85,9 +81,10 @@ func main() {
 	router.SetupRoutes()
 
 	s := http.Server{
-		WriteTimeout: time.Second * 15,
-		ReadTimeout:  time.Second * 15,
-		Addr:         ":8080",
+		WriteTimeout: cfg.HTTPWriteTimeout,
+		ReadTimeout:  cfg.HTTPReadTimeout,
+		IdleTimeout:  cfg.HTTPIdleTimeout,
+		Addr:         cfg.HTTPAddr,
 		Handler:      router.Handler(),
 		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
