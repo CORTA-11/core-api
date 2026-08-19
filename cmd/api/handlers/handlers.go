@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
+	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -62,6 +63,7 @@ func NewRouter(conf RouterConf) *Router {
 
 func (router *Router) SetupRoutes() {
 	r := router.mux
+	r.Use(httpx.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(appMiddleware.Recoverer)
 	r.Use(appMiddleware.CorsMiddleware)
