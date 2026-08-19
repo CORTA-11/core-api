@@ -3,47 +3,80 @@ name: Go CI
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  ci:
-    name: Build, Test & Security Checks
+  check:
+    name: Check, build, generation, and migrations
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version-file: 'go.mod'
-          cache: 'true'
+          go-version-file: go.mod
+          cache: true
+      - run: make check
 
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run tests
-        run: go test ./...
-
-      - name: Build
-        run: go build ./...
-
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v9
-
-      - name: Run govulncheck
-        uses: golang/govulncheck-action@v1
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
         with:
-          go-version-file: 'go.mod'
-          go-package: './...'
+          go-version-file: go.mod
+          cache: true
+      - run: make test-unit
 
-      - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+  race:
+    name: Race tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make test-race
 
-      - name: Run Gosec
-        run: $(go env GOPATH)/bin/gosec -exclude-generated ./...
+  integration:
+    name: Integration and isolation tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make test-integration
+      - run: make test-isolation
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: make secrets
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/dependency-review-action@v4
