@@ -2,36 +2,48 @@ package minio
 
 import (
 	"context"
-	"log"
+	"fmt"
 
-	"github.com/minio/minio-go/v7"
+	miniogo "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
-func NewMinioClient(endpoint, accessKeyID, secretAccessKey string, useSSL bool) *minio.Client {
-	// Initialize minio client object.
-	minioClient, err := minio.New(endpoint, &minio.Options{
+type BucketClient interface {
+	MakeBucket(context.Context, string, miniogo.MakeBucketOptions) error
+	BucketExists(context.Context, string) (bool, error)
+}
+
+func NewClient(endpoint, accessKeyID, secretAccessKey string, useSSL bool) (*miniogo.Client, error) {
+	client, err := miniogo.New(endpoint, &miniogo.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
 		Secure: useSSL,
 	})
 	if err != nil {
-		log.Fatalln(err)
+		return nil, fmt.Errorf("create MinIO client: %w", err)
 	}
-
-	return minioClient
+	return client, nil
 }
 
-func CreateBucket(ctx context.Context, client *minio.Client, bucketName string) {
-	err := client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{})
-	if err != nil {
-		// Check to see if we already own this bucket (which happens if you run this twice)
-		exists, errBucketExists := client.BucketExists(ctx, bucketName)
-		if errBucketExists == nil && exists {
-			log.Printf("We already own %s\n", bucketName)
-		} else {
-			log.Fatalln(err)
+func EnsureBucket(ctx context.Context, client BucketClient, bucketName string) error {
+	if err := client.MakeBucket(ctx, bucketName, miniogo.MakeBucketOptions{}); err != nil {
+		exists, existsErr := client.BucketExists(ctx, bucketName)
+		if existsErr != nil {
+			return fmt.Errorf("check MinIO bucket after create failure: %w", existsErr)
 		}
-	} else {
-		log.Printf("Successfully created %s\n", bucketName)
+		if !exists {
+			return fmt.Errorf("create MinIO bucket: %w", err)
+		}
 	}
+	return nil
+}
+
+func VerifyBucket(ctx context.Context, client BucketClient, bucketName string) error {
+	exists, err := client.BucketExists(ctx, bucketName)
+	if err != nil {
+		return fmt.Errorf("check MinIO bucket: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("configured MinIO bucket %q does not exist; run make bootstrap", bucketName)
+	}
+	return nil
 }

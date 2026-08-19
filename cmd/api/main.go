@@ -50,8 +50,15 @@ func main() {
 	tokenService := service.NewTokenService(cfg.JWTSecret)
 	userService := service.NewUserService(pool, queries, tokenService)
 
-	minioClient := appMinio.NewMinioClient(cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, cfg.MinIO.UseSSL)
-	appMinio.CreateBucket(context.Background(), minioClient, cfg.MinIO.Bucket)
+	minioClient, err := appMinio.NewClient(cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, cfg.MinIO.UseSSL)
+	if err != nil {
+		slog.Error("unable to create MinIO client", "error", err)
+		return
+	}
+	if err := appMinio.VerifyBucket(ctx, minioClient, cfg.MinIO.Bucket); err != nil {
+		slog.Error("MinIO bucket is not ready", "error", err)
+		return
+	}
 
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
 
