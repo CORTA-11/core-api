@@ -1,6 +1,3 @@
-#!/bin/bash
-
-if ! go test ./...; then
-    echo "Tests failed. Push rejected."
-    exit 1
-fi
+#!/usr/bin/env bash
+set -euo pipefail
+make test-unit
