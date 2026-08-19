@@ -25,6 +25,7 @@ type Router struct {
 	fileService      service.FileService
 	userService      service.UserService
 	tokenService     service.TokenService
+	orgUserService   service.OrgUserService
 	readinessChecks  map[string]ReadinessCheck
 	readinessTimeout time.Duration
 	pprofEnabled     bool
@@ -39,6 +40,7 @@ type RouterConf struct {
 	FileService      *service.FileService
 	UserService      *service.UserService
 	TokenService     *service.TokenService
+	OrgUserService   *service.OrgUserService
 	ReadinessChecks  map[string]ReadinessCheck
 	ReadinessTimeout time.Duration
 	PprofEnabled     bool
@@ -55,6 +57,7 @@ func NewRouter(conf RouterConf) *Router {
 		fileService:      *conf.FileService,
 		userService:      *conf.UserService,
 		tokenService:     *conf.TokenService,
+		orgUserService:   *conf.OrgUserService,
 		readinessChecks:  conf.ReadinessChecks,
 		readinessTimeout: conf.ReadinessTimeout,
 		pprofEnabled:     conf.PprofEnabled,

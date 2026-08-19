@@ -74,7 +74,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	teamService := service.NewTeamService(pool, queries)
 	taskService := service.NewTaskService(pool, queries)
 	tokenService := service.NewTokenService(cfg.JWTSecret)
-	userService := service.NewUserService(pool, queries, tokenService)
+	passwordService := service.NewPasswordService()
+	userService := service.NewUserService(pool, queries, tokenService, passwordService)
+	orgUserService := service.NewOrgUserService(pool, queries)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
 	cacheService := service.NewCacheService(rdb)
 	cachedTeamService := service.NewCachedTeamService(teamService, cacheService)
@@ -88,7 +90,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	router := handlers.NewRouter(handlers.RouterConf{
 		DB: pool, Queries: queries, OrgService: &orgService, TeamService: &cachedTeamService,
 		TaskService: &taskService, UserService: &userService, FileService: &fileService,
-		TokenService: &tokenService, ReadinessChecks: readiness,
+		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
 		ReadinessTimeout: cfg.DependencyTimeout, PprofEnabled: cfg.PprofEnabled,
 	})
 	router.SetupRoutes()
