@@ -91,29 +91,33 @@ clean-tools:
 RUNTIME_GOALS := run seed bootstrap migrate-up-all migrate-down-all migrate-up migrate-down
 ifneq ($(filter $(RUNTIME_GOALS),$(MAKECMDGOALS)),)
 -include .env
-endif
 DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 REDIS_URL ?= redis://$(if $(REDIS_HOST),$(REDIS_HOST),localhost):$(if $(REDIS_PORT),$(REDIS_PORT),6379)/0
+export APP_ENV HTTP_ADDR HTTP_READ_TIMEOUT HTTP_WRITE_TIMEOUT HTTP_IDLE_TIMEOUT
+export SHUTDOWN_TIMEOUT DEPENDENCY_TIMEOUT PPROF_ENABLED
+export DATABASE_URL REDIS_URL JWT_SECRET
+export MINIO_ENDPOINT MINIO_ACCESS_KEY MINIO_SECRET_KEY MINIO_BUCKET_NAME MINIO_USE_SSL
+endif
 
 PUBLIC_MIGRATION_PATH := ./cmd/migrate
 
 migrate-up-all:
-	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" up-all
+	go run "$(PUBLIC_MIGRATION_PATH)" up-all
 
 migrate-down-all:
-	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" down-all
+	go run "$(PUBLIC_MIGRATION_PATH)" down-all
 
 migrate-up:
-	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" up
+	go run "$(PUBLIC_MIGRATION_PATH)" up
 
 migrate-down:
-	DATABASE_URL="$(DATABASE_URL)" go run "$(PUBLIC_MIGRATION_PATH)" down
+	go run "$(PUBLIC_MIGRATION_PATH)" down
 
 seed:
-	DATABASE_URL="$(DATABASE_URL)" go run ./cmd/seed
+	go run ./cmd/seed
 
 run:
-	DATABASE_URL="$(DATABASE_URL)" REDIS_URL="$(REDIS_URL)" go run ./cmd/api
+	go run ./cmd/api
 
 bootstrap:
-	DATABASE_URL="$(DATABASE_URL)" REDIS_URL="$(REDIS_URL)" go run ./cmd/bootstrap
+	go run ./cmd/bootstrap
