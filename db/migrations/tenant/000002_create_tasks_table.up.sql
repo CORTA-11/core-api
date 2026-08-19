@@ -10,6 +10,8 @@ CREATE TABLE tasks(
 
     description TEXT NOT NULL,
 
+    status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
+
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
