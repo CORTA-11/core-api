@@ -14,6 +14,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -23,6 +24,10 @@ func main() {
 		AddSource: true,
 	}))
 	slog.SetDefault(logger)
+
+	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+		slog.Warn("unable to load .env", "error", err)
+	}
 
 	ctx := context.Background()
 
