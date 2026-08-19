@@ -2,8 +2,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
-	"log/slog"
 	"os"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -11,29 +11,48 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
+const publicMigrationsDir = "file://db/migrations/public"
+
+type migrator interface {
+	Up() error
+	Down() error
+	Steps(int) error
+	Close() (error, error)
+}
+
+type migratorFactory func(sourceURL, databaseURL string) (migrator, error)
+
 func main() {
-	if len(os.Args) < 2 {
-		log.Fatal("usage: migrate [up|up-all|down|down-all]")
+	if err := run(os.Args[1:], os.Getenv, newMigrator); err != nil {
+		log.Printf("migration failed: %v", err)
+		os.Exit(1)
+	}
+}
+
+func newMigrator(sourceURL, databaseURL string) (migrator, error) {
+	return migrate.New(sourceURL, databaseURL)
+}
+
+func run(args []string, getenv func(string) string, factory migratorFactory) error {
+	if len(args) != 1 {
+		return errors.New("usage: migrate [up|up-all|down|down-all]")
 	}
 
-	const publicMigrationsDir = "file://db/migrations/public"
-	m, err := migrate.New(
-		publicMigrationsDir,
-		os.Getenv("DATABASE_URL"))
+	m, err := factory(publicMigrationsDir, getenv("DATABASE_URL"))
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("initialize migrator: %w", err)
 	}
 	defer func() {
-		sourceErr, dbErr := m.Close()
+		sourceErr, databaseErr := m.Close()
 		if sourceErr != nil {
-			log.Println("source close error:", sourceErr)
+			log.Printf("migration source close failed: %v", sourceErr)
 		}
-		if dbErr != nil {
-			log.Println("database close error:", dbErr)
+		if databaseErr != nil {
+			log.Printf("migration database close failed: %v", databaseErr)
 		}
 	}()
 
-	switch os.Args[1] {
+	switch args[0] {
 	case "up-all":
 		err = m.Up()
 	case "down-all":
@@ -43,16 +62,13 @@ func main() {
 	case "down":
 		err = m.Steps(-1)
 	default:
-		// #nosec G706 -- command-line argument is only used by trusted developers
-		log.Fatalf("unknown command: %s. Use up or down", os.Args[1])
+		return fmt.Errorf("unknown migration command %q", args[0])
 	}
 
-	if errors.Is(err, migrate.ErrNoChange) {
-		slog.Warn("no change occured", "error", err)
-	} else if err != nil {
-		slog.Error("error occured", "error", err)
+	if err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("%s migration: %w", args[0], err)
 	}
-
-	// #nosec G706 -- command-line argument is only used by trusted developers
-	log.Println("migration completed:", os.Args[1])
+	// #nosec G706 -- command is validated against the fixed switch cases above.
+	log.Printf("migration completed: %s", args[0])
+	return nil
 }
