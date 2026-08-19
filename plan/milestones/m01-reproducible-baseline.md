@@ -22,12 +22,12 @@ shutdown or readiness checks.
 
 **Artifacts:** `Makefile`, `.env.example`, optional pinned tool manifest.
 
-- [ ] Replace unconditional `include .env` with optional runtime-only loading.
-- [ ] Add `check`, `test-unit`, `test-race`, `test-integration`, `test-isolation`,
+- [x] Replace unconditional `include .env` with optional runtime-only loading.
+- [x] Add `check`, `test-unit`, `test-race`, `test-integration`, `test-isolation`,
   `generate`, and `generate-check` targets; keep formatting fixes separate.
-- [ ] Pin sqlc, golangci-lint, gosec, govulncheck, and migration tooling used by
+- [x] Pin sqlc, golangci-lint, gosec, govulncheck, and migration tooling used by
   protected checks.
-- [ ] Make `make check` run without services, `.env`, or secrets and leave the
+- [x] Make `make check` run without services, `.env`, or secrets and leave the
   worktree unchanged.
 
 **Acceptance:** from a fresh checkout, `make check && make test-unit` passes;
@@ -38,12 +38,12 @@ shutdown or readiness checks.
 
 **Artifacts:** `.github/workflows/ci.yml`, tool version/pin files.
 
-- [ ] Make pull-request CI call the M01-D01 targets rather than duplicate shell
+- [x] Make pull-request CI call the M01-D01 targets rather than duplicate shell
   commands.
-- [ ] Add build, generated drift, migration-name/up-down pairing, race, secret,
+- [x] Add build, generated drift, migration-name/up-down pairing, race, secret,
   and dependency review jobs at the appropriate trigger.
-- [ ] Pin action and scanner versions; remove `@latest` installation.
-- [ ] Upload test output only when useful for diagnosing a failure; never upload
+- [x] Pin action and scanner versions; remove `@latest` installation.
+- [x] Upload test output only when useful for diagnosing a failure; never upload
   environment files or secrets.
 
 **Acceptance:** fixtures for bad format, stale generation, a missing down file,
@@ -55,13 +55,13 @@ CI using the same commands.
 **Artifacts:** `docker-compose.test.yaml`, `internal/testsupport/`, integration
 test packages, Make targets.
 
-- [ ] Start isolated PostgreSQL, Redis, and MinIO instances on collision-safe
+- [x] Start isolated PostgreSQL, Redis, and MinIO instances on collision-safe
   ports with health checks and unique test credentials.
-- [ ] Apply public migrations, create tenant schemas, seed minimal fixtures, and
+- [x] Apply public migrations, create tenant schemas, seed minimal fixtures, and
   tear down volumes after the suite.
-- [ ] Provide helpers for database cleanup, MinIO bucket cleanup, Redis flush,
+- [x] Provide helpers for database cleanup, MinIO bucket cleanup, Redis flush,
   and bounded service readiness.
-- [ ] Run real adapter tests separately from fast unit tests.
+- [x] Run real adapter tests separately from fast unit tests.
 
 **Acceptance:** `make test-integration` succeeds twice in succession on a clean
 machine, leaves no persistent named test volumes, and fails clearly when a
@@ -72,14 +72,14 @@ dependency never becomes healthy.
 **Artifacts:** `internal/config/`, `cmd/api/main.go`, `cmd/api/handlers/health.go`,
 MinIO/Redis constructors and tests.
 
-- [ ] Parse all settings once into typed configuration with units, safe
+- [x] Parse all settings once into typed configuration with units, safe
   development defaults, production validation, and redacted errors.
-- [ ] Return constructor/startup errors instead of calling `log.Fatal` in
+- [x] Return constructor/startup errors instead of calling `log.Fatal` in
   adapters; bucket creation becomes an explicit bootstrap action.
-- [ ] Add `/health/live` and dependency-aware `/health/ready` endpoints.
-- [ ] Handle `SIGINT`/`SIGTERM`, stop accepting requests, drain with a deadline,
+- [x] Add `/health/live` and dependency-aware `/health/ready` endpoints.
+- [x] Handle `SIGINT`/`SIGTERM`, stop accepting requests, drain with a deadline,
   close adapters, and return a non-zero exit code on startup/runtime failure.
-- [ ] Disable pprof by default and mount it only when an explicit development
+- [x] Disable pprof by default and mount it only when an explicit development
   setting is enabled.
 
 **Acceptance:** table tests cover missing/invalid config without printing secret
@@ -91,11 +91,11 @@ values; process tests prove readiness transitions and bounded shutdown; pprof is
 **Artifacts:** `internal/httpx/`, handler tests, `plan/verification.md` command
 implementations.
 
-- [ ] Add bounded JSON decoding, response encoding, request IDs, and a typed
+- [x] Add bounded JSON decoding, response encoding, request IDs, and a typed
   application-error adapter usable by later API handlers.
-- [ ] Reject unknown JSON fields, multiple JSON values, and bodies over the
+- [x] Reject unknown JSON fields, multiple JSON values, and bodies over the
   configured limit.
-- [ ] Add test builders for authenticated principals and error assertions; do
+- [x] Add test builders for authenticated principals and error assertions; do
   not couple these helpers to tenant schema strings.
 
 **Acceptance:** unit tests cover malformed/oversized JSON, cancellation, encoder
@@ -112,4 +112,19 @@ work into these changes.
 Run the M01 row in [`../verification.md`](../verification.md). Record the merged
 PR/commit links here before changing status to `complete`.
 
-**Implementation links:** _none yet_.
+**Implementation commits:**
+
+- `0f5ea40` — reproducible verification commands and patched Go 1.26.6 baseline
+- `a65f1af` — migration command failure propagation
+- `c7a3e27` — disposable dependency harness and isolation smoke test
+- `c357b40` — CI parity with repository verification targets
+- `d914ea5` — typed configuration and dependency injection
+- `763bbfe` — explicit MinIO bootstrap and startup verification
+- `2d2d8d6` — health endpoints and bounded process lifecycle
+- `0057f0a` — shared bounded HTTP and test primitives
+
+**Local verification (2026-08-19):** `make check`, `make test-unit`,
+`make test-race`, two successive `make test-integration` runs,
+`make test-isolation`, and the pinned Gitleaks scan pass. The tracked worktree
+remains unchanged after verification. Remote CI is pending, so M01 remains
+`in progress`.
