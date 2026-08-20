@@ -7,8 +7,8 @@ in the linked milestone files.
 
 | Milestone | Status | Merge-sized deliverables | Release result |
 | --- | --- | ---: | --- |
-| [M01 — Reproducible baseline](milestones/m01-reproducible-baseline.md) | `in progress` | 5 | Reliable local/CI development loop |
-| [M02 — Trusted tenant boundary](milestones/m02-trusted-tenant-boundary.md) | `not started` | 5 | Database-enforced organization/team isolation |
+| [M01 — Reproducible baseline](milestones/m01-reproducible-baseline.md) | `complete` | 5 | Reliable local/CI development loop |
+| [M02 — Trusted tenant boundary](milestones/m02-trusted-tenant-boundary.md) | `in progress` | 5 | Database-enforced organization/team isolation |
 | [M03 — Identity, authorization, and API](milestones/m03-identity-authorization-api.md) | `not started` | 6 | Authenticated, default-deny `/api/v1` contract |
 | [M04 — Team and task reference slice](milestones/m04-team-task-slice.md) | `not started` | 6 | Complete concurrent Kanban backend slice |
 | [M05 — Files, events, and operations](milestones/m05-files-events-operations.md) | `not started` | 7 | Core backend release |
@@ -16,8 +16,9 @@ in the linked milestone files.
 | [M07 — Collaboration](milestones/m07-collaboration.md) | `not started` | 5 | Chat, documents, notifications, and managed search |
 | [M08 — Authorization-aware AI](milestones/m08-authorization-aware-ai.md) | `not started` | 5 | Optional, controlled AI capabilities |
 
-`M01` is in progress because unit tests and a CI workflow already exist. Its
-remaining deliverables are not complete until the milestone checks pass.
+`M01` completed in [PR #21](https://github.com/CORTA-11/core-api/pull/21) at
+merge commit `f2ee418`. `M02` is in progress under its linked implementation
+package; deliverables must merge in order.
 
 ## Dependency and release cuts
 

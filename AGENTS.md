@@ -26,7 +26,21 @@ Run `gofmt` (`make fmt`); Go indentation uses tabs. Exported identifiers use `Pa
 
 ## Testing Guidelines
 
-Use Go's `testing` package, with `testify` and `pgxmock` where appropriate. Name tests by observable behavior, for example `TestTaskService_MoveTaskRejectsCrossTeamMove`. Cover failure and authorization paths, not only successful requests. Persistence, migration, RLS, and tenant-boundary behavior requires a real PostgreSQL test; mocks cannot prove those properties. Run `go test -race ./...` for concurrency-sensitive changes. No numeric coverage threshold is defined, but changed behavior must be exercised.
+Test-driven development is the default. For each behavior slice, write the
+lowest-layer focused test, run it before implementation, and confirm the expected
+failure; then implement, make the focused and relevant regression lanes green,
+and refactor while green. Commit the test and implementation together only after
+the red result has been observed and the slice passes. Record red and green
+commands in the PR description; explain when documentation-only or generated-only
+work has no meaningful executable red test.
+
+Use Go's `testing` package, with `testify` and `pgxmock` where appropriate. Name
+tests by observable behavior, for example
+`TestTaskService_MoveTaskRejectsCrossTeamMove`. Cover failure and authorization
+paths, not only successful requests. Persistence, migration, RLS, and
+tenant-boundary behavior requires a real PostgreSQL test; mocks cannot prove
+those properties. Run `go test -race ./...` for concurrency-sensitive changes.
+No numeric coverage threshold is defined, but changed behavior must be exercised.
 
 ## Commit & Pull Request Guidelines
 

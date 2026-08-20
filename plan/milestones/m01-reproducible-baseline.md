@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `in progress` |
+| Status | `complete` |
 | Outcome | A fresh checkout has deterministic checks, disposable integration dependencies, validated startup, and bounded process lifecycle. |
 | Depends on | None |
 | Release | Engineering baseline |
@@ -114,6 +114,9 @@ PR/commit links here before changing status to `complete`.
 
 **Implementation commits:**
 
+- [PR #21](https://github.com/CORTA-11/core-api/pull/21) — merged M01 reproducible baseline
+- `f2ee418` — merge commit for PR #21
+
 - `0f5ea40` — reproducible verification commands and patched Go 1.26.6 baseline
 - `a65f1af` — migration command failure propagation
 - `c7a3e27` — disposable dependency harness and isolation smoke test
@@ -126,5 +129,6 @@ PR/commit links here before changing status to `complete`.
 **Local verification (2026-08-19):** `make check`, `make test-unit`,
 `make test-race`, two successive `make test-integration` runs,
 `make test-isolation`, and the pinned Gitleaks scan pass. The tracked worktree
-remains unchanged after verification. Remote CI is pending, so M01 remains
-`in progress`.
+remained unchanged after verification. The baseline merged in
+[PR #21](https://github.com/CORTA-11/core-api/pull/21) with merge commit
+`f2ee418`; M01 is complete and hands off to M02.
