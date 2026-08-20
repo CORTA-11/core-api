@@ -8,17 +8,13 @@ import (
 
 	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
 	"github.com/CORTA-11/core-api/internal/httpx"
-	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Router struct {
 	mux              *chi.Mux
-	db               *pgxpool.Pool
-	queries          *repository.Queries
 	orgService       service.OrgService
 	teamService      service.TeamService
 	taskService      service.TaskService
@@ -32,8 +28,6 @@ type Router struct {
 }
 
 type RouterConf struct {
-	DB               *pgxpool.Pool
-	Queries          *repository.Queries
 	OrgService       *service.OrgService
 	TeamService      *service.TeamService
 	TaskService      *service.TaskService
@@ -49,8 +43,6 @@ type RouterConf struct {
 func NewRouter(conf RouterConf) *Router {
 	return &Router{
 		mux:              chi.NewRouter(),
-		db:               conf.DB,
-		queries:          conf.Queries,
 		orgService:       *conf.OrgService,
 		teamService:      *conf.TeamService,
 		taskService:      *conf.TaskService,

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -15,12 +15,12 @@ type pgxPool interface {
 
 type userService struct {
 	pool            pgxPool
-	queries         *repository.Queries
+	queries         *publicdb.Queries
 	tokenService    TokenService
 	passwordService PasswordService
 }
 
-func NewUserService(pool pgxPool, queries *repository.Queries, tokenService TokenService, passwordService PasswordService) UserService {
+func NewUserService(pool pgxPool, queries *publicdb.Queries, tokenService TokenService, passwordService PasswordService) UserService {
 	return &userService{
 		pool:            pool,
 		queries:         queries,
@@ -30,7 +30,7 @@ func NewUserService(pool pgxPool, queries *repository.Queries, tokenService Toke
 }
 
 func (u *userService) GetUsers(ctx context.Context) ([]User, error) {
-	repoUsers, err := u.queries.GetAllUsers(ctx)
+	repoUsers, err := u.queries.GetAllUsers(ctx, listResultLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (u *userService) CreateUser(ctx context.Context, name string, email string,
 		return nil, err
 	}
 
-	userParams := repository.CreateUserParams{
+	userParams := publicdb.CreateUserParams{
 		Email:        email,
 		PasswordHash: hashedPassword,
 		DisplayName:  name,
@@ -127,7 +127,7 @@ func (u *userService) UpdateUser(ctx context.Context, publicID string, name stri
 		return nil, err
 	}
 
-	params := repository.UpdateUserParams{
+	params := publicdb.UpdateUserParams{
 		UserID:       parsedUUID,
 		Email:        email,
 		PasswordHash: hashedPassword,

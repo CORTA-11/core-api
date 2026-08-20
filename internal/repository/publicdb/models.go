@@ -2,7 +2,7 @@
 // versions:
 //   sqlc v1.31.1
 
-package repository
+package publicdb
 
 import (
 	"time"
@@ -24,23 +24,6 @@ type Org struct {
 type OrgUser struct {
 	OrgID  int64 `json:"org_id"`
 	UserID int64 `json:"user_id"`
-}
-
-type Task struct {
-	ID          int64       `json:"id"`
-	TeamID      pgtype.Int8 `json:"team_id"`
-	Description string      `json:"description"`
-	Status      string      `json:"status"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
-}
-
-type Team struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type User struct {

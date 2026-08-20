@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: orgs.sql
 
-package repository
+package publicdb
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 )
 
 const createOrg = `-- name: CreateOrg :one
-INSERT INTO orgs (name, public_id, schema_name)
+INSERT INTO public.orgs (name, public_id, schema_name)
 VALUES ($1, $2, $3)
 RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
 `
@@ -39,7 +39,8 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Org, erro
 }
 
 const getOrgID = `-- name: GetOrgID :one
-SELECT id FROM orgs
+SELECT id
+FROM public.orgs
 WHERE public_id = $1
 AND deleted_at IS NULL
 `
@@ -52,7 +53,8 @@ func (q *Queries) GetOrgID(ctx context.Context, publicID uuid.UUID) (int64, erro
 }
 
 const getOrgName = `-- name: GetOrgName :one
-SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at FROM orgs
+SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at
+FROM public.orgs
 WHERE id = $1
 AND deleted_at IS NULL
 `
@@ -73,13 +75,15 @@ func (q *Queries) GetOrgName(ctx context.Context, id int64) (Org, error) {
 }
 
 const getOrgs = `-- name: GetOrgs :many
-SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at FROM orgs
-WHERE deleted_at is NULL
-ORDER BY name ASC
+SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at
+FROM public.orgs
+WHERE deleted_at IS NULL
+ORDER BY name ASC, id ASC
+LIMIT $1
 `
 
-func (q *Queries) GetOrgs(ctx context.Context) ([]Org, error) {
-	rows, err := q.db.Query(ctx, getOrgs)
+func (q *Queries) GetOrgs(ctx context.Context, limit int32) ([]Org, error) {
+	rows, err := q.db.Query(ctx, getOrgs, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +111,8 @@ func (q *Queries) GetOrgs(ctx context.Context) ([]Org, error) {
 }
 
 const getSchemaFromID = `-- name: GetSchemaFromID :one
-SELECT schema_name FROM orgs
+SELECT schema_name
+FROM public.orgs
 WHERE id = $1
 `
 
@@ -119,7 +124,7 @@ func (q *Queries) GetSchemaFromID(ctx context.Context, id int64) (string, error)
 }
 
 const restoreOrg = `-- name: RestoreOrg :one
-UPDATE orgs
+UPDATE public.orgs
 SET deleted_at = NULL, updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NOT NULL
@@ -142,7 +147,7 @@ func (q *Queries) RestoreOrg(ctx context.Context, publicID uuid.UUID) (Org, erro
 }
 
 const softDeleteOrg = `-- name: SoftDeleteOrg :one
-UPDATE orgs
+UPDATE public.orgs
 SET deleted_at = NOW(), updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NULL
@@ -165,7 +170,7 @@ func (q *Queries) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (Org, e
 }
 
 const updateOrg = `-- name: UpdateOrg :one
-UPDATE orgs
+UPDATE public.orgs
 SET name = $2, updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NULL

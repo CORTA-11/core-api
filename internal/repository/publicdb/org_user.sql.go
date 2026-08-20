@@ -3,14 +3,14 @@
 //   sqlc v1.31.1
 // source: org_user.sql
 
-package repository
+package publicdb
 
 import (
 	"context"
 )
 
 const addUserToOrg = `-- name: AddUserToOrg :one
-INSERT INTO org_user (org_id, user_id)
+INSERT INTO public.org_user (org_id, user_id)
 VALUES ($1, $2)
 RETURNING org_id, user_id
 `
@@ -28,7 +28,8 @@ func (q *Queries) AddUserToOrg(ctx context.Context, arg AddUserToOrgParams) (Org
 }
 
 const getNumberOfUsersInOrg = `-- name: GetNumberOfUsersInOrg :one
-SELECT COUNT(*) FROM org_user
+SELECT COUNT(*)
+FROM public.org_user
 WHERE org_id = $1
 `
 
@@ -40,14 +41,22 @@ func (q *Queries) GetNumberOfUsersInOrg(ctx context.Context, orgID int64) (int64
 }
 
 const getOrgsForUser = `-- name: GetOrgsForUser :many
-SELECT o.id, o.public_id, o.name, o.schema_name, o.created_at, o.updated_at, o.deleted_at FROM orgs o
-JOIN org_user ou ON o.id = ou.org_id
+SELECT o.id, o.public_id, o.name, o.schema_name, o.created_at, o.updated_at, o.deleted_at
+FROM public.orgs AS o
+JOIN public.org_user AS ou ON o.id = ou.org_id
 WHERE ou.user_id = $1
 AND o.deleted_at IS NULL
+ORDER BY o.name ASC, o.id ASC
+LIMIT $2
 `
 
-func (q *Queries) GetOrgsForUser(ctx context.Context, userID int64) ([]Org, error) {
-	rows, err := q.db.Query(ctx, getOrgsForUser, userID)
+type GetOrgsForUserParams struct {
+	UserID int64 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+}
+
+func (q *Queries) GetOrgsForUser(ctx context.Context, arg GetOrgsForUserParams) ([]Org, error) {
+	rows, err := q.db.Query(ctx, getOrgsForUser, arg.UserID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -75,14 +84,22 @@ func (q *Queries) GetOrgsForUser(ctx context.Context, userID int64) ([]Org, erro
 }
 
 const getUsersInOrg = `-- name: GetUsersInOrg :many
-SELECT u.id, u.user_id, u.email, u.password_hash, u.display_name, u.created_at, u.updated_at, u.deleted_at FROM users u
-JOIN org_user ou ON u.id = ou.user_id
+SELECT u.id, u.user_id, u.email, u.password_hash, u.display_name, u.created_at, u.updated_at, u.deleted_at
+FROM public.users AS u
+JOIN public.org_user AS ou ON u.id = ou.user_id
 WHERE ou.org_id = $1
 AND u.deleted_at IS NULL
+ORDER BY u.created_at ASC, u.id ASC
+LIMIT $2
 `
 
-func (q *Queries) GetUsersInOrg(ctx context.Context, orgID int64) ([]User, error) {
-	rows, err := q.db.Query(ctx, getUsersInOrg, orgID)
+type GetUsersInOrgParams struct {
+	OrgID int64 `json:"org_id"`
+	Limit int32 `json:"limit"`
+}
+
+func (q *Queries) GetUsersInOrg(ctx context.Context, arg GetUsersInOrgParams) ([]User, error) {
+	rows, err := q.db.Query(ctx, getUsersInOrg, arg.OrgID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +128,7 @@ func (q *Queries) GetUsersInOrg(ctx context.Context, orgID int64) ([]User, error
 }
 
 const removeUserFromOrg = `-- name: RemoveUserFromOrg :one
-DELETE FROM org_user
+DELETE FROM public.org_user
 WHERE org_id = $1
 AND user_id = $2
 RETURNING org_id, user_id

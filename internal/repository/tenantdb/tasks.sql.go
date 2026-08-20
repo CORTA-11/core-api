@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: tasks.sql
 
-package repository
+package tenantdb
 
 import (
 	"context"
@@ -67,11 +67,17 @@ SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_a
 FROM tasks
 JOIN teams ON teams.id = tasks.team_id
 WHERE teams.id = $1
-ORDER BY tasks.created_at ASC
+ORDER BY tasks.created_at ASC, tasks.id ASC
+LIMIT $2
 `
 
-func (q *Queries) GetTasks(ctx context.Context, id int64) ([]Task, error) {
-	rows, err := q.db.Query(ctx, getTasks, id)
+type GetTasksParams struct {
+	TeamID int64 `json:"team_id"`
+	Limit  int32 `json:"limit"`
+}
+
+func (q *Queries) GetTasks(ctx context.Context, arg GetTasksParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, getTasks, arg.TeamID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

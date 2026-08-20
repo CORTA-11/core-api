@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -60,12 +60,13 @@ func TestUserServiceImpl(t *testing.T) {
 		defer mockPool.Close()
 
 		mockPool.ExpectQuery("(?s)GetAllUsers :many.*SELECT").
+			WithArgs(int32(100)).
 			WillReturnRows(pgxmock.NewRows(columns).
 				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
 
 		tokenSvc := new(mockTokenService)
 		passwordSvc := new(mockPasswordService)
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		users, err := svc.GetUsers(context.Background())
@@ -88,7 +89,7 @@ func TestUserServiceImpl(t *testing.T) {
 
 		tokenSvc := new(mockTokenService)
 		passwordSvc := new(mockPasswordService)
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		user, err := svc.GetUserByID(context.Background(), userPublicID.String())
@@ -118,7 +119,7 @@ func TestUserServiceImpl(t *testing.T) {
 		passwordSvc := new(mockPasswordService)
 		passwordSvc.On("HashPassword", "password123").Return("hashed-password", nil)
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		user, err := svc.CreateUser(context.Background(), displayName, email, "password123")
@@ -146,7 +147,7 @@ func TestUserServiceImpl(t *testing.T) {
 		passwordSvc := new(mockPasswordService)
 		passwordSvc.On("HashPassword", "password123").Return("hashed-password", nil)
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		_, err = svc.CreateUser(context.Background(), displayName, email, "password123")
@@ -170,7 +171,7 @@ func TestUserServiceImpl(t *testing.T) {
 		passwordSvc := new(mockPasswordService)
 		passwordSvc.On("VerifyPassword", "password123", "hashed-password").Return(true, nil)
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		token, user, err := svc.Login(context.Background(), email, "password123")
@@ -195,7 +196,7 @@ func TestUserServiceImpl(t *testing.T) {
 		passwordSvc := new(mockPasswordService)
 		passwordSvc.On("VerifyPassword", "wrong-password", "hashed-password").Return(false, nil)
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewUserService(mockPool, queries, tokenSvc, passwordSvc)
 
 		_, _, err = svc.Login(context.Background(), email, "wrong-password")

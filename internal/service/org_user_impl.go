@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 )
 
 type orgUserService struct {
 	pool    pgxPool
-	queries *repository.Queries
+	queries *publicdb.Queries
 }
 
 // NewOrgUserService creates a new instance of OrgUserService.
-func NewOrgUserService(pool pgxPool, queries *repository.Queries) OrgUserService {
+func NewOrgUserService(pool pgxPool, queries *publicdb.Queries) OrgUserService {
 	return &orgUserService{
 		pool:    pool,
 		queries: queries,
@@ -45,7 +45,7 @@ func (s *orgUserService) AddUserToOrg(ctx context.Context, orgPublicID uuid.UUID
 		return fmt.Errorf("failed to find user: %w", err)
 	}
 
-	_, err = qtx.AddUserToOrg(ctx, repository.AddUserToOrgParams{
+	_, err = qtx.AddUserToOrg(ctx, publicdb.AddUserToOrgParams{
 		OrgID:  orgID,
 		UserID: repoUser.ID,
 	})
@@ -80,7 +80,7 @@ func (s *orgUserService) RemoveUserFromOrg(ctx context.Context, orgPublicID uuid
 		return fmt.Errorf("failed to find user: %w", err)
 	}
 
-	_, err = qtx.RemoveUserFromOrg(ctx, repository.RemoveUserFromOrgParams{
+	_, err = qtx.RemoveUserFromOrg(ctx, publicdb.RemoveUserFromOrgParams{
 		OrgID:  orgID,
 		UserID: repoUser.ID,
 	})
@@ -110,7 +110,10 @@ func (s *orgUserService) GetOrgsForUser(ctx context.Context, userPublicID uuid.U
 		return nil, fmt.Errorf("failed to find user: %w", err)
 	}
 
-	dbOrgs, err := qtx.GetOrgsForUser(ctx, repoUser.ID)
+	dbOrgs, err := qtx.GetOrgsForUser(ctx, publicdb.GetOrgsForUserParams{
+		UserID: repoUser.ID,
+		Limit:  listResultLimit,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get orgs for user: %w", err)
 	}
@@ -146,7 +149,10 @@ func (s *orgUserService) GetUsersInOrg(ctx context.Context, orgPublicID uuid.UUI
 		return nil, fmt.Errorf("failed to find organization: %w", err)
 	}
 
-	dbUsers, err := qtx.GetUsersInOrg(ctx, orgID)
+	dbUsers, err := qtx.GetUsersInOrg(ctx, publicdb.GetUsersInOrgParams{
+		OrgID: orgID,
+		Limit: listResultLimit,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get users in org: %w", err)
 	}

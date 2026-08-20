@@ -15,7 +15,8 @@ import (
 	"github.com/CORTA-11/core-api/cmd/api/handlers"
 	"github.com/CORTA-11/core-api/internal/config"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -73,14 +74,15 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("verify MinIO: %w", err)
 	}
 
-	queries := repository.New(pool)
-	orgService := service.NewOrgService(pool, queries, cfg.DatabaseURL)
-	teamService := service.NewTeamService(pool, queries)
-	taskService := service.NewTaskService(pool, queries)
+	publicQueries := publicdb.New(pool)
+	tenantQueries := tenantdb.New(pool)
+	orgService := service.NewOrgService(pool, publicQueries, cfg.DatabaseURL)
+	teamService := service.NewTeamService(pool, tenantQueries)
+	taskService := service.NewTaskService(pool, tenantQueries)
 	tokenService := service.NewTokenService(cfg.JWTSecret)
 	passwordService := service.NewPasswordService()
-	userService := service.NewUserService(pool, queries, tokenService, passwordService)
-	orgUserService := service.NewOrgUserService(pool, queries)
+	userService := service.NewUserService(pool, publicQueries, tokenService, passwordService)
+	orgUserService := service.NewOrgUserService(pool, publicQueries)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
 	cacheService := service.NewCacheService(rdb)
 	cachedTeamService := service.NewCachedTeamService(teamService, cacheService)
@@ -92,7 +94,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		},
 	}
 	router := handlers.NewRouter(handlers.RouterConf{
-		DB: pool, Queries: queries, OrgService: &orgService, TeamService: &cachedTeamService,
+		OrgService: &orgService, TeamService: &cachedTeamService,
 		TaskService: &taskService, UserService: &userService, FileService: &fileService,
 		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
 		ReadinessTimeout: cfg.DependencyTimeout, PprofEnabled: cfg.PprofEnabled,
