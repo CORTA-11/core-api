@@ -81,4 +81,3 @@ D05 additionally records all completion commands, links implementation evidence
 from the milestone, changes M02 to `complete`, and updates the delivery dashboard.
 If acceptance evidence reveals a production defect, fix it in the deliverable
 that owns the behavior; do not relax the test.
-

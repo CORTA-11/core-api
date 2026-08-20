@@ -163,4 +163,3 @@ use opaque scopes. D05 must test this deployed role topology without weakening i
 **Merged PR:** _pending_
 
 **Merge commit:** _pending_
-

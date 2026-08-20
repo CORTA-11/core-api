@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `not started` |
+| Status | `in progress` |
 | Outcome | Only server-resolved organization and team context can reach tenant data, and PostgreSQL contains mistakes with schema and row-level isolation. |
 | Depends on | M01-D01, M01-D03, M01-D04 |
 | Release | Security foundation |
@@ -20,7 +20,7 @@
 ```text
 authenticated principal + organization public ID + team public ID/slug
   -> control DB membership lookup
-  -> trusted Tenant{OrgID, SchemaName, UserID, TeamID}
+  -> opaque trusted OrganizationContext / TeamContext
   -> tenancy.Executor transaction
   -> SET LOCAL trusted search_path/app.user_id/app.team_id
   -> tenant sqlc queries under FORCE RLS

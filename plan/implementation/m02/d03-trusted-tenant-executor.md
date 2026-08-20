@@ -138,4 +138,3 @@ removing `internal/service/schema.go`.
 **Merged PR:** _pending_
 
 **Merge commit:** _pending_
-

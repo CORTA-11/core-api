@@ -146,4 +146,3 @@ credentials available to tests, and commands/results used to establish currency.
 **Merged PR:** _pending_
 
 **Merge commit:** _pending_
-
