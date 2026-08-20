@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 )
 
 type Task struct {
@@ -39,7 +39,7 @@ func IsValidTaskStatus(status string) bool {
 	}
 }
 
-func mapDBTaskToDomain(row repository.Task) Task {
+func mapDBTaskToDomain(row tenantdb.Task) Task {
 	teamID := 0
 	if row.TeamID.Valid {
 		teamID = int(row.TeamID.Int64)

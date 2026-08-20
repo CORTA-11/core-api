@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 )
 
@@ -17,7 +17,7 @@ type Organization struct {
 	DeletedAt  time.Time `json:"deleted_at"`
 }
 
-func mapDBOrgToDomain(row repository.Org) Organization {
+func mapDBOrgToDomain(row publicdb.Org) Organization {
 	var deletedAt time.Time
 
 	if row.DeletedAt.Valid {

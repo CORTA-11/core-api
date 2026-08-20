@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: teams.sql
 
-package repository
+package tenantdb
 
 import (
 	"context"
@@ -34,7 +34,8 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 }
 
 const getTeamID = `-- name: GetTeamID :one
-SELECT id FROM teams
+SELECT id
+FROM teams
 WHERE slug = $1
 `
 
@@ -46,11 +47,14 @@ func (q *Queries) GetTeamID(ctx context.Context, slug string) (int64, error) {
 }
 
 const getTeams = `-- name: GetTeams :many
-SELECT id, name, slug, created_at, updated_at FROM teams
+SELECT id, name, slug, created_at, updated_at
+FROM teams
+ORDER BY created_at ASC, id ASC
+LIMIT $1
 `
 
-func (q *Queries) GetTeams(ctx context.Context) ([]Team, error) {
-	rows, err := q.db.Query(ctx, getTeams)
+func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
+	rows, err := q.db.Query(ctx, getTeams, limit)
 	if err != nil {
 		return nil, err
 	}

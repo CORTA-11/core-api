@@ -5,16 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/CORTA-11/core-api/internal/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 )
 
 type taskService struct {
-	pool    *pgxpool.Pool
-	queries *repository.Queries
+	pool    pgxPool
+	queries *tenantdb.Queries
 }
 
-func NewTaskService(pool *pgxpool.Pool, queries *repository.Queries) TaskService {
+func NewTaskService(pool pgxPool, queries *tenantdb.Queries) TaskService {
 	return &taskService{
 		pool:    pool,
 		queries: queries,
@@ -34,7 +33,10 @@ func (t *taskService) GetTasks(ctx context.Context, schema string, teamID int) (
 
 	qtx := t.queries.WithTx(tx)
 
-	tasks, err := qtx.GetTasks(ctx, int64(teamID))
+	tasks, err := qtx.GetTasks(ctx, tenantdb.GetTasksParams{
+		TeamID: int64(teamID),
+		Limit:  listResultLimit,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch tasks: %q", err)
 	}
@@ -75,7 +77,7 @@ func (t *taskService) CreateTask(ctx context.Context, schema string, teamID int,
 
 	qtx := t.queries.WithTx(tx)
 
-	task, err := qtx.CreateTask(ctx, repository.CreateTaskParams{
+	task, err := qtx.CreateTask(ctx, tenantdb.CreateTaskParams{
 		TeamID:      intToPgtypeInt8(teamID),
 		Description: desc,
 		Status:      status,
@@ -116,7 +118,7 @@ func (t *taskService) UpdateTask(ctx context.Context, schema string, teamID int,
 
 	qtx := t.queries.WithTx(tx)
 
-	task, err := qtx.UpdateTask(ctx, repository.UpdateTaskParams{
+	task, err := qtx.UpdateTask(ctx, tenantdb.UpdateTaskParams{
 		ID:          int64(taskID),
 		TeamID:      intToPgtypeInt8(teamID),
 		Description: desc,
@@ -147,7 +149,7 @@ func (t *taskService) DeleteTask(ctx context.Context, schema string, teamID int,
 
 	qtx := t.queries.WithTx(tx)
 
-	task, err := qtx.DeleteTask(ctx, repository.DeleteTaskParams{
+	task, err := qtx.DeleteTask(ctx, tenantdb.DeleteTaskParams{
 		ID:     int64(taskID),
 		TeamID: intToPgtypeInt8(teamID),
 	})

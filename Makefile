@@ -10,11 +10,11 @@ export GOCACHE GOLANGCI_LINT_CACHE GOFLAGS
 
 include tools.mk
 
-.PHONY: check build fmt fmt-check mod-check lint sec secrets migrations-check \
+.PHONY: check build fmt fmt-check mod-check lint sec secrets migrations-check queries-check \
 	test test-unit test-race test-integration test-isolation generate generate-check \
 	migrate-up-all migrate-down-all migrate-up migrate-down seed run bootstrap tools clean-tools
 
-check: fmt-check mod-check build generate-check migrations-check lint sec
+check: fmt-check mod-check build generate-check migrations-check queries-check lint sec
 
 build:
 	go build ./...
@@ -55,6 +55,9 @@ secrets: $(GITLEAKS)
 
 migrations-check:
 	./scripts/check-migrations.sh
+
+queries-check:
+	go run ./cmd/querycheck
 
 generate: $(SQLC)
 	$(SQLC) generate

@@ -8,21 +8,20 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type orgService struct {
-	pool        *pgxpool.Pool
-	queries     *repository.Queries
+	pool        pgxPool
+	queries     *publicdb.Queries
 	databaseURL string
 }
 
-func NewOrgService(pool *pgxpool.Pool, queries *repository.Queries, databaseURL string) OrgService {
+func NewOrgService(pool pgxPool, queries *publicdb.Queries, databaseURL string) OrgService {
 	return &orgService{
 		pool:        pool,
 		queries:     queries,
@@ -47,7 +46,7 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 		return nil, fmt.Errorf("failed to set search path: %w", err)
 	}
 
-	dbOrgs, err := qtx.GetOrgs(ctx)
+	dbOrgs, err := qtx.GetOrgs(ctx, listResultLimit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orgs: %w", err)
 	}
@@ -87,7 +86,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	if err != nil {
 		return nil, fmt.Errorf("failed to set search path: %w", err)
 	}
-	org, err := qtx.CreateOrg(ctx, repository.CreateOrgParams{
+	org, err := qtx.CreateOrg(ctx, publicdb.CreateOrgParams{
 		Name:       name,
 		PublicID:   publicID,
 		SchemaName: schemaName,
@@ -155,7 +154,7 @@ func MigrateSchema(databaseURL, schemaName string) error {
 }
 
 func (o *orgService) UpdateOrg(ctx context.Context, publicID uuid.UUID, name string) (*Organization, error) {
-	org, err := o.queries.UpdateOrg(ctx, repository.UpdateOrgParams{
+	org, err := o.queries.UpdateOrg(ctx, publicdb.UpdateOrgParams{
 		PublicID: publicID,
 		Name:     name,
 	})

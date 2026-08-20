@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 )
 
@@ -24,7 +24,7 @@ type User struct {
 	DeletedAt time.Time `json:"deleted_at"`
 }
 
-func mapDBUserToDomain(row repository.User) User {
+func mapDBUserToDomain(row publicdb.User) User {
 	var deletedAt time.Time
 
 	if row.DeletedAt.Valid {

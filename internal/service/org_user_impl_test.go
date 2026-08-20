@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pashagolub/pgxmock/v3"
@@ -49,7 +49,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 
 		mockPool.ExpectCommit()
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewOrgUserService(mockPool, queries)
 
 		err = svc.AddUserToOrg(context.Background(), orgPublicID, userPublicID)
@@ -83,7 +83,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 
 		mockPool.ExpectCommit()
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewOrgUserService(mockPool, queries)
 
 		err = svc.RemoveUserFromOrg(context.Background(), orgPublicID, userPublicID)
@@ -107,13 +107,13 @@ func TestOrgUserServiceImpl(t *testing.T) {
 
 		// 2. GetOrgsForUser join query
 		mockPool.ExpectQuery("(?s)GetOrgsForUser :many.*SELECT").
-			WithArgs(userID).
+			WithArgs(userID, int32(100)).
 			WillReturnRows(pgxmock.NewRows(orgColumns).
 				AddRow(orgID, orgPublicID, "My Org", "org_schema", now, now, pgtype.Timestamptz{Valid: false}))
 
 		mockPool.ExpectCommit()
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewOrgUserService(mockPool, queries)
 
 		orgs, err := svc.GetOrgsForUser(context.Background(), userPublicID)
@@ -139,13 +139,13 @@ func TestOrgUserServiceImpl(t *testing.T) {
 
 		// 2. GetUsersInOrg join query
 		mockPool.ExpectQuery("(?s)GetUsersInOrg :many.*SELECT").
-			WithArgs(orgID).
+			WithArgs(orgID, int32(100)).
 			WillReturnRows(pgxmock.NewRows(userColumns).
 				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}))
 
 		mockPool.ExpectCommit()
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewOrgUserService(mockPool, queries)
 
 		users, err := svc.GetUsersInOrg(context.Background(), orgPublicID)
@@ -176,7 +176,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 
 		mockPool.ExpectCommit()
 
-		queries := repository.New(mockPool)
+		queries := publicdb.New(mockPool)
 		svc := NewOrgUserService(mockPool, queries)
 
 		count, err := svc.GetNumberOfUsersInOrg(context.Background(), orgPublicID)

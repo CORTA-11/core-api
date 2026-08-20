@@ -3,7 +3,7 @@
 //   sqlc v1.31.1
 // source: users.sql
 
-package repository
+package publicdb
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 )
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, password_hash, display_name)
+INSERT INTO public.users (email, password_hash, display_name)
 VALUES ($1, $2, $3)
 RETURNING id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
 `
@@ -40,12 +40,15 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at FROM users
+SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+FROM public.users
 WHERE deleted_at IS NULL
+ORDER BY created_at ASC, id ASC
+LIMIT $1
 `
 
-func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.Query(ctx, getAllUsers)
+func (q *Queries) GetAllUsers(ctx context.Context, limit int32) ([]User, error) {
+	rows, err := q.db.Query(ctx, getAllUsers, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +77,8 @@ func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at FROM users
+SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+FROM public.users
 WHERE email = $1
 AND deleted_at IS NULL
 `
@@ -96,8 +100,9 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at FROM users
-WHERE user_id = $1 
+SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+FROM public.users
+WHERE user_id = $1
 AND deleted_at IS NULL
 `
 
@@ -118,7 +123,7 @@ func (q *Queries) GetUserByID(ctx context.Context, userID uuid.UUID) (User, erro
 }
 
 const softDeleteUser = `-- name: SoftDeleteUser :one
-UPDATE users
+UPDATE public.users
 SET deleted_at = NOW()
 WHERE user_id = $1
 AND deleted_at IS NULL
@@ -142,7 +147,7 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, userID uuid.UUID) (User, e
 }
 
 const updateUser = `-- name: UpdateUser :one
-UPDATE users
+UPDATE public.users
 SET email = $2, password_hash = $3, display_name = $4, updated_at = NOW()
 WHERE user_id = $1
 AND deleted_at IS NULL

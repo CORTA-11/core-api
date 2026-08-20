@@ -5,16 +5,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/CORTA-11/core-api/internal/repository"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 )
 
 type teamService struct {
-	pool    *pgxpool.Pool
-	queries *repository.Queries
+	pool    pgxPool
+	queries *tenantdb.Queries
 }
 
-func NewTeamService(pool *pgxpool.Pool, queries *repository.Queries) TeamService {
+func NewTeamService(pool pgxPool, queries *tenantdb.Queries) TeamService {
 	return &teamService{
 		pool:    pool,
 		queries: queries,
@@ -34,7 +33,7 @@ func (t *teamService) GetTeams(ctx context.Context, schema string) ([]Team, erro
 
 	qtx := t.queries.WithTx(tx)
 
-	teams, err := qtx.GetTeams(ctx)
+	teams, err := qtx.GetTeams(ctx, listResultLimit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch teams: %q", err)
 	}
@@ -67,7 +66,7 @@ func (t *teamService) CreateTeam(ctx context.Context, name, schema string) (*Tea
 
 	slug := strings.ReplaceAll(strings.ToLower(name), " ", "-")
 
-	team, err := qtx.CreateTeam(ctx, repository.CreateTeamParams{
+	team, err := qtx.CreateTeam(ctx, tenantdb.CreateTeamParams{
 		Name: name,
 		Slug: slug,
 	})

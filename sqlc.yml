@@ -1,14 +1,32 @@
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "db/queries/"
-    schema:
-      - "db/migrations/public"
-      - "db/migrations/tenant"
+    queries: "db/queries/public"
+    schema: "db/migrations/public"
     gen:
       go:
-        package: "repository"
-        out: "internal/repository"
+        package: "publicdb"
+        out: "internal/repository/publicdb"
+        sql_package: "pgx/v5"
+        emit_json_tags: true
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+
+          - db_type: "timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+
+  - engine: "postgresql"
+    queries: "db/queries/tenant"
+    schema: "db/migrations/tenant"
+    gen:
+      go:
+        package: "tenantdb"
+        out: "internal/repository/tenantdb"
         sql_package: "pgx/v5"
         emit_json_tags: true
         overrides:

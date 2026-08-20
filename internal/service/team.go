@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/repository"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 )
 
 type Team struct {
@@ -14,7 +14,7 @@ type Team struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func mapDBTeamToDomain(row repository.Team) Team {
+func mapDBTeamToDomain(row tenantdb.Team) Team {
 	return Team{
 		Name:      row.Name,
 		Slug:      row.Slug,
