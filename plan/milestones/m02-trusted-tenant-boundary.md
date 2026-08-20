@@ -7,6 +7,14 @@
 | Depends on | M01-D01, M01-D03, M01-D04 |
 | Release | Security foundation |
 
+**Implementation package:** [M02 master handoff and ordered plan](../implementation/m02/README.md)
+
+**Deliverable playbooks:** [D01](../implementation/m02/d01-split-public-tenant-persistence.md) ·
+[D02](../implementation/m02/d02-resumable-tenant-provisioning.md) ·
+[D03](../implementation/m02/d03-trusted-tenant-executor.md) ·
+[D04](../implementation/m02/d04-team-ownership-force-rls.md) ·
+[D05](../implementation/m02/d05-isolation-suite.md)
+
 ## Target request-to-database path
 
 ```text
