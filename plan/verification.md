@@ -8,6 +8,7 @@ not substitute for an executable check.
 | Command | Environment | Required proof |
 | --- | --- | --- |
 | `make check` | Go toolchain only; no `.env` | format/tidy drift, build, vet/lint, sqlc drift, migration naming, and static security checks; leaves the worktree unchanged |
+| `make static` | Go toolchain only; no `.env` | `go vet`, explicit Staticcheck-backed linting, and editor-equivalent `gopls` diagnostics across every Go source and test file |
 | `make test-unit` | Go toolchain only | handler, service, domain, middleware, config, and adapter unit tests |
 | `make test-race` | Go toolchain only | `go test -race ./...` for concurrency-sensitive packages |
 | `make test-integration` | disposable test Compose | real PostgreSQL, Redis, and MinIO behavior including migrations and adapter degradation |

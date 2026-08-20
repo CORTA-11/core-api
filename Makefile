@@ -10,11 +10,11 @@ export GOCACHE GOLANGCI_LINT_CACHE GOFLAGS
 
 include tools.mk
 
-.PHONY: check build fmt fmt-check mod-check lint sec secrets migrations-check queries-check \
+.PHONY: check build fmt fmt-check mod-check static vet lint diagnostics sec secrets migrations-check queries-check \
 	test test-unit test-race test-integration test-isolation generate generate-check \
 	migrate-up-all migrate-down-all migrate-up migrate-down migrate-status seed run provisioner bootstrap tools clean-tools
 
-check: fmt-check mod-check build generate-check migrations-check queries-check lint sec
+check: fmt-check mod-check build generate-check migrations-check queries-check static sec
 
 build:
 	go build ./...
@@ -43,8 +43,18 @@ fmt-check:
 mod-check:
 	./scripts/mod-check.sh
 
+# Analyze every Go package and test with compiler/vet, Staticcheck-backed
+# linting, and the same diagnostics developers see through gopls editors.
+static: vet lint diagnostics
+
+vet:
+	go vet ./...
+
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run ./...
+
+diagnostics: $(GOPLS)
+	GOPLS="$(GOPLS)" ./scripts/check-go-diagnostics.sh
 
 sec: $(GOVULNCHECK) $(GOSEC)
 	$(GOVULNCHECK) ./...
@@ -65,7 +75,7 @@ generate: $(SQLC)
 generate-check: $(SQLC)
 	SQLC="$(SQLC)" ./scripts/generate-check.sh
 
-tools: $(SQLC) $(GOLANGCI_LINT) $(GOSEC) $(GOVULNCHECK) $(GITLEAKS)
+tools: $(SQLC) $(GOLANGCI_LINT) $(GOSEC) $(GOVULNCHECK) $(GITLEAKS) $(GOPLS)
 
 $(SQLC):
 	@mkdir -p "$(@D)"
@@ -86,6 +96,10 @@ $(GOVULNCHECK):
 $(GITLEAKS):
 	@mkdir -p "$(@D)"
 	GOBIN="$(@D)" go install github.com/zricethezav/gitleaks/v8@$(GITLEAKS_VERSION)
+
+$(GOPLS):
+	@mkdir -p "$(@D)"
+	GOBIN="$(@D)" go install golang.org/x/tools/gopls@$(GOPLS_VERSION)
 
 clean-tools:
 	rm -rf "$(TOOLS_DIR)"
