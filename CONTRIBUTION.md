@@ -42,7 +42,13 @@ issue / task
     ↓
 create branch
     ↓
-implement small coherent changes
+define the invariant and first behavior slice
+    ↓
+write and run a focused failing test (red)
+    ↓
+implement the smallest passing change (green)
+    ↓
+refactor while tests remain green
     ↓
 run formatting and tests
     ↓
@@ -60,6 +66,31 @@ merge
 ```
 
 Do not develop directly on `main`.
+
+### Test-driven development workflow
+
+Test-driven development is the project default for behavior changes and bug
+fixes. Work in small red-green-refactor slices:
+
+1. Write the lowest-layer test that can prove the next observable behavior or invariant.
+2. Run it before implementation and confirm it fails for the expected reason.
+3. Implement only enough production behavior to make the focused test pass.
+4. Run the relevant regression, integration, isolation, or race lane.
+5. Refactor only while the slice stays green.
+
+Commit the test and its implementation together after both the observed red and
+the green regression result. Do not publish a deliberately failing red-only
+commit. The pull request's Testing section must include the exact red command,
+the expected failure it produced, and the commands that passed afterward.
+
+Use real PostgreSQL for SQL, migration, constraint, locking, RLS, privilege,
+transaction, and pool-reuse claims. Mocks are appropriate only for behavior they
+can actually prove.
+
+Documentation-only, generated-only, and formatting-only changes may state that
+no executable red test applies. Urgent incident containment may use an explicit
+exception, but the follow-up reproducing test and reason for deferral must be
+recorded. Ordinary production bug fixes require a reproducing test first.
 
 ---
 
@@ -717,7 +748,9 @@ Avoid formatting unrelated files.
 
 ## 21. Tests Before Commit
 
-Run tests appropriate to the change.
+For a behavior change, first run the new focused test and observe it fail for the
+expected reason. Then implement the behavior and run tests appropriate to the
+change. Commit the focused test and implementation together only when green.
 
 Minimum for Go application changes:
 
@@ -836,7 +869,8 @@ Describe any relevant effects.
 
 ## Testing
 
-List tests performed.
+Record the focused red command and expected failure, then list the green focused
+and regression commands performed. If no executable red test applies, explain why.
 
 ## Migration
 
@@ -1548,6 +1582,8 @@ These provide little value to future maintainers.
 
 * [ ] The branch contains one coherent change.
 * [ ] The diff has been reviewed by the author.
+* [ ] Each behavior slice has recorded focused red and green evidence.
+* [ ] Tests and implementations are committed together only after the slice is green.
 * [ ] No debug code remains.
 * [ ] No secrets are present.
 * [ ] Go code is formatted.

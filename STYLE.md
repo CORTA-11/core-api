@@ -2436,6 +2436,45 @@ according to the invariant.
 
 Do not try to replace database testing with mocks when the property being tested belongs to PostgreSQL.
 
+### 75.1 Test-driven development is the default
+
+Behavior changes MUST normally follow a red-green-refactor cycle:
+
+```text
+state the invariant and choose the lowest proving layer
+    ↓
+write one focused test for the next behavior slice
+    ↓
+run it and confirm it fails for the expected reason
+    ↓
+write the smallest implementation that satisfies the invariant
+    ↓
+run the focused test and relevant regression lane until green
+    ↓
+refactor without changing behavior while tests remain green
+```
+
+The initial failure is evidence that the test can detect the missing or broken
+behavior. A test that is accidentally green before implementation must be fixed
+before relying on it.
+
+The test and implementation for one behavior slice MUST be committed together
+only after the red result has been observed and the slice is green. Do not push
+red-only commits to a shared branch, and do not add implementation first and
+retrofit a test merely to describe it. Pull request descriptions MUST record the
+red command and expected failure plus the green verification commands.
+
+Choose the proving layer from the invariant. In particular, migrations, SQL,
+constraints, privileges, locks, RLS, transaction semantics, and connection-pool
+cleanup require real PostgreSQL tests. A mock may drive a unit test around those
+boundaries, but it is not acceptance evidence for database behavior.
+
+Documentation-only edits, generated output, formatting-only changes, and urgent
+incident containment may not have a meaningful executable red test. Record the
+reason in the PR. A production bug fix still begins with a reproducing test unless
+the test is impossible or unsafe; that exception and the alternative evidence
+must be explicit.
+
 ---
 
 ## 76. Business Logic Unit Tests
