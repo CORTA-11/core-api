@@ -12,11 +12,43 @@
    ```
 3. Run schema migrations: `make migrate-up-all`
 4. If needed, seed data: `make seed`
-5. Start socket-server (subscribes to Redis):
+5. Start the tenant provisioner in a separate terminal: `make provisioner`
+6. Start socket-server (subscribes to Redis):
    ```bash
    cd ../socket-server && cp -n .env.example .env && make run
    ```
-6. Start this API: `make run`
+7. Start this API: `make run`
+
+## Tenant provisioning operations
+
+Creating or restoring an organization records durable provisioning intent and
+returns immediately. The dedicated provisioner creates/adopts its canonical
+schema and applies the embedded tenant migration set. Tenant routes remain
+unavailable until the organization is active at the exact embedded version and
+checksum.
+
+```bash
+go run ./cmd/provisioner run
+go run ./cmd/provisioner status --all
+go run ./cmd/provisioner status --organization ORGANIZATION_UUID
+go run ./cmd/provisioner reconcile --organization ORGANIZATION_UUID
+go run ./cmd/provisioner reconcile --all --concurrency 4
+go run ./cmd/provisioner retry --organization ORGANIZATION_UUID
+go run ./cmd/provisioner retry --all
+make migrate-status
+```
+
+Commands accept public organization UUIDs only and write one bounded JSON
+object per line. `status` and `reconcile` exit nonzero if any selected tenant is
+not current. Transient reconciliation failures retry automatically up to five
+attempts with persisted exponential backoff; permanent catalog/checksum
+divergence fails immediately and requires operator repair followed by `retry`.
+
+Apply public migrations before deploying a new API/provisioner. Stop the old
+provisioner before starting a binary with a different embedded migration set.
+Before proceeding to M02-D03, require `provisioner status --all` to report
+`"current":true` for every non-deleting organization. Back up the public
+registry before first adopting an existing M01 fleet.
 
 ## File storage
 

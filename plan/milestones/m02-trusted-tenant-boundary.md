@@ -36,11 +36,11 @@ Handlers and domain services never receive or construct schema names.
 **Artifacts:** `db/queries/public/`, `db/queries/tenant/`,
 `internal/repository/publicdb/`, `internal/repository/tenantdb/`, `sqlc.yml`.
 
-- [ ] Move control-plane queries and tenant queries to separate sqlc packages.
-- [ ] List columns explicitly and add deterministic limits/order to list queries.
-- [ ] Keep generated files source-derived and update imports without changing
+- [x] Move control-plane queries and tenant queries to separate sqlc packages.
+- [x] List columns explicitly and add deterministic limits/order to list queries.
+- [x] Keep generated files source-derived and update imports without changing
   endpoint behavior in the same change.
-- [ ] Add compile-time repository interfaces only at service/test boundaries
+- [x] Add compile-time repository interfaces only at service/test boundaries
   that need substitution.
 
 **Acceptance:** `make generate-check`, unit tests, and existing handler behavior
@@ -52,15 +52,15 @@ pass; no non-generated SQL query under `db/queries` uses `SELECT *` or
 **Artifacts:** next public migrations, tenant migration ledger, `cmd/provision/`
 or `cmd/migrate tenant-*`, `internal/tenancy/provisioner.go`.
 
-- [ ] Add organization lifecycle fields (`provisioning`, `active`, `failed`,
+- [x] Add organization lifecycle fields (`provisioning`, `active`, `failed`,
   `deleting`) and a recorded tenant schema/version/error state.
-- [ ] Allocate schema names server-side from the stored organization identity;
+- [x] Allocate schema names server-side from the stored organization identity;
   never accept them from HTTP or CLI input without registry resolution.
-- [ ] Create schema, privileges, tenant migration ledger, and all tenant
+- [x] Create schema, privileges, tenant migration ledger, and all tenant
   migrations as a resumable operation with an advisory lock.
-- [ ] Extend migration commands to apply/status/retry one tenant and the tenant
+- [x] Extend migration commands to apply/status/retry one tenant and the tenant
   fleet with bounded concurrency and per-tenant results.
-- [ ] Ensure failed provisioning never exposes the organization as active.
+- [x] Ensure failed provisioning never exposes the organization as active.
 
 **Acceptance:** integration tests cover new organization success, injected
 migration failure, retry, concurrent provision requests, already-current tenant,
@@ -122,4 +122,5 @@ M02-D01 → D02 → D03 → D04 → D05. D03 tests may be prepared with D02, but
 handler should be migrated to tenant execution until D04 and its real database
 tests exist.
 
-**Implementation links:** _none yet_.
+**Implementation links:** M02-D01 [PR #23](https://github.com/CORTA-11/core-api/pull/23),
+implementation `3d7a1db`, merge `94b659b`. M02-D02 is active.

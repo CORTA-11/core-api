@@ -14,7 +14,10 @@ import (
 const createOrg = `-- name: CreateOrg :one
 INSERT INTO public.orgs (name, public_id, schema_name)
 VALUES ($1, $2, $3)
-RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+          lifecycle_state, tenant_version, tenant_checksum,
+          reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+          last_attempt_at, provisioned_at
 `
 
 type CreateOrgParams struct {
@@ -34,6 +37,15 @@ func (q *Queries) CreateOrg(ctx context.Context, arg CreateOrgParams) (Org, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.LifecycleState,
+		&i.TenantVersion,
+		&i.TenantChecksum,
+		&i.ReconcileAttempts,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.LastErrorDetail,
+		&i.LastAttemptAt,
+		&i.ProvisionedAt,
 	)
 	return i, err
 }
@@ -53,7 +65,10 @@ func (q *Queries) GetOrgID(ctx context.Context, publicID uuid.UUID) (int64, erro
 }
 
 const getOrgName = `-- name: GetOrgName :one
-SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at
+SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+       lifecycle_state, tenant_version, tenant_checksum,
+       reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+       last_attempt_at, provisioned_at
 FROM public.orgs
 WHERE id = $1
 AND deleted_at IS NULL
@@ -70,12 +85,24 @@ func (q *Queries) GetOrgName(ctx context.Context, id int64) (Org, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.LifecycleState,
+		&i.TenantVersion,
+		&i.TenantChecksum,
+		&i.ReconcileAttempts,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.LastErrorDetail,
+		&i.LastAttemptAt,
+		&i.ProvisionedAt,
 	)
 	return i, err
 }
 
 const getOrgs = `-- name: GetOrgs :many
-SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at
+SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+       lifecycle_state, tenant_version, tenant_checksum,
+       reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+       last_attempt_at, provisioned_at
 FROM public.orgs
 WHERE deleted_at IS NULL
 ORDER BY name ASC, id ASC
@@ -99,6 +126,15 @@ func (q *Queries) GetOrgs(ctx context.Context, limit int32) ([]Org, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.LifecycleState,
+			&i.TenantVersion,
+			&i.TenantChecksum,
+			&i.ReconcileAttempts,
+			&i.NextAttemptAt,
+			&i.LastErrorCode,
+			&i.LastErrorDetail,
+			&i.LastAttemptAt,
+			&i.ProvisionedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -125,10 +161,15 @@ func (q *Queries) GetSchemaFromID(ctx context.Context, id int64) (string, error)
 
 const restoreOrg = `-- name: RestoreOrg :one
 UPDATE public.orgs
-SET deleted_at = NULL, updated_at = NOW()
+SET deleted_at = NULL, lifecycle_state = 'provisioning', reconcile_attempts = 0,
+    next_attempt_at = NOW(), last_error_code = NULL, last_error_detail = NULL,
+    updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NOT NULL
-RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+          lifecycle_state, tenant_version, tenant_checksum,
+          reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+          last_attempt_at, provisioned_at
 `
 
 func (q *Queries) RestoreOrg(ctx context.Context, publicID uuid.UUID) (Org, error) {
@@ -142,16 +183,28 @@ func (q *Queries) RestoreOrg(ctx context.Context, publicID uuid.UUID) (Org, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.LifecycleState,
+		&i.TenantVersion,
+		&i.TenantChecksum,
+		&i.ReconcileAttempts,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.LastErrorDetail,
+		&i.LastAttemptAt,
+		&i.ProvisionedAt,
 	)
 	return i, err
 }
 
 const softDeleteOrg = `-- name: SoftDeleteOrg :one
 UPDATE public.orgs
-SET deleted_at = NOW(), updated_at = NOW()
+SET deleted_at = NOW(), lifecycle_state = 'deleting', next_attempt_at = NOW(), updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NULL
-RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+          lifecycle_state, tenant_version, tenant_checksum,
+          reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+          last_attempt_at, provisioned_at
 `
 
 func (q *Queries) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (Org, error) {
@@ -165,6 +218,15 @@ func (q *Queries) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (Org, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.LifecycleState,
+		&i.TenantVersion,
+		&i.TenantChecksum,
+		&i.ReconcileAttempts,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.LastErrorDetail,
+		&i.LastAttemptAt,
+		&i.ProvisionedAt,
 	)
 	return i, err
 }
@@ -174,7 +236,10 @@ UPDATE public.orgs
 SET name = $2, updated_at = NOW()
 WHERE public_id = $1
 AND deleted_at IS NULL
-RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+          lifecycle_state, tenant_version, tenant_checksum,
+          reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+          last_attempt_at, provisioned_at
 `
 
 type UpdateOrgParams struct {
@@ -193,6 +258,15 @@ func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Org, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.LifecycleState,
+		&i.TenantVersion,
+		&i.TenantChecksum,
+		&i.ReconcileAttempts,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.LastErrorDetail,
+		&i.LastAttemptAt,
+		&i.ProvisionedAt,
 	)
 	return i, err
 }

@@ -24,7 +24,10 @@ AND user_id = $2
 RETURNING org_id, user_id;
 
 -- name: GetOrgsForUser :many
-SELECT o.id, o.public_id, o.name, o.schema_name, o.created_at, o.updated_at, o.deleted_at
+SELECT o.id, o.public_id, o.name, o.schema_name, o.created_at, o.updated_at, o.deleted_at,
+       o.lifecycle_state, o.tenant_version,
+       o.tenant_checksum, o.reconcile_attempts, o.next_attempt_at, o.last_error_code,
+       o.last_error_detail, o.last_attempt_at, o.provisioned_at
 FROM public.orgs AS o
 JOIN public.org_user AS ou ON o.id = ou.org_id
 WHERE ou.user_id = sqlc.arg('user_id')

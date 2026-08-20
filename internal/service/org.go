@@ -9,12 +9,13 @@ import (
 )
 
 type Organization struct {
-	PublicID   uuid.UUID `json:"public_id"`
-	Name       string    `json:"name"`
-	SchemaName string    `json:"schema_name"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
-	DeletedAt  time.Time `json:"deleted_at"`
+	PublicID       uuid.UUID `json:"public_id"`
+	Name           string    `json:"name"`
+	LifecycleState string    `json:"lifecycle_state"`
+	TenantVersion  int64     `json:"tenant_version"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	DeletedAt      time.Time `json:"deleted_at"`
 }
 
 func mapDBOrgToDomain(row publicdb.Org) Organization {
@@ -25,12 +26,13 @@ func mapDBOrgToDomain(row publicdb.Org) Organization {
 	}
 
 	return Organization{
-		PublicID:   row.PublicID,
-		Name:       row.Name,
-		SchemaName: row.SchemaName,
-		CreatedAt:  row.CreatedAt,
-		UpdatedAt:  row.UpdatedAt,
-		DeletedAt:  deletedAt,
+		PublicID:       row.PublicID,
+		Name:           row.Name,
+		LifecycleState: row.LifecycleState,
+		TenantVersion:  row.TenantVersion,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+		DeletedAt:      deletedAt,
 	}
 }
 

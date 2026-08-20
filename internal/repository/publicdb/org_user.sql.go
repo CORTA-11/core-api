@@ -41,7 +41,10 @@ func (q *Queries) GetNumberOfUsersInOrg(ctx context.Context, orgID int64) (int64
 }
 
 const getOrgsForUser = `-- name: GetOrgsForUser :many
-SELECT o.id, o.public_id, o.name, o.schema_name, o.created_at, o.updated_at, o.deleted_at
+SELECT o.id, o.public_id, o.name, o.schema_name, o.created_at, o.updated_at, o.deleted_at,
+       o.lifecycle_state, o.tenant_version,
+       o.tenant_checksum, o.reconcile_attempts, o.next_attempt_at, o.last_error_code,
+       o.last_error_detail, o.last_attempt_at, o.provisioned_at
 FROM public.orgs AS o
 JOIN public.org_user AS ou ON o.id = ou.org_id
 WHERE ou.user_id = $1
@@ -72,6 +75,15 @@ func (q *Queries) GetOrgsForUser(ctx context.Context, arg GetOrgsForUserParams) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.LifecycleState,
+			&i.TenantVersion,
+			&i.TenantChecksum,
+			&i.ReconcileAttempts,
+			&i.NextAttemptAt,
+			&i.LastErrorCode,
+			&i.LastErrorDetail,
+			&i.LastAttemptAt,
+			&i.ProvisionedAt,
 		); err != nil {
 			return nil, err
 		}

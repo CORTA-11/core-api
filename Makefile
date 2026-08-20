@@ -12,7 +12,7 @@ include tools.mk
 
 .PHONY: check build fmt fmt-check mod-check lint sec secrets migrations-check queries-check \
 	test test-unit test-race test-integration test-isolation generate generate-check \
-	migrate-up-all migrate-down-all migrate-up migrate-down seed run bootstrap tools clean-tools
+	migrate-up-all migrate-down-all migrate-up migrate-down migrate-status seed run provisioner bootstrap tools clean-tools
 
 check: fmt-check mod-check build generate-check migrations-check queries-check lint sec
 
@@ -91,13 +91,16 @@ clean-tools:
 	rm -rf "$(TOOLS_DIR)"
 
 # Runtime targets alone load local environment values. Explicit URLs win.
-RUNTIME_GOALS := run seed bootstrap migrate-up-all migrate-down-all migrate-up migrate-down
+RUNTIME_GOALS := run provisioner seed bootstrap migrate-up-all migrate-down-all migrate-up migrate-down migrate-status
 ifneq ($(filter $(RUNTIME_GOALS),$(MAKECMDGOALS)),)
 -include .env
 DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 REDIS_URL ?= redis://$(if $(REDIS_HOST),$(REDIS_HOST),localhost):$(if $(REDIS_PORT),$(REDIS_PORT),6379)/0
 export APP_ENV HTTP_ADDR HTTP_READ_TIMEOUT HTTP_WRITE_TIMEOUT HTTP_IDLE_TIMEOUT
 export SHUTDOWN_TIMEOUT DEPENDENCY_TIMEOUT PPROF_ENABLED
+export PROVISIONER_POLL_INTERVAL PROVISIONER_RETRY_INITIAL PROVISIONER_RETRY_MAXIMUM
+export PROVISIONER_MAX_ATTEMPTS PROVISIONER_CONCURRENCY PROVISIONER_OPERATION_TIMEOUT
+export PROVISIONER_SHUTDOWN_TIMEOUT
 export DATABASE_URL REDIS_URL JWT_SECRET
 export MINIO_ENDPOINT MINIO_ACCESS_KEY MINIO_SECRET_KEY MINIO_BUCKET_NAME MINIO_USE_SSL
 endif
@@ -116,11 +119,17 @@ migrate-up:
 migrate-down:
 	go run "$(PUBLIC_MIGRATION_PATH)" down
 
+migrate-status:
+	go run "$(PUBLIC_MIGRATION_PATH)" status
+
 seed:
 	go run ./cmd/seed
 
 run:
 	go run ./cmd/api
+
+provisioner:
+	go run ./cmd/provisioner run
 
 bootstrap:
 	go run ./cmd/bootstrap

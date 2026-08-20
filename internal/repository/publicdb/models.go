@@ -12,13 +12,22 @@ import (
 )
 
 type Org struct {
-	ID         int64              `json:"id"`
-	PublicID   uuid.UUID          `json:"public_id"`
-	Name       string             `json:"name"`
-	SchemaName string             `json:"schema_name"`
-	CreatedAt  time.Time          `json:"created_at"`
-	UpdatedAt  time.Time          `json:"updated_at"`
-	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
+	ID                int64              `json:"id"`
+	PublicID          uuid.UUID          `json:"public_id"`
+	Name              string             `json:"name"`
+	SchemaName        string             `json:"schema_name"`
+	CreatedAt         time.Time          `json:"created_at"`
+	UpdatedAt         time.Time          `json:"updated_at"`
+	DeletedAt         pgtype.Timestamptz `json:"deleted_at"`
+	LifecycleState    string             `json:"lifecycle_state"`
+	TenantVersion     int64              `json:"tenant_version"`
+	TenantChecksum    string             `json:"tenant_checksum"`
+	ReconcileAttempts int32              `json:"reconcile_attempts"`
+	NextAttemptAt     time.Time          `json:"next_attempt_at"`
+	LastErrorCode     pgtype.Text        `json:"last_error_code"`
+	LastErrorDetail   pgtype.Text        `json:"last_error_detail"`
+	LastAttemptAt     pgtype.Timestamptz `json:"last_attempt_at"`
+	ProvisionedAt     pgtype.Timestamptz `json:"provisioned_at"`
 }
 
 type OrgUser struct {

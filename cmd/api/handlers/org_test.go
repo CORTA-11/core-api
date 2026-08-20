@@ -73,11 +73,11 @@ func performOrgRequest(t *testing.T, orgService service.OrgService, method, targ
 
 func testOrganization() service.Organization {
 	return service.Organization{
-		PublicID:   uuid.MustParse("30ee7153-9b48-4560-8cbf-972587a60fda"),
-		Name:       "University of Aratuwa",
-		SchemaName: "org_30ee71539b4845608cbf972587a60fda",
-		CreatedAt:  time.Date(2026, time.August, 15, 10, 0, 0, 0, time.UTC),
-		UpdatedAt:  time.Date(2026, time.August, 15, 11, 0, 0, 0, time.UTC),
+		PublicID:       uuid.MustParse("30ee7153-9b48-4560-8cbf-972587a60fda"),
+		Name:           "University of Aratuwa",
+		LifecycleState: "provisioning",
+		CreatedAt:      time.Date(2026, time.August, 15, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:      time.Date(2026, time.August, 15, 11, 0, 0, 0, time.UTC),
 	}
 }
 
@@ -127,8 +127,9 @@ func TestCreateOrg(t *testing.T) {
 
 		response := performOrgRequest(t, orgService, http.MethodPost, "/", `{"name":"  University of Aratuwa  "}`)
 
-		assert.Equal(t, http.StatusCreated, response.Code)
+		assert.Equal(t, http.StatusAccepted, response.Code)
 		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
+		assert.NotContains(t, response.Body.String(), "schema_name")
 		var got service.Organization
 		require.NoError(t, jsonDecode(response.Body, &got))
 		assert.Equal(t, want, got)
