@@ -9,7 +9,7 @@ import (
 )
 
 func TestTokenService(t *testing.T) {
-	s := NewTokenService()
+	s := NewTokenService("unit-test-jwt-secret")
 	userPublicID := uuid.New()
 	email := "user@example.com"
 

@@ -37,6 +37,31 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 	return i, err
 }
 
+const deleteTask = `-- name: DeleteTask :one
+DELETE FROM tasks
+WHERE id = $1 AND team_id = $2
+RETURNING id, team_id, description, status, created_at, updated_at
+`
+
+type DeleteTaskParams struct {
+	ID     int64       `json:"id"`
+	TeamID pgtype.Int8 `json:"team_id"`
+}
+
+func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, deleteTask, arg.ID, arg.TeamID)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTasks = `-- name: GetTasks :many
 SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at
 FROM tasks
@@ -89,32 +114,12 @@ type UpdateTaskParams struct {
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, updateTask, arg.ID, arg.TeamID, arg.Description, arg.Status)
-	var i Task
-	err := row.Scan(
-		&i.ID,
-		&i.TeamID,
-		&i.Description,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+	row := q.db.QueryRow(ctx, updateTask,
+		arg.ID,
+		arg.TeamID,
+		arg.Description,
+		arg.Status,
 	)
-	return i, err
-}
-
-const deleteTask = `-- name: DeleteTask :one
-DELETE FROM tasks
-WHERE id = $1 AND team_id = $2
-RETURNING id, team_id, description, status, created_at, updated_at
-`
-
-type DeleteTaskParams struct {
-	ID     int64       `json:"id"`
-	TeamID pgtype.Int8 `json:"team_id"`
-}
-
-func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, deleteTask, arg.ID, arg.TeamID)
 	var i Task
 	err := row.Scan(
 		&i.ID,

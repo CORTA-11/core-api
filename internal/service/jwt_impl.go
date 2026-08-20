@@ -1,7 +1,6 @@
 package service
 
 import (
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -13,11 +12,7 @@ type tokenService struct {
 }
 
 // NewTokenService creates a new instance of TokenService.
-func NewTokenService() TokenService {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		secret = "your-super-secret-key-change-in-production"
-	}
+func NewTokenService(secret string) TokenService {
 	return &tokenService{
 		secret: []byte(secret),
 	}

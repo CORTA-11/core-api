@@ -18,10 +18,10 @@ import (
 )
 
 type stubTaskService struct {
-	getTasksFn    func(context.Context, string, int) ([]service.Task, error)
-	createTaskFn  func(context.Context, string, int, string, string) (*service.Task, error)
-	updateTaskFn  func(context.Context, string, int, int, string, string) (*service.Task, error)
-	deleteTaskFn  func(context.Context, string, int, int) (*service.Task, error)
+	getTasksFn   func(context.Context, string, int) ([]service.Task, error)
+	createTaskFn func(context.Context, string, int, string, string) (*service.Task, error)
+	updateTaskFn func(context.Context, string, int, int, string, string) (*service.Task, error)
+	deleteTaskFn func(context.Context, string, int, int) (*service.Task, error)
 }
 
 func (s *stubTaskService) GetTasks(ctx context.Context, schema string, teamID int) ([]service.Task, error) {

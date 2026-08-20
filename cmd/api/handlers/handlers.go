@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
+	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/repository"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -14,53 +16,67 @@ import (
 )
 
 type Router struct {
-	mux            *chi.Mux
-	db             *pgxpool.Pool
-	queries        *repository.Queries
-	orgService     service.OrgService
-	teamService    service.TeamService
-	taskService    service.TaskService
-	fileService    service.FileService
-	userService    service.UserService
-	tokenService   service.TokenService
-	orgUserService service.OrgUserService
+	mux              *chi.Mux
+	db               *pgxpool.Pool
+	queries          *repository.Queries
+	orgService       service.OrgService
+	teamService      service.TeamService
+	taskService      service.TaskService
+	fileService      service.FileService
+	userService      service.UserService
+	tokenService     service.TokenService
+	orgUserService   service.OrgUserService
+	readinessChecks  map[string]ReadinessCheck
+	readinessTimeout time.Duration
+	pprofEnabled     bool
 }
 
 type RouterConf struct {
-	DB             *pgxpool.Pool
-	Queries        *repository.Queries
-	OrgService     *service.OrgService
-	TeamService    *service.TeamService
-	TaskService    *service.TaskService
-	FileService    *service.FileService
-	UserService    *service.UserService
-	TokenService   *service.TokenService
-	OrgUserService *service.OrgUserService
+	DB               *pgxpool.Pool
+	Queries          *repository.Queries
+	OrgService       *service.OrgService
+	TeamService      *service.TeamService
+	TaskService      *service.TaskService
+	FileService      *service.FileService
+	UserService      *service.UserService
+	TokenService     *service.TokenService
+	OrgUserService   *service.OrgUserService
+	ReadinessChecks  map[string]ReadinessCheck
+	ReadinessTimeout time.Duration
+	PprofEnabled     bool
 }
 
 func NewRouter(conf RouterConf) *Router {
 	return &Router{
-		mux:            chi.NewRouter(),
-		db:             conf.DB,
-		queries:        conf.Queries,
-		orgService:     *conf.OrgService,
-		teamService:    *conf.TeamService,
-		taskService:    *conf.TaskService,
-		fileService:    *conf.FileService,
-		userService:    *conf.UserService,
-		tokenService:   *conf.TokenService,
-		orgUserService: *conf.OrgUserService,
+		mux:              chi.NewRouter(),
+		db:               conf.DB,
+		queries:          conf.Queries,
+		orgService:       *conf.OrgService,
+		teamService:      *conf.TeamService,
+		taskService:      *conf.TaskService,
+		fileService:      *conf.FileService,
+		userService:      *conf.UserService,
+		tokenService:     *conf.TokenService,
+		orgUserService:   *conf.OrgUserService,
+		readinessChecks:  conf.ReadinessChecks,
+		readinessTimeout: conf.ReadinessTimeout,
+		pprofEnabled:     conf.PprofEnabled,
 	}
 }
 
 func (router *Router) SetupRoutes() {
 	r := router.mux
+	r.Use(httpx.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(appMiddleware.Recoverer)
 	r.Use(appMiddleware.CorsMiddleware)
 
-	// TODO: only allow for super admin
-	r.Mount("/debug", middleware.Profiler())
+	if router.pprofEnabled {
+		r.Mount("/debug", middleware.Profiler())
+	}
+
+	r.Get("/health/live", healthLive())
+	r.Get("/health/ready", healthReady(router.readinessChecks, router.readinessTimeout))
 
 	r.Get("/", router.handleRoot())
 
