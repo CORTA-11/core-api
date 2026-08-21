@@ -12,16 +12,23 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Reconciler advances organization schemas toward an embedded MigrationSet and
+// persists enough state for retries to resume after process failure.
 type Reconciler struct {
 	pool   *pgxpool.Pool
 	source MigrationSet
 	config Config
 }
 
+// NewReconciler constructs a reconciler over the public registry and tenant
+// schemas available through pool.
 func NewReconciler(pool *pgxpool.Pool, source MigrationSet, config Config) *Reconciler {
 	return &Reconciler{pool: pool, source: source, config: config}
 }
 
+// Reconcile brings one organization to the current migration set. Expected
+// operational and permanent failures are returned as a sanitized Result rather
+// than an error so fleet callers can continue processing other organizations.
 func (r *Reconciler) Reconcile(ctx context.Context, publicID uuid.UUID) Result {
 	if r.config.OperationTimeout > 0 {
 		var cancel context.CancelFunc
@@ -48,15 +55,21 @@ func (r *Reconciler) Reconcile(ctx context.Context, publicID uuid.UUID) Result {
 		return r.failureResult(ctx, result, org.ReconcileAttempts, permanent("noncanonical_schema", "organization registry has a noncanonical schema"))
 	}
 
+	// The session-level advisory lock is held on this dedicated connection. It
+	// serializes manual commands and competing provisioner processes for one org.
 	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock($1)`, org.ID); err != nil {
 		return r.failureResult(ctx, result, org.ReconcileAttempts, err)
 	}
 	defer func() {
+		// Unlock must not inherit a canceled operation context or leave a pooled
+		// session holding the lock indefinitely.
 		unlockCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_, _ = conn.Exec(unlockCtx, `SELECT pg_advisory_unlock($1)`, org.ID)
 	}()
 
+	// The lock may have blocked behind another reconciler, so decisions must use
+	// registry state reloaded after ownership is acquired.
 	org, err = loadOrganization(ctx, conn, publicID)
 	if err != nil {
 		return r.failureResult(ctx, result, org.ReconcileAttempts, err)
@@ -67,6 +80,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, publicID uuid.UUID) Result {
 	}
 	alreadyCurrent := org.LifecycleState == StateActive && org.TenantVersion == r.source.Version && org.TenantChecksum == r.source.Checksum
 	if alreadyCurrent {
+		// Registry metadata alone cannot prove that the tenant ledger or verified
+		// M01 catalog baseline was not altered out of band.
 		if err := r.prepareAndValidateLedger(ctx, conn, org); err != nil {
 			return r.failureResult(ctx, result, org.ReconcileAttempts, err)
 		}
@@ -123,6 +138,8 @@ func loadOrganization(ctx context.Context, conn *pgxpool.Conn, publicID uuid.UUI
 
 func beginAttempt(ctx context.Context, conn *pgxpool.Conn, id int64, timeout time.Duration) (int, error) {
 	var attempts int
+	// next_attempt_at doubles as a bounded claim lease. A crashed process becomes
+	// eligible again after the maximum duration of one reconciliation attempt.
 	err := conn.QueryRow(ctx, `
         UPDATE public.orgs
         SET lifecycle_state = 'provisioning', reconcile_attempts = reconcile_attempts + 1,
@@ -136,6 +153,8 @@ func beginAttempt(ctx context.Context, conn *pgxpool.Conn, id int64, timeout tim
 }
 
 func (r *Reconciler) prepareAndValidateLedger(ctx context.Context, conn *pgxpool.Conn, org Organization) error {
+	// Identifier.Sanitize quotes the server-derived name before it is used in DDL;
+	// query parameters cannot represent PostgreSQL identifiers.
 	identifier := pgx.Identifier{org.SchemaName}.Sanitize()
 	tx, err := conn.Begin(ctx)
 	if err != nil {
@@ -157,6 +176,9 @@ func (r *Reconciler) prepareAndValidateLedger(ctx context.Context, conn *pgxpool
 		return err
 	}
 	adoptedLegacy := false
+	// Only an empty schema, the exact M01 golang-migrate ledger, or the current
+	// checksum ledger is recognized. Unknown layouts fail closed rather than
+	// guessing which migrations are safe to replay.
 	switch {
 	case len(columns) == 0:
 		var tableCount int
@@ -208,6 +230,8 @@ func (r *Reconciler) prepareAndValidateLedger(ctx context.Context, conn *pgxpool
 }
 
 func setTenantSearchPath(ctx context.Context, tx pgx.Tx, schema string) error {
+	// The transaction-local setting prevents a pooled connection from leaking one
+	// organization's schema into a later borrower.
 	if _, err := tx.Exec(ctx, `SELECT set_config('search_path', $1, true)`, schema); err != nil {
 		return fmt.Errorf("set tenant migration scope: %w", err)
 	}
@@ -261,6 +285,8 @@ func (r *Reconciler) adoptLegacy(ctx context.Context, tx pgx.Tx, schema string) 
 	if version != m01Version || r.source.Version < m01Version {
 		return permanent("legacy_version_divergence", "legacy tenant schema is partial, unknown, or ahead of source")
 	}
+	// The old ledger has no checksums, so adoption is permitted only for the one
+	// known M01 endpoint after its concrete catalog shape has been verified.
 	if err := validateM01Catalog(ctx, tx, schema, version); err != nil {
 		return permanent("legacy_catalog_divergence", "legacy tenant catalog does not match the verified M01 layout")
 	}
@@ -282,6 +308,9 @@ func (r *Reconciler) adoptLegacy(ctx context.Context, tx pgx.Tx, schema string) 
 }
 
 func validateM01Catalog(ctx context.Context, tx pgx.Tx, schema string, version int64) error {
+	// This is deliberately a compatibility check for the fixed M01 baseline. For
+	// later migrations, the ledger proves migration-source identity; it does not
+	// claim to detect arbitrary out-of-band DDL changes.
 	if version < 0 {
 		return permanent("catalog_divergence", "tenant catalog version is outside the verified migration set")
 	}
@@ -338,6 +367,8 @@ func (r *Reconciler) validateLedger(ctx context.Context, tx pgx.Tx) error {
 		return fmt.Errorf("read tenant migration ledger: %w", err)
 	}
 	defer rows.Close()
+	// A tenant ledger must be an exact prefix of the contiguous embedded source;
+	// gaps, unknown versions, and rewritten migrations are permanent divergence.
 	index := 0
 	for rows.Next() {
 		var version int64
@@ -368,6 +399,8 @@ func (r *Reconciler) applyMissing(ctx context.Context, conn *pgxpool.Conn, org O
 		if migration.Version <= current {
 			continue
 		}
+		// Commit the schema change, tenant ledger entry, and public registry version
+		// together. A retry therefore starts after the last fully committed version.
 		tx, err := conn.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("start tenant migration: %w", err)
@@ -414,6 +447,8 @@ func (r *Reconciler) failureResult(ctx context.Context, result Result, attempts 
 		state = StateFailed
 	}
 	delay := retryDelay(r.config.RetryInitial, r.config.RetryMaximum, attempts)
+	// Failure state must survive an expired operation context. This detached,
+	// bounded write is best-effort and never overrides a concurrent delete.
 	markCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_, _ = r.pool.Exec(markCtx, `

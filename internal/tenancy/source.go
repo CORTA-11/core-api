@@ -12,6 +12,7 @@ import (
 	tenantmigrations "github.com/CORTA-11/core-api/db/migrations/tenant"
 )
 
+// Migration is one immutable tenant schema transition and its source checksum.
 type Migration struct {
 	Version  int64
 	Name     string
@@ -19,12 +20,16 @@ type Migration struct {
 	Checksum string
 }
 
+// MigrationSet is the ordered desired tenant schema state embedded in a binary.
+// Checksum identifies the complete ordered set, not only the latest migration.
 type MigrationSet struct {
 	Migrations []Migration
 	Version    int64
 	Checksum   string
 }
 
+// EmbeddedMigrations loads the tenant up migrations, requires contiguous
+// versions starting at one, and computes per-migration and aggregate checksums.
 func EmbeddedMigrations() (MigrationSet, error) {
 	entries, err := fs.ReadDir(tenantmigrations.Files, ".")
 	if err != nil {
@@ -71,6 +76,8 @@ func EmbeddedMigrations() (MigrationSet, error) {
 	}, nil
 }
 
+// CanonicalSchema derives the only permitted schema name for a server-owned
+// organization UUID. Callers must validate or load the UUID before using it.
 func CanonicalSchema(publicID string) string {
 	return "org_" + strings.ReplaceAll(strings.ToLower(publicID), "-", "")
 }

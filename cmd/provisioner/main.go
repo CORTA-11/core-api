@@ -1,3 +1,5 @@
+// Command provisioner reconciles organization schemas with the tenant
+// migrations embedded in the running binary.
 package main
 
 import (
@@ -30,6 +32,8 @@ func realMain() int {
 	result := make(chan error, 1)
 	go func() { result <- execute(ctx, os.Args[1:], os.LookupEnv, os.Stdout) }()
 	var err error
+	// Cancellation first asks database work to stop, then bounds how long the
+	// process waits for advisory-lock cleanup and failure-state persistence.
 	select {
 	case err = <-result:
 	case <-ctx.Done():
@@ -67,6 +71,8 @@ func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, outp
 	if err != nil {
 		return errors.New("DATABASE_URL is invalid")
 	}
+	// Workers may each hold a connection-scoped advisory lock. Two spare
+	// connections leave room for fleet coordination and detached failure writes.
 	// #nosec G115 -- configuration validation bounds concurrency to 1..16.
 	poolConfig.MaxConns = int32(cfg.Concurrency + 2)
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
@@ -80,6 +86,8 @@ func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, outp
 	}
 	reconciler := tenancy.NewReconciler(pool, source, cfg)
 	encoder := json.NewEncoder(output)
+	// One JSON object per line lets operators retain every tenant outcome even
+	// when a later result makes the overall command exit nonzero.
 	emit := func(result tenancy.Result) { _ = encoder.Encode(result) }
 
 	switch args[0] {
@@ -95,6 +103,8 @@ func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, outp
 		}
 		var ids []uuid.UUID
 		if all {
+			// Fleet reconciliation requires the explicit --all flag; an omitted
+			// selector must not accidentally migrate every organization.
 			ids, err = reconciler.AllOrganizationIDs(ctx)
 		} else {
 			ids = []uuid.UUID{*id}
@@ -181,6 +191,8 @@ func parseSelection(command string, args []string, defaultConcurrency int, allow
 	if *organization == "" {
 		return nil, true, *concurrency, nil
 	}
+	// Commands accept only the public identity. Raw schema names would turn an
+	// operational interface into an avoidable tenant-boundary trust input.
 	publicID, err := uuid.Parse(*organization)
 	if err != nil {
 		return nil, false, 0, errors.New("--organization must be a public UUID")

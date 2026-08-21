@@ -65,6 +65,8 @@ func (router *Router) createOrg() http.HandlerFunc {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		// Creation commits provisioning intent only; schema allocation and tenant
+		// migrations continue asynchronously in the provisioner.
 		w.WriteHeader(http.StatusAccepted)
 
 		if err := json.NewEncoder(w).Encode(org); err != nil {

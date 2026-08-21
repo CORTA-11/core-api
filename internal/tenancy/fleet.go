@@ -12,6 +12,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// ClaimDue atomically leases due or stale organizations to this process.
+// SKIP LOCKED lets multiple provisioners divide fleet work without blocking;
+// the advisory lock in Reconcile remains the final per-organization serializer.
 func (r *Reconciler) ClaimDue(ctx context.Context, limit int) ([]uuid.UUID, error) {
 	if limit < 1 || limit > MaxConcurrency {
 		return nil, fmt.Errorf("claim limit must be between 1 and %d", MaxConcurrency)
@@ -54,6 +57,8 @@ func (r *Reconciler) ClaimDue(ctx context.Context, limit int) ([]uuid.UUID, erro
 	return ids, nil
 }
 
+// ReconcileMany processes IDs through a bounded worker pool and closes the
+// result channel after every started worker exits.
 func (r *Reconciler) ReconcileMany(ctx context.Context, ids []uuid.UUID, concurrency int) <-chan Result {
 	if concurrency < 1 {
 		concurrency = 1
@@ -93,6 +98,8 @@ func (r *Reconciler) ReconcileMany(ctx context.Context, ids []uuid.UUID, concurr
 	return results
 }
 
+// Run performs an immediate fleet scan and then polls until ctx is canceled.
+// Cancellation is a graceful stop rather than a provisioner failure.
 func (r *Reconciler) Run(ctx context.Context, emit func(Result)) error {
 	if err := r.scan(ctx, emit); err != nil {
 		if ctx.Err() != nil {
@@ -118,6 +125,8 @@ func (r *Reconciler) Run(ctx context.Context, emit func(Result)) error {
 }
 
 func (r *Reconciler) scan(ctx context.Context, emit func(Result)) error {
+	// Drain full batches before sleeping so backlog throughput is bounded by
+	// worker concurrency rather than the polling interval.
 	for {
 		ids, err := r.ClaimDue(ctx, r.config.Concurrency)
 		if err != nil {
@@ -132,6 +141,8 @@ func (r *Reconciler) scan(ctx context.Context, emit func(Result)) error {
 	}
 }
 
+// Status is an operator-facing snapshot of one organization's reconciliation
+// state. Current is true only for an available, exact source match.
 type Status struct {
 	OrganizationID uuid.UUID      `json:"organization_id"`
 	State          LifecycleState `json:"state"`
@@ -144,6 +155,8 @@ type Status struct {
 	Current        bool           `json:"current"`
 }
 
+// Status returns one organization when id is non-nil, otherwise the whole
+// non-deleted fleet in stable registry order.
 func (r *Reconciler) Status(ctx context.Context, id *uuid.UUID) ([]Status, error) {
 	query := `
         SELECT public_id, lifecycle_state, tenant_version, tenant_checksum,
@@ -178,6 +191,7 @@ func (r *Reconciler) Status(ctx context.Context, id *uuid.UUID) ([]Status, error
 	return statuses, nil
 }
 
+// AllOrganizationIDs lists public identifiers for explicit fleet reconciliation.
 func (r *Reconciler) AllOrganizationIDs(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := r.pool.Query(ctx, `SELECT public_id FROM public.orgs WHERE deleted_at IS NULL ORDER BY id`)
 	if err != nil {
@@ -195,6 +209,8 @@ func (r *Reconciler) AllOrganizationIDs(ctx context.Context) ([]uuid.UUID, error
 	return ids, rows.Err()
 }
 
+// Retry moves failed organizations back to provisioning and clears their
+// automatic-attempt budget. It does not bypass ledger or catalog validation.
 func (r *Reconciler) Retry(ctx context.Context, id *uuid.UUID) (int64, error) {
 	query := `
         UPDATE public.orgs
@@ -214,23 +230,33 @@ func (r *Reconciler) Retry(ctx context.Context, id *uuid.UUID) (int64, error) {
 	return command.RowsAffected(), nil
 }
 
+// AvailabilityChecker gates tenant traffic on registry state and the exact
+// migration set embedded in the serving API binary.
 type AvailabilityChecker struct {
 	pool   *pgxpool.Pool
 	source MigrationSet
 }
 
+// NewAvailabilityChecker constructs an API-side tenant availability gate.
 func NewAvailabilityChecker(pool *pgxpool.Pool, source MigrationSet) *AvailabilityChecker {
 	return &AvailabilityChecker{pool: pool, source: source}
 }
 
+// Availability distinguishes an unknown organization from a known tenant that
+// must remain unavailable while provisioning, failed, deleting, or stale.
 type Availability int
 
 const (
+	// AvailabilityUnknown means no non-deleted registry row exists.
 	AvailabilityUnknown Availability = iota
+	// AvailabilityUnavailable means the registry row is not an exact current match.
 	AvailabilityUnavailable
+	// AvailabilityReady means the tenant is active at the exact embedded version
+	// and checksum.
 	AvailabilityReady
 )
 
+// Check resolves availability without exposing the internal schema name.
 func (c *AvailabilityChecker) Check(ctx context.Context, id uuid.UUID) (Availability, error) {
 	var state LifecycleState
 	var version int64

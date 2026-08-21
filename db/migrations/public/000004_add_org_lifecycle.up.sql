@@ -1,3 +1,5 @@
+-- Canonicalize registry-only names, but refuse to detach an already-created
+-- tenant schema from its registry row. Such schemas require operator repair.
 DO $$
 DECLARE
     organization RECORD;
@@ -31,6 +33,8 @@ ALTER TABLE public.orgs
 UPDATE public.orgs
 SET lifecycle_state = CASE WHEN deleted_at IS NULL THEN 'provisioning' ELSE 'deleting' END;
 
+-- These constraints make availability, failure diagnostics, canonical schema
+-- ownership, and deletion mutually consistent even outside application code.
 ALTER TABLE public.orgs
     ADD CONSTRAINT orgs_lifecycle_state_check
         CHECK (lifecycle_state IN ('provisioning', 'active', 'failed', 'deleting')),
@@ -48,6 +52,7 @@ ALTER TABLE public.orgs
     ADD CONSTRAINT orgs_deletion_state_check
         CHECK ((deleted_at IS NULL) = (lifecycle_state <> 'deleting'));
 
+-- The provisioner scans only retryable rows ordered by their bounded claim time.
 CREATE INDEX orgs_reconciliation_due_idx
     ON public.orgs (next_attempt_at, id)
     WHERE deleted_at IS NULL AND lifecycle_state = 'provisioning';

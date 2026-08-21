@@ -1,3 +1,5 @@
+-- Refuse to discard the registry's reconciliation history after tenant schemas
+-- depend on it; rollback must preserve state for forward repair.
 DO $$
 BEGIN
     IF EXISTS (

@@ -72,6 +72,8 @@ func run(args []string, getenv func(string) string, factory migratorFactory) err
 		}
 		if err == nil {
 			log.Printf("public migration status: version=%d dirty=%t", version, dirty)
+			// A dirty public registry cannot safely coordinate tenant lifecycle
+			// transitions, so status is also a deployment gate.
 			if dirty {
 				return errors.New("public migration state is dirty")
 			}

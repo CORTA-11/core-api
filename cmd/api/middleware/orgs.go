@@ -30,10 +30,14 @@ func OrgMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// OrgAvailabilityChecker resolves whether a tenant is safe to serve before any
+// tenant repository chooses its schema.
 type OrgAvailabilityChecker interface {
 	Check(context.Context, uuid.UUID) (tenancy.Availability, error)
 }
 
+// RequireAvailableOrg fails closed unless the organization is active at the
+// exact migration version and checksum expected by the API binary.
 func RequireAvailableOrg(checker OrgAvailabilityChecker) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

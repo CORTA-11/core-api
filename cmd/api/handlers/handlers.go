@@ -39,7 +39,9 @@ type RouterConf struct {
 	ReadinessChecks  map[string]ReadinessCheck
 	ReadinessTimeout time.Duration
 	PprofEnabled     bool
-	OrgAvailability  appMiddleware.OrgAvailabilityChecker
+	// OrgAvailability gates tenant-scoped routes; production wiring must provide
+	// it.
+	OrgAvailability appMiddleware.OrgAvailabilityChecker
 }
 
 func NewRouter(conf RouterConf) *Router {

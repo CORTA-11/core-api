@@ -9,24 +9,39 @@ import (
 )
 
 const (
+	// DefaultConcurrency bounds fleet work when no operator override is set.
 	DefaultConcurrency = 4
-	MaxConcurrency     = 16
+	// MaxConcurrency caps database connections and migration fan-out.
+	MaxConcurrency = 16
+	// DefaultMaxAttempts limits automatic retries before operator intervention.
 	DefaultMaxAttempts = 5
 )
 
+// Config contains bounded operational settings for tenant reconciliation.
 type Config struct {
-	DatabaseURL      string
-	PollInterval     time.Duration
-	RetryInitial     time.Duration
-	RetryMaximum     time.Duration
-	MaxAttempts      int
-	Concurrency      int
+	// DatabaseURL supplies migration-capable credentials and must never be logged.
+	DatabaseURL string
+	// PollInterval controls how often an idle provisioner scans for due work.
+	PollInterval time.Duration
+	// RetryInitial and RetryMaximum bound persisted exponential backoff.
+	RetryInitial time.Duration
+	RetryMaximum time.Duration
+	// MaxAttempts moves repeated transient failures to terminal StateFailed.
+	MaxAttempts int
+	// Concurrency bounds workers and therefore concurrent tenant migrations.
+	Concurrency int
+	// OperationTimeout bounds one reconciliation and its claim lease.
 	OperationTimeout time.Duration
-	ShutdownTimeout  time.Duration
+	// ShutdownTimeout bounds graceful process cleanup after cancellation.
+	ShutdownTimeout time.Duration
 }
 
+// LookupFunc abstracts environment lookup so configuration can be tested
+// without mutating process-wide state.
 type LookupFunc func(string) (string, bool)
 
+// LoadConfig reads and validates provisioner settings. Validation errors name
+// configuration keys but never include their values, which may contain secrets.
 func LoadConfig(lookup LookupFunc) (Config, error) {
 	cfg := Config{
 		DatabaseURL: strings.TrimSpace(value(lookup, "DATABASE_URL")), PollInterval: 5 * time.Second,
@@ -88,6 +103,7 @@ func value(lookup LookupFunc, name string) string {
 	return result
 }
 
+// ValidateConcurrency rejects worker counts outside the database-safe bound.
 func ValidateConcurrency(value int) error {
 	if value < 1 || value > MaxConcurrency {
 		return fmt.Errorf("concurrency must be between 1 and %d", MaxConcurrency)
@@ -98,6 +114,8 @@ func ValidateConcurrency(value int) error {
 func retryDelay(initial, maximum time.Duration, attempts int) time.Duration {
 	delay := initial
 	for i := 1; i < attempts && delay < maximum; i++ {
+		// Check before doubling so a large duration cannot overflow and wrap
+		// below the configured maximum.
 		if delay > maximum/2 {
 			return maximum
 		}

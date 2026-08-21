@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// Organization is the client-facing registry view. The internal schema name is
+// deliberately excluded so clients cannot treat it as a tenant identifier.
 type Organization struct {
 	PublicID       uuid.UUID `json:"public_id"`
 	Name           string    `json:"name"`
@@ -36,6 +38,8 @@ func mapDBOrgToDomain(row publicdb.Org) Organization {
 	}
 }
 
+// OrgService manages organization registry records and their lifecycle intent.
+// Tenant schema creation and migration belong to the provisioner.
 type OrgService interface {
 	GetOrgs(ctx context.Context) ([]Organization, error)
 	CreateOrg(ctx context.Context, name string) (*Organization, error)

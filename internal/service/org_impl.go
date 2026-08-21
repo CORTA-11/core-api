@@ -60,11 +60,11 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 }
 
 func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization, error) {
-	// create schema name org_<uuid without dashed>
+	// Derive the schema identifier from a server-generated UUID so organization
+	// names and other client input never influence an SQL identifier.
 	publicID := uuid.New()
 	schemaName := "org_" + strings.ReplaceAll(publicID.String(), "-", "")
 
-	// start transaction
 	tx, err := o.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
@@ -73,7 +73,8 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 
 	qtx := o.queries.WithTx(tx)
 
-	// insert into public.orgs
+	// Keep registry access explicitly transaction-local to public; pooled
+	// connections may previously have served tenant-scoped work.
 	setPathPublicQuery := "SET LOCAL search_path TO public"
 	_, err = tx.Exec(ctx, setPathPublicQuery)
 	if err != nil {
@@ -88,7 +89,8 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 		return nil, fmt.Errorf("failed to create org: %w", err)
 	}
 
-	// commit transaction
+	// Committing the registry row is the durable handoff to the provisioner. No
+	// tenant DDL runs on the request path.
 	err = tx.Commit(ctx)
 	if err != nil {
 		return nil, err
@@ -111,6 +113,8 @@ func (o *orgService) UpdateOrg(ctx context.Context, publicID uuid.UUID, name str
 }
 
 func (o *orgService) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (*Organization, error) {
+	// The query enters deleting atomically with deleted_at so an in-flight
+	// reconciler cannot reactivate the organization.
 	org, err := o.queries.SoftDeleteOrg(ctx, publicID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to soft delete org: %w", err)
@@ -120,6 +124,8 @@ func (o *orgService) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (*Or
 }
 
 func (o *orgService) RestoreOrg(ctx context.Context, publicID uuid.UUID) (*Organization, error) {
+	// Restore records fresh provisioning intent; the schema must pass normal
+	// ledger and catalog validation before tenant traffic resumes.
 	org, err := o.queries.RestoreOrg(ctx, publicID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to restore org: %w", err)

@@ -76,6 +76,9 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	publicQueries := publicdb.New(pool)
+	// The API derives availability from its own embedded migration set, so a
+	// rolling deployment fails tenant requests closed until schemas match the
+	// binary that will serve them.
 	migrationSource, err := tenancy.EmbeddedMigrations()
 	if err != nil {
 		return err
