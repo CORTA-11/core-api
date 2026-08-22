@@ -191,6 +191,141 @@ func TestWithinOrganizationRejectsInvalidInputBeforeAcquire(t *testing.T) {
 	assert.Equal(t, before, pool.Stat().AcquireCount())
 }
 
+func TestWithinOrganizationPreservesPanicAndRollsBack(t *testing.T) {
+	fixture := newResolverFixture(t)
+	applyTenantFixture(t, fixture)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+	panicValue := &struct{ reason string }{reason: "panic value"}
+
+	var recovered any
+	func() {
+		defer func() { recovered = recover() }()
+		_ = executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+			_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Panicked", Slug: "panicked"})
+			require.NoError(t, createErr)
+			panic(panicValue)
+		})
+	}()
+	assert.Same(t, panicValue, recovered)
+	assertTeamAbsent(t, fixture, "panicked")
+	assertConnectionHasDefaultScope(t, pool)
+}
+
+func TestWithinOrganizationCancellationRollsBackWithDetachedContext(t *testing.T) {
+	fixture := newResolverFixture(t)
+	applyTenantFixture(t, fixture)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	err = executor.WithinOrganization(ctx, organization, func(queries *tenantdb.Queries) error {
+		_, createErr := queries.CreateTeam(ctx, tenantdb.CreateTeamParams{Name: "Canceled", Slug: "canceled"})
+		require.NoError(t, createErr)
+		cancel()
+		return nil
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	assertTeamAbsent(t, fixture, "canceled")
+	assertConnectionHasDefaultScope(t, pool)
+}
+
+func TestWithinOrganizationRejectsSchemaRemovalBeforeCallback(t *testing.T) {
+	fixture := newResolverFixture(t)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	_, err = fixture.pool.Exec(context.Background(), `DROP SCHEMA `+pgx.Identifier{fixture.schemaName}.Sanitize())
+	require.NoError(t, err)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+	called := false
+
+	err = executor.WithinOrganization(context.Background(), organization, func(*tenantdb.Queries) error {
+		called = true
+		return nil
+	})
+	require.ErrorIs(t, err, tenancy.ErrOrganizationUnavailable)
+	assert.False(t, called)
+	assertConnectionHasDefaultScope(t, pool)
+}
+
+func TestWithinOrganizationCleansUpDeferredCommitFailure(t *testing.T) {
+	fixture := newResolverFixture(t)
+	applyTenantFixture(t, fixture)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	installDeferredCommitFailure(t, fixture)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+
+	err = executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+		_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Commit failed", Slug: "commit-failed"})
+		return createErr
+	})
+	require.Error(t, err)
+	assertTeamAbsent(t, fixture, "commit-failed")
+	assertConnectionHasDefaultScope(t, pool)
+}
+
+func TestWithinOrganizationDiscardsConnectionAfterRollbackFailure(t *testing.T) {
+	fixture := newResolverFixture(t)
+	applyTenantFixture(t, fixture)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	installBackendTerminationTrigger(t, fixture)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+	connectionsBefore := pool.Stat().NewConnsCount()
+
+	err = executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+		_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Terminated", Slug: "terminated"})
+		return createErr
+	})
+	require.Error(t, err)
+	assertConnectionHasDefaultScope(t, pool)
+	assert.Greater(t, pool.Stat().NewConnsCount(), connectionsBefore)
+
+	removeBackendTerminationTrigger(t, fixture)
+	err = executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+		_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "After termination", Slug: "after-termination"})
+		return createErr
+	})
+	require.NoError(t, err)
+	assertConnectionHasDefaultScope(t, pool)
+}
+
+func TestWithinOrganizationRetainedQueriesFailAfterCompletion(t *testing.T) {
+	fixture := newResolverFixture(t)
+	applyTenantFixture(t, fixture)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+
+	var afterCommit *tenantdb.Queries
+	require.NoError(t, executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+		afterCommit = queries
+		return nil
+	}))
+	_, err = afterCommit.GetTeams(context.Background(), 1)
+	require.ErrorIs(t, err, pgx.ErrTxClosed)
+
+	wantErr := errors.New("rollback retained queries")
+	var afterRollback *tenantdb.Queries
+	err = executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+		afterRollback = queries
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+	_, err = afterRollback.GetTeams(context.Background(), 1)
+	require.ErrorIs(t, err, pgx.ErrTxClosed)
+	assertConnectionHasDefaultScope(t, pool)
+}
+
 func applyTenantFixture(t *testing.T, fixture resolverFixture) {
 	t.Helper()
 	testsupport.ApplyMigrations(t, "db/migrations/tenant", testsupport.DatabaseURLForSchema(t, fixture.schemaName))
@@ -215,6 +350,58 @@ func applyTenantFixture(t *testing.T, fixture resolverFixture) {
 		BEFORE INSERT ON %s.teams
 		FOR EACH ROW EXECUTE FUNCTION %s.assert_organization_scope()`, identifier, identifier, identifier))
 	require.NoError(t, err)
+}
+
+func installDeferredCommitFailure(t *testing.T, fixture resolverFixture) {
+	t.Helper()
+	identifier := pgx.Identifier{fixture.schemaName}.Sanitize()
+	// #nosec G201 -- the only formatted value is an identifier generated from a
+	// server-owned UUID and quoted by pgx.Identifier.
+	_, err := fixture.pool.Exec(context.Background(), fmt.Sprintf(`
+		CREATE FUNCTION %s.fail_deferred_commit() RETURNS trigger
+		LANGUAGE plpgsql AS $function$
+		BEGIN
+			RAISE EXCEPTION 'test deferred commit failure';
+		END
+		$function$;
+		CREATE CONSTRAINT TRIGGER fail_deferred_commit
+		AFTER INSERT ON %s.teams
+		DEFERRABLE INITIALLY DEFERRED
+		FOR EACH ROW EXECUTE FUNCTION %s.fail_deferred_commit()`, identifier, identifier, identifier))
+	require.NoError(t, err)
+}
+
+func installBackendTerminationTrigger(t *testing.T, fixture resolverFixture) {
+	t.Helper()
+	identifier := pgx.Identifier{fixture.schemaName}.Sanitize()
+	// #nosec G201 -- the only formatted value is a quoted canonical identifier.
+	_, err := fixture.pool.Exec(context.Background(), fmt.Sprintf(`
+		CREATE FUNCTION %s.terminate_executor_backend() RETURNS trigger
+		LANGUAGE plpgsql AS $function$
+		BEGIN
+			PERFORM pg_terminate_backend(pg_backend_pid());
+			RETURN NEW;
+		END
+		$function$;
+		CREATE TRIGGER terminate_executor_backend
+		BEFORE INSERT ON %s.teams
+		FOR EACH ROW EXECUTE FUNCTION %s.terminate_executor_backend()`, identifier, identifier, identifier))
+	require.NoError(t, err)
+}
+
+func removeBackendTerminationTrigger(t *testing.T, fixture resolverFixture) {
+	t.Helper()
+	qualifiedTeams := pgx.Identifier{fixture.schemaName, "teams"}.Sanitize()
+	qualifiedFunction := pgx.Identifier{fixture.schemaName, "terminate_executor_backend"}.Sanitize()
+	_, err := fixture.pool.Exec(context.Background(), `DROP TRIGGER terminate_executor_backend ON `+qualifiedTeams+`; DROP FUNCTION `+qualifiedFunction+`()`) // #nosec G202 -- both identifiers are pgx-quoted.
+	require.NoError(t, err)
+}
+
+func assertTeamAbsent(t *testing.T, fixture resolverFixture, slug string) {
+	t.Helper()
+	var count int
+	require.NoError(t, fixture.pool.QueryRow(context.Background(), `SELECT count(*) FROM `+pgx.Identifier{fixture.schemaName, "teams"}.Sanitize()+` WHERE slug = $1`, slug).Scan(&count))
+	assert.Zero(t, count)
 }
 
 func openSingleConnectionPool(t *testing.T) *pgxpool.Pool {
