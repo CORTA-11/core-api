@@ -57,6 +57,8 @@ func (e *Executor) within(
 	finished := false
 	defer func() {
 		if !finished {
+			// This defer also runs during panic unwinding. It intentionally does
+			// not recover, so the original panic value is preserved after cleanup.
 			rollbackDetached(tx)
 		}
 	}()
@@ -113,5 +115,8 @@ func installTenantScope(
 func rollbackDetached(tx pgx.Tx) {
 	ctx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
 	defer cancel()
+	// pgx closes the underlying connection when a real transaction rollback
+	// fails. pgxpool therefore discards it instead of returning uncertain session
+	// or transaction state to a subsequent borrower.
 	_ = tx.Rollback(ctx)
 }
