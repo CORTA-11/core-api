@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `in progress` |
 | Branch | `refactor/m02-d03-tenant-executor` |
 | PR title | `refactor(tenancy): add trusted tenant executor` |
 | Predecessor | M02-D02 merged; all active organizations current |
