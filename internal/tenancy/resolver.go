@@ -5,12 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+const maxTeamSlugBytes = 255
 
 var (
 	// ErrOrganizationUnavailable deliberately combines unknown identities,
@@ -39,6 +43,15 @@ type OrganizationContext struct {
 	resolved             bool
 }
 
+// TeamContext is an opaque team capability containing its already-resolved
+// organization scope. D04 will add current team membership to construction.
+type TeamContext struct {
+	organization OrganizationContext
+	teamID       int64
+	teamSlug     string
+	resolved     bool
+}
+
 func newOrganizationContext(
 	organizationID int64,
 	organizationPublicID uuid.UUID,
@@ -62,6 +75,24 @@ func (organization OrganizationContext) validate() error {
 		organization.schemaName == "" ||
 		organization.schemaName != CanonicalSchema(organization.organizationPublicID.String()) {
 		return ErrInvalidContext
+	}
+	return nil
+}
+
+func newTeamContext(organization OrganizationContext, teamID int64, teamSlug string) TeamContext {
+	return TeamContext{organization: organization, teamID: teamID, teamSlug: teamSlug, resolved: true}
+}
+
+func (team TeamContext) validate() error {
+	if !team.resolved || team.teamID <= 0 || team.organization.validate() != nil || validateTeamSlug(team.teamSlug) != nil {
+		return ErrInvalidContext
+	}
+	return nil
+}
+
+func validateTeamSlug(slug string) error {
+	if slug == "" || len(slug) > maxTeamSlugBytes || !utf8.ValidString(slug) || strings.TrimSpace(slug) != slug {
+		return ErrTeamUnavailable
 	}
 	return nil
 }
@@ -119,4 +150,46 @@ func (r *Resolver) ResolveOrganization(
 		return OrganizationContext{}, ErrRegistryIntegrity
 	}
 	return organization, nil
+}
+
+// ResolveTeam revalidates the full organization capability before performing a
+// parameterized tenant lookup. Until D04 introduces team memberships,
+// organization membership plus team existence is the temporary authorization
+// bridge; callers must not treat it as final team authorization.
+func (r *Resolver) ResolveTeam(
+	ctx context.Context,
+	organization OrganizationContext,
+	teamSlug string,
+) (TeamContext, error) {
+	if err := organization.validate(); err != nil {
+		return TeamContext{}, ErrInvalidContext
+	}
+	if err := validateTeamSlug(teamSlug); err != nil {
+		return TeamContext{}, err
+	}
+	if r == nil || r.pool == nil {
+		return TeamContext{}, ErrOrganizationUnavailable
+	}
+
+	refreshed, err := r.ResolveOrganization(ctx, organization.userPublicID, organization.organizationPublicID)
+	if err != nil {
+		return TeamContext{}, err
+	}
+	var teamID int64
+	err = NewExecutor(r.pool).WithinOrganization(ctx, refreshed, func(queries *tenantdb.Queries) error {
+		var lookupErr error
+		teamID, lookupErr = queries.GetTeamID(ctx, teamSlug)
+		return lookupErr
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return TeamContext{}, ErrTeamUnavailable
+	}
+	if err != nil {
+		return TeamContext{}, fmt.Errorf("resolve team context: %w", err)
+	}
+	team := newTeamContext(refreshed, teamID, teamSlug)
+	if err := team.validate(); err != nil {
+		return TeamContext{}, ErrRegistryIntegrity
+	}
+	return team, nil
 }

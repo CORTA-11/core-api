@@ -326,6 +326,67 @@ func TestWithinOrganizationRetainedQueriesFailAfterCompletion(t *testing.T) {
 	assertConnectionHasDefaultScope(t, pool)
 }
 
+func TestResolveTeamRevalidatesOrganizationAndUsesParameterizedSlug(t *testing.T) {
+	t.Run("valid and unknown team", func(t *testing.T) {
+		fixture := newResolverFixture(t)
+		applyTenantFixture(t, fixture)
+		organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+		require.NoError(t, err)
+		executor := tenancy.NewExecutor(fixture.pool)
+		require.NoError(t, executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+			_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Research", Slug: "research"})
+			return createErr
+		}))
+
+		team, err := fixture.resolver.ResolveTeam(context.Background(), organization, "research")
+		require.NoError(t, err)
+		require.NotEqual(t, tenancy.TeamContext{}, team)
+
+		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "missing")
+		require.ErrorIs(t, err, tenancy.ErrTeamUnavailable)
+		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, `research' OR true --`)
+		require.ErrorIs(t, err, tenancy.ErrTeamUnavailable)
+	})
+
+	t.Run("membership revoked after organization resolution", func(t *testing.T) {
+		fixture := newResolverFixture(t)
+		applyTenantFixture(t, fixture)
+		organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+		require.NoError(t, err)
+		_, err = fixture.pool.Exec(context.Background(), `DELETE FROM public.org_user`)
+		require.NoError(t, err)
+
+		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "research")
+		require.ErrorIs(t, err, tenancy.ErrOrganizationUnavailable)
+	})
+
+	t.Run("lifecycle changed after organization resolution", func(t *testing.T) {
+		fixture := newResolverFixture(t)
+		applyTenantFixture(t, fixture)
+		organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+		require.NoError(t, err)
+		_, err = fixture.pool.Exec(context.Background(), `UPDATE public.orgs SET lifecycle_state = 'provisioning'`)
+		require.NoError(t, err)
+
+		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "research")
+		require.ErrorIs(t, err, tenancy.ErrOrganizationUnavailable)
+	})
+}
+
+func TestResolveTeamRejectsInvalidInputBeforeDatabaseWork(t *testing.T) {
+	fixture := newResolverFixture(t)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	before := fixture.pool.Stat().AcquireCount()
+
+	_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "")
+	require.ErrorIs(t, err, tenancy.ErrTeamUnavailable)
+	assert.Equal(t, before, fixture.pool.Stat().AcquireCount())
+	_, err = fixture.resolver.ResolveTeam(context.Background(), tenancy.OrganizationContext{}, "research")
+	require.ErrorIs(t, err, tenancy.ErrInvalidContext)
+	assert.Equal(t, before, fixture.pool.Stat().AcquireCount())
+}
+
 func applyTenantFixture(t *testing.T, fixture resolverFixture) {
 	t.Helper()
 	testsupport.ApplyMigrations(t, "db/migrations/tenant", testsupport.DatabaseURLForSchema(t, fixture.schemaName))
