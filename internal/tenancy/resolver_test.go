@@ -16,4 +16,5 @@ func TestOrganizationContextZeroValueIsInvalid(t *testing.T) {
 func TestResolverErrorsAreStable(t *testing.T) {
 	assert.True(t, errors.Is(ErrOrganizationUnavailable, ErrOrganizationUnavailable))
 	assert.True(t, errors.Is(ErrRegistryIntegrity, ErrRegistryIntegrity))
+	assert.True(t, errors.Is(ErrInvalidCallback, ErrInvalidCallback))
 }
