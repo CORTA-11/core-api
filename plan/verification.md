@@ -8,9 +8,11 @@ not substitute for an executable check.
 | Command | Environment | Required proof |
 | --- | --- | --- |
 | `make check` | Go toolchain only; no `.env` | format/tidy drift, build, vet/lint, sqlc drift, migration naming, and static security checks; leaves the worktree unchanged |
+| `make static` | Go toolchain only; no `.env` | `go vet`, explicit Staticcheck-backed linting, and editor-equivalent `gopls` diagnostics across every Go source and test file |
 | `make test-unit` | Go toolchain only | handler, service, domain, middleware, config, and adapter unit tests |
 | `make test-race` | Go toolchain only | `go test -race ./...` for concurrency-sensitive packages |
 | `make test-integration` | disposable test Compose | real PostgreSQL, Redis, and MinIO behavior including migrations and adapter degradation |
+| `go run ./cmd/provisioner status --all` | migrated public database | every non-deleting organization is active at the embedded tenant version and checksum |
 | `make test-isolation` | disposable PostgreSQL; runtime and migration roles | organization schema isolation, team RLS, missing context, unsafe query, and pool reuse |
 | `make test-contract` | API process plus disposable dependencies | OpenAPI conformance, problem responses, auth/CSRF, pagination, ETag, and idempotency behavior |
 | `make test-e2e-core` | API, worker, PostgreSQL, Redis, MinIO, identity provider, realtime adapter | organization → team → task → file flow, async event delivery, and reconnect/recovery |

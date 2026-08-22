@@ -17,7 +17,8 @@ decisions, [`STYLE.md`](STYLE.md) for implementation standards, and
 - `make seed`: load development data.
 - `make run`: run the API with values from `.env`.
 - `make test`: run all Go tests verbosely.
-- `make fmt`, `make lint`, `make sec`: format, lint, and run vulnerability/security checks.
+- `make fmt`, `make static`, `make sec`: format, run repository-wide Go vet and
+  Staticcheck-backed linting, and run vulnerability/security checks.
 - `make generate`: regenerate `internal/repository/*.sql.go` after changing SQL sources.
 
 ## Coding Style & Naming Conventions

@@ -2,30 +2,23 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log/slog"
-	"net/url"
 	"strings"
 
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
-	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/uuid"
 )
 
 type orgService struct {
-	pool        pgxPool
-	queries     *publicdb.Queries
-	databaseURL string
+	pool    pgxPool
+	queries *publicdb.Queries
 }
 
 func NewOrgService(pool pgxPool, queries *publicdb.Queries, databaseURL string) OrgService {
+	_ = databaseURL // Kept temporarily for source compatibility with D01 callers.
 	return &orgService{
-		pool:        pool,
-		queries:     queries,
-		databaseURL: databaseURL,
+		pool:    pool,
+		queries: queries,
 	}
 }
 
@@ -67,11 +60,11 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 }
 
 func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization, error) {
-	// create schema name org_<uuid without dashed>
+	// Derive the schema identifier from a server-generated UUID so organization
+	// names and other client input never influence an SQL identifier.
 	publicID := uuid.New()
 	schemaName := "org_" + strings.ReplaceAll(publicID.String(), "-", "")
 
-	// start transaction
 	tx, err := o.pool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
@@ -80,7 +73,8 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 
 	qtx := o.queries.WithTx(tx)
 
-	// insert into public.orgs
+	// Keep registry access explicitly transaction-local to public; pooled
+	// connections may previously have served tenant-scoped work.
 	setPathPublicQuery := "SET LOCAL search_path TO public"
 	_, err = tx.Exec(ctx, setPathPublicQuery)
 	if err != nil {
@@ -95,62 +89,15 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 		return nil, fmt.Errorf("failed to create org: %w", err)
 	}
 
-	// create schema
-	schemaQuery := fmt.Sprintf("CREATE SCHEMA %s", schemaName)
-	_, err = tx.Exec(ctx, schemaQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create schema: %w", err)
-	}
-
-	// commit transaction
+	// Committing the registry row is the durable handoff to the provisioner. No
+	// tenant DDL runs on the request path.
 	err = tx.Commit(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	// do tenant migrations
-	err = MigrateSchema(o.databaseURL, schemaName)
 	if err != nil {
 		return nil, err
 	}
 
 	ret := mapDBOrgToDomain(org)
 	return &ret, nil
-}
-
-func MigrateSchema(databaseURL, schemaName string) error {
-	dbURL, err := url.Parse(databaseURL)
-	if err != nil {
-		slog.Error("failed to parse database URL", "error", err)
-		return fmt.Errorf("parse database URL: %w", err)
-	}
-	q := dbURL.Query()
-	q.Set("search_path", schemaName)
-	dbURL.RawQuery = q.Encode()
-
-	m, err := migrate.New(
-		"file://db/migrations/tenant",
-		dbURL.String(),
-	)
-	if err != nil {
-		slog.Error("failed to create tenant migrator", "error", err)
-		return fmt.Errorf("create tenant migrator: %w", err)
-	}
-	defer func() {
-		sourceErr, databaseErr := m.Close()
-		if sourceErr != nil {
-			slog.Error("failed to close tenant migration source", "error", sourceErr)
-		}
-		if databaseErr != nil {
-			slog.Error("failed to close tenant migration database", "error", databaseErr)
-		}
-	}()
-
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		slog.Error("failed to run tenant migration", "error", err)
-		return fmt.Errorf("run tenant migrations: %w", err)
-	}
-	return nil
 }
 
 func (o *orgService) UpdateOrg(ctx context.Context, publicID uuid.UUID, name string) (*Organization, error) {
@@ -166,6 +113,8 @@ func (o *orgService) UpdateOrg(ctx context.Context, publicID uuid.UUID, name str
 }
 
 func (o *orgService) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (*Organization, error) {
+	// The query enters deleting atomically with deleted_at so an in-flight
+	// reconciler cannot reactivate the organization.
 	org, err := o.queries.SoftDeleteOrg(ctx, publicID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to soft delete org: %w", err)
@@ -175,6 +124,8 @@ func (o *orgService) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (*Or
 }
 
 func (o *orgService) RestoreOrg(ctx context.Context, publicID uuid.UUID) (*Organization, error) {
+	// Restore records fresh provisioning intent; the schema must pass normal
+	// ledger and catalog validation before tenant traffic resumes.
 	org, err := o.queries.RestoreOrg(ctx, publicID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to restore org: %w", err)

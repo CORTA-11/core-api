@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `in progress` |
 | Branch | `feat/m02-d02-tenant-provisioning` |
 | PR title | `feat(tenancy): make tenant provisioning resumable` |
 | Predecessor | M02-D01 merged to refreshed `main` |
@@ -47,7 +47,12 @@ In scope:
   sanitized result per tenant and exit non-zero if any tenant fails.
 - Change organization creation to enqueue provisioning rather than doing schema work inline.
 
-Deferred: tenant request execution, team RLS, background queue infrastructure,
+The implementation is a dedicated polling process backed by organization
+lifecycle rows. It does not introduce River, an outbox, or a general job queue.
+It automatically retries transient failures and adopts/migrates outdated active
+tenants.
+
+Deferred: the trusted tenant executor, team RLS, background queue infrastructure,
 permission mapping, and deletion/purge implementation beyond the lifecycle contract.
 
 ## Interfaces, persistence, commands, and compatibility
@@ -57,14 +62,15 @@ a migration source abstraction suitable for failure injection. Public migrations
 add lifecycle fields/constraints. Tenant bootstrap creates/adopts the ledger
 before applying later tenant migrations.
 
-The command contract must support equivalent operations such as:
+The implemented command contract is:
 
 ```text
-provision one --organization <public-uuid>
-provision pending --concurrency <1..16>
-migrate public apply|status
-migrate tenant apply|status|retry --organization <public-uuid>
-migrate tenant apply|status|retry --all --concurrency <1..16>
+provisioner run
+provisioner reconcile --organization <public-uuid>
+provisioner reconcile --all --concurrency <1..16>
+provisioner status [--organization <public-uuid>|--all]
+provisioner retry [--organization <public-uuid>|--all]
+migrate up|up-all|down|down-all|status
 ```
 
 Exact CLI spelling may follow existing `cmd/migrate`, but raw schema names are
@@ -116,13 +122,13 @@ make check
 
 Also execute documented empty-database and M01-snapshot upgrade paths twice.
 
-- [ ] State transitions and database constraints reject invalid lifecycle states.
-- [ ] Existing M01 tenants are adopted without replay or data loss.
-- [ ] Checksums, locks, rollback, idempotency, and retry are proven in PostgreSQL.
-- [ ] CLI accepts only public organization IDs and bounds concurrency to 1–16.
-- [ ] Partial fleet failure produces per-tenant results and non-zero exit.
-- [ ] Errors and logs contain no credentials, raw SQL, or sensitive internals.
-- [ ] Every active organization reports the current tenant version.
+- [x] State transitions and database constraints reject invalid lifecycle states.
+- [x] Existing M01 tenants are adopted without replay or data loss.
+- [x] Checksums, locks, rollback, idempotency, and retry are proven in PostgreSQL.
+- [x] CLI accepts only public organization IDs and bounds concurrency to 1–16.
+- [x] Partial fleet failure produces per-tenant results and non-zero exit.
+- [x] Errors and logs contain no credentials, raw SQL, or sensitive internals.
+- [x] Every active organization reports the current tenant version.
 
 ## Migration, rollout, rollback, and operations
 

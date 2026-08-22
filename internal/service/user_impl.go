@@ -86,7 +86,7 @@ func (u *userService) CreateUser(ctx context.Context, name string, email string,
 	if err == nil {
 		return nil, ErrEmailAlreadyInUse
 	}
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return nil, err
 	}
 

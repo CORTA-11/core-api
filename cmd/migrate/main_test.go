@@ -10,14 +10,17 @@ import (
 )
 
 type fakeMigrator struct {
-	err  error
-	step int
+	err     error
+	step    int
+	version uint
+	dirty   bool
 }
 
-func (m *fakeMigrator) Up() error             { return m.err }
-func (m *fakeMigrator) Down() error           { return m.err }
-func (m *fakeMigrator) Steps(step int) error  { m.step = step; return m.err }
-func (m *fakeMigrator) Close() (error, error) { return nil, nil }
+func (m *fakeMigrator) Up() error                    { return m.err }
+func (m *fakeMigrator) Down() error                  { return m.err }
+func (m *fakeMigrator) Steps(step int) error         { m.step = step; return m.err }
+func (m *fakeMigrator) Close() (error, error)        { return nil, nil }
+func (m *fakeMigrator) Version() (uint, bool, error) { return m.version, m.dirty, m.err }
 
 func TestRunPropagatesMigrationFailure(t *testing.T) {
 	want := errors.New("database unavailable")
@@ -29,6 +32,15 @@ func TestRunPropagatesMigrationFailure(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, want)
+}
+
+func TestRunReportsPublicMigrationStatus(t *testing.T) {
+	require.NoError(t, run([]string{"status"}, func(string) string { return "" }, func(string, string) (migrator, error) {
+		return &fakeMigrator{version: 4}, nil
+	}))
+	require.Error(t, run([]string{"status"}, func(string) string { return "" }, func(string, string) (migrator, error) {
+		return &fakeMigrator{version: 4, dirty: true}, nil
+	}))
 }
 
 func TestRunTreatsNoChangeAsSuccess(t *testing.T) {

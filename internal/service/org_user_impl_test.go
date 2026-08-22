@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,7 +21,11 @@ func TestOrgUserServiceImpl(t *testing.T) {
 	userID := int64(100)
 	now := time.Now().UTC()
 
-	orgColumns := []string{"id", "public_id", "name", "schema_name", "created_at", "updated_at", "deleted_at"}
+	orgColumns := []string{
+		"id", "public_id", "name", "schema_name", "created_at", "updated_at", "deleted_at",
+		"lifecycle_state", "tenant_version", "tenant_checksum", "reconcile_attempts", "next_attempt_at",
+		"last_error_code", "last_error_detail", "last_attempt_at", "provisioned_at",
+	}
 	userColumns := []string{"id", "user_id", "email", "password_hash", "display_name", "created_at", "updated_at", "deleted_at"}
 
 	t.Run("AddUserToOrg successfully resolves IDs and calls repository", func(t *testing.T) {
@@ -109,7 +114,9 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetOrgsForUser :many.*SELECT").
 			WithArgs(userID, int32(100)).
 			WillReturnRows(pgxmock.NewRows(orgColumns).
-				AddRow(orgID, orgPublicID, "My Org", "org_schema", now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(orgID, orgPublicID, "My Org", "org_schema", now, now, pgtype.Timestamptz{Valid: false},
+					"active", int64(2), strings.Repeat("a", 64), int32(1), now,
+					pgtype.Text{}, pgtype.Text{}, pgtype.Timestamptz{}, pgtype.Timestamptz{Time: now, Valid: true}))
 
 		mockPool.ExpectCommit()
 

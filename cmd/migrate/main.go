@@ -17,6 +17,7 @@ type migrator interface {
 	Up() error
 	Down() error
 	Steps(int) error
+	Version() (uint, bool, error)
 	Close() (error, error)
 }
 
@@ -35,7 +36,7 @@ func newMigrator(sourceURL, databaseURL string) (migrator, error) {
 
 func run(args []string, getenv func(string) string, factory migratorFactory) error {
 	if len(args) != 1 {
-		return errors.New("usage: migrate [up|up-all|down|down-all]")
+		return errors.New("usage: migrate [up|up-all|down|down-all|status]")
 	}
 
 	m, err := factory(publicMigrationsDir, getenv("DATABASE_URL"))
@@ -61,6 +62,23 @@ func run(args []string, getenv func(string) string, factory migratorFactory) err
 		err = m.Steps(1)
 	case "down":
 		err = m.Steps(-1)
+	case "status":
+		var version uint
+		var dirty bool
+		version, dirty, err = m.Version()
+		if errors.Is(err, migrate.ErrNilVersion) {
+			log.Printf("public migration status: version=0 dirty=false")
+			return nil
+		}
+		if err == nil {
+			log.Printf("public migration status: version=%d dirty=%t", version, dirty)
+			// A dirty public registry cannot safely coordinate tenant lifecycle
+			// transitions, so status is also a deployment gate.
+			if dirty {
+				return errors.New("public migration state is dirty")
+			}
+			return nil
+		}
 	default:
 		return fmt.Errorf("unknown migration command %q", args[0])
 	}

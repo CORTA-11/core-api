@@ -18,6 +18,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -75,6 +76,14 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	publicQueries := publicdb.New(pool)
+	// The API derives availability from its own embedded migration set, so a
+	// rolling deployment fails tenant requests closed until schemas match the
+	// binary that will serve them.
+	migrationSource, err := tenancy.EmbeddedMigrations()
+	if err != nil {
+		return err
+	}
+	availability := tenancy.NewAvailabilityChecker(pool, migrationSource)
 	tenantQueries := tenantdb.New(pool)
 	orgService := service.NewOrgService(pool, publicQueries, cfg.DatabaseURL)
 	teamService := service.NewTeamService(pool, tenantQueries)
@@ -98,6 +107,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		TaskService: &taskService, UserService: &userService, FileService: &fileService,
 		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
 		ReadinessTimeout: cfg.DependencyTimeout, PprofEnabled: cfg.PprofEnabled,
+		OrgAvailability: availability,
 	})
 	router.SetupRoutes()
 	server := &http.Server{

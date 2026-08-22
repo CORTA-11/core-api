@@ -1,0 +1,10 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    # Keep Staticcheck explicit even though it is currently part of the
+    # standard set, so a future tool-default change cannot silently remove it.
+    - staticcheck
+    # Catch impossible nil/error branches also surfaced by editor diagnostics.
+    - nilnesserr

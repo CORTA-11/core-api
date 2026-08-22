@@ -25,6 +25,7 @@ type Router struct {
 	readinessChecks  map[string]ReadinessCheck
 	readinessTimeout time.Duration
 	pprofEnabled     bool
+	orgAvailability  appMiddleware.OrgAvailabilityChecker
 }
 
 type RouterConf struct {
@@ -38,6 +39,9 @@ type RouterConf struct {
 	ReadinessChecks  map[string]ReadinessCheck
 	ReadinessTimeout time.Duration
 	PprofEnabled     bool
+	// OrgAvailability gates tenant-scoped routes; production wiring must provide
+	// it.
+	OrgAvailability appMiddleware.OrgAvailabilityChecker
 }
 
 func NewRouter(conf RouterConf) *Router {
@@ -53,6 +57,7 @@ func NewRouter(conf RouterConf) *Router {
 		readinessChecks:  conf.ReadinessChecks,
 		readinessTimeout: conf.ReadinessTimeout,
 		pprofEnabled:     conf.PprofEnabled,
+		orgAvailability:  conf.OrgAvailability,
 	}
 }
 
@@ -103,6 +108,9 @@ func orgRouter(router *Router) chi.Router {
 func teamRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
 	r.Use(appMiddleware.OrgMiddleware)
+	if router.orgAvailability != nil {
+		r.Use(appMiddleware.RequireAvailableOrg(router.orgAvailability))
+	}
 
 	r.Get("/", router.getTeams())
 	r.Post("/", router.createTeam())
@@ -113,6 +121,9 @@ func teamRouter(router *Router) chi.Router {
 func taskRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
 	r.Use(appMiddleware.OrgMiddleware)
+	if router.orgAvailability != nil {
+		r.Use(appMiddleware.RequireAvailableOrg(router.orgAvailability))
+	}
 	r.Use(appMiddleware.TeamMiddleware(router.teamService))
 
 	r.Get("/", router.getTasks())
@@ -126,6 +137,9 @@ func taskRouter(router *Router) chi.Router {
 func fileRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
 	r.Use(appMiddleware.OrgMiddleware)
+	if router.orgAvailability != nil {
+		r.Use(appMiddleware.RequireAvailableOrg(router.orgAvailability))
+	}
 	r.Use(appMiddleware.TeamMiddleware(router.teamService))
 
 	r.Get("/", router.getFiles())

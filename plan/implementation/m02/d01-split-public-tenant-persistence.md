@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `complete` |
 | Branch | `refactor/m02-d01-split-persistence` |
 | PR title | `refactor(db): split public and tenant persistence` |
 | Predecessor | Planning PR `docs: establish test-driven m02 handoff` |
@@ -95,13 +95,13 @@ make check
 git diff --exit-code
 ```
 
-- [ ] Two generated packages have disjoint source/schema responsibility.
-- [ ] No hand-edited generated file exists.
-- [ ] No query source contains `SELECT *` or `RETURNING *`.
-- [ ] Every list is deterministically ordered and bounded to at most 100.
-- [ ] Public tables are explicitly qualified.
-- [ ] Existing route and response behavior is unchanged.
-- [ ] PR records red failures and green commands.
+- [x] Two generated packages have disjoint source/schema responsibility.
+- [x] No hand-edited generated file exists.
+- [x] No query source contains `SELECT *` or `RETURNING *`.
+- [x] Every list is deterministically ordered and bounded to at most 100.
+- [x] Public tables are explicitly qualified.
+- [x] Existing route and response behavior is unchanged.
+- [x] PR records red failures and green commands.
 
 ## Migration, rollout, rollback, and operations
 
@@ -119,6 +119,13 @@ any narrow interfaces D02 must use. D02 must not rejoin the packages.
 
 ## Implementation record
 
-**Merged PR:** _pending_
+**Merged PR:** [#23](https://github.com/CORTA-11/core-api/pull/23)
 
-**Merge commit:** _pending_
+**Implementation commit:** `3d7a1db`
+
+**Merge commit:** `94b659b`
+
+**Verification:** `make generate-check` and `make test-unit` passed locally.
+The D01-specific `make check` stages passed through lint. The vulnerability feed
+was unreachable from the sandbox; this was an environment limitation rather
+than a D01 defect.

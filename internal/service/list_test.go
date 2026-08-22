@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pashagolub/pgxmock/v3"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,8 +27,11 @@ func TestOrgServiceGetOrgsUsesServerOwnedLimit(t *testing.T) {
 		WithArgs(int32(100)).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "public_id", "name", "schema_name", "created_at", "updated_at", "deleted_at",
+			"lifecycle_state", "tenant_version", "tenant_checksum", "reconcile_attempts", "next_attempt_at",
+			"last_error_code", "last_error_detail", "last_attempt_at", "provisioned_at",
 		}).AddRow(
 			int64(1), uuid.New(), "Example", "org_example", now, now, pgtype.Timestamptz{Valid: false},
+			"provisioning", int64(0), "", int32(0), now, pgtype.Text{}, pgtype.Text{}, pgtype.Timestamptz{}, pgtype.Timestamptz{},
 		))
 	mockPool.ExpectCommit()
 
@@ -35,6 +39,32 @@ func TestOrgServiceGetOrgsUsesServerOwnedLimit(t *testing.T) {
 	orgs, err := service.GetOrgs(context.Background())
 	require.NoError(t, err)
 	require.Len(t, orgs, 1)
+	require.NoError(t, mockPool.ExpectationsWereMet())
+}
+
+func TestOrgServiceCreateOrgOnlyRecordsProvisioningIntent(t *testing.T) {
+	mockPool, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	defer mockPool.Close()
+	now := time.Now().UTC()
+	mockPool.ExpectBegin()
+	mockPool.ExpectExec("^SET LOCAL search_path TO public$").WillReturnResult(pgxmock.NewResult("SET", 0))
+	mockPool.ExpectQuery("(?s)CreateOrg :one.*INSERT").
+		WithArgs("Example", pgxmock.AnyArg(), pgxmock.AnyArg()).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"id", "public_id", "name", "schema_name", "created_at", "updated_at", "deleted_at",
+			"lifecycle_state", "tenant_version", "tenant_checksum", "reconcile_attempts", "next_attempt_at",
+			"last_error_code", "last_error_detail", "last_attempt_at", "provisioned_at",
+		}).AddRow(
+			int64(1), uuid.New(), "Example", "org_example", now, now, pgtype.Timestamptz{},
+			"provisioning", int64(0), "", int32(0), now, pgtype.Text{}, pgtype.Text{}, pgtype.Timestamptz{}, pgtype.Timestamptz{},
+		))
+	mockPool.ExpectCommit()
+
+	service := NewOrgService(mockPool, publicdb.New(mockPool), "postgres://unused")
+	organization, err := service.CreateOrg(context.Background(), "Example")
+	require.NoError(t, err)
+	assert.Equal(t, "provisioning", organization.LifecycleState)
 	require.NoError(t, mockPool.ExpectationsWereMet())
 }
 
