@@ -43,6 +43,22 @@ func (e *Executor) WithinOrganization(
 	return e.within(ctx, organization, 0, false, callback)
 }
 
+// WithinTeam executes callback in a team-scoped transaction with the resolved
+// internal team identity installed transaction-locally for later RLS policies.
+func (e *Executor) WithinTeam(
+	ctx context.Context,
+	team TeamContext,
+	callback func(*tenantdb.Queries) error,
+) error {
+	if err := team.validate(); err != nil || e == nil || e.pool == nil {
+		return ErrInvalidContext
+	}
+	if callback == nil {
+		return ErrInvalidCallback
+	}
+	return e.within(ctx, team.organization, team.teamID, true, callback)
+}
+
 func (e *Executor) within(
 	ctx context.Context,
 	organization OrganizationContext,
