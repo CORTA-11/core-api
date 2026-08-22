@@ -1,4 +1,4 @@
-//go:build integration
+//go:build integration || isolation
 
 package integration_test
 
@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
@@ -387,6 +388,53 @@ func TestResolveTeamRejectsInvalidInputBeforeDatabaseWork(t *testing.T) {
 	assert.Equal(t, before, fixture.pool.Stat().AcquireCount())
 }
 
+func TestWithinTeamInstallsExactScopeAndCommits(t *testing.T) {
+	fixture, team, teamID := resolvedTeamFixture(t)
+	installTeamScopeTrigger(t, fixture)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+
+	err := executor.WithinTeam(context.Background(), team, func(queries *tenantdb.Queries) error {
+		_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{
+			Name: strconv.FormatInt(teamID, 10), Slug: "team-scope-committed",
+		})
+		return createErr
+	})
+	require.NoError(t, err)
+
+	var count int
+	require.NoError(t, fixture.pool.QueryRow(context.Background(), `SELECT count(*) FROM `+pgx.Identifier{fixture.schemaName, "teams"}.Sanitize()+` WHERE slug = 'team-scope-committed'`).Scan(&count))
+	assert.Equal(t, 1, count)
+	assertConnectionHasDefaultScope(t, pool)
+}
+
+func TestWithinTeamRollsBackAndRejectsInvalidInputBeforeAcquire(t *testing.T) {
+	fixture, team, teamID := resolvedTeamFixture(t)
+	installTeamScopeTrigger(t, fixture)
+	pool := openSingleConnectionPool(t)
+	executor := tenancy.NewExecutor(pool)
+	wantErr := errors.New("team callback failed")
+
+	err := executor.WithinTeam(context.Background(), team, func(queries *tenantdb.Queries) error {
+		_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{
+			Name: strconv.FormatInt(teamID, 10), Slug: "team-scope-rolled-back",
+		})
+		require.NoError(t, createErr)
+		return wantErr
+	})
+	require.ErrorIs(t, err, wantErr)
+	assertTeamAbsent(t, fixture, "team-scope-rolled-back")
+	assertConnectionHasDefaultScope(t, pool)
+
+	before := pool.Stat().AcquireCount()
+	err = executor.WithinTeam(context.Background(), tenancy.TeamContext{}, func(*tenantdb.Queries) error { return nil })
+	require.ErrorIs(t, err, tenancy.ErrInvalidContext)
+	assert.Equal(t, before, pool.Stat().AcquireCount())
+	err = executor.WithinTeam(context.Background(), team, nil)
+	require.ErrorIs(t, err, tenancy.ErrInvalidCallback)
+	assert.Equal(t, before, pool.Stat().AcquireCount())
+}
+
 func applyTenantFixture(t *testing.T, fixture resolverFixture) {
 	t.Helper()
 	testsupport.ApplyMigrations(t, "db/migrations/tenant", testsupport.DatabaseURLForSchema(t, fixture.schemaName))
@@ -429,6 +477,52 @@ func installDeferredCommitFailure(t *testing.T, fixture resolverFixture) {
 		AFTER INSERT ON %s.teams
 		DEFERRABLE INITIALLY DEFERRED
 		FOR EACH ROW EXECUTE FUNCTION %s.fail_deferred_commit()`, identifier, identifier, identifier))
+	require.NoError(t, err)
+}
+
+func resolvedTeamFixture(t *testing.T) (resolverFixture, tenancy.TeamContext, int64) {
+	t.Helper()
+	fixture := newResolverFixture(t)
+	applyTenantFixture(t, fixture)
+	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
+	require.NoError(t, err)
+	require.NoError(t, tenancy.NewExecutor(fixture.pool).WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
+		_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Team scope", Slug: "team-scope"})
+		return createErr
+	}))
+	team, err := fixture.resolver.ResolveTeam(context.Background(), organization, "team-scope")
+	require.NoError(t, err)
+	var teamID int64
+	require.NoError(t, fixture.pool.QueryRow(context.Background(), `SELECT id FROM `+pgx.Identifier{fixture.schemaName, "teams"}.Sanitize()+` WHERE slug = 'team-scope'`).Scan(&teamID))
+	return fixture, team, teamID
+}
+
+func installTeamScopeTrigger(t *testing.T, fixture resolverFixture) {
+	t.Helper()
+	identifier := pgx.Identifier{fixture.schemaName}.Sanitize()
+	qualifiedTeams := pgx.Identifier{fixture.schemaName, "teams"}.Sanitize()
+	_, err := fixture.pool.Exec(context.Background(), `DROP TRIGGER assert_organization_scope ON `+qualifiedTeams)
+	require.NoError(t, err)
+	// #nosec G201 -- the only formatted value is a quoted canonical identifier.
+	_, err = fixture.pool.Exec(context.Background(), fmt.Sprintf(`
+		CREATE FUNCTION %s.assert_team_scope() RETURNS trigger
+		LANGUAGE plpgsql AS $function$
+		BEGIN
+			IF current_setting('app.user_id', true) !~ '^[1-9][0-9]*$' THEN
+				RAISE EXCEPTION 'missing user scope';
+			END IF;
+			IF current_setting('app.team_id', true) <> split_part(NEW.name, ':', 1) THEN
+				RAISE EXCEPTION 'incorrect team scope';
+			END IF;
+			IF current_setting('search_path') <> '"pg_catalog", "' || TG_TABLE_SCHEMA || '"' THEN
+				RAISE EXCEPTION 'invalid search path';
+			END IF;
+			RETURN NEW;
+		END
+		$function$;
+		CREATE TRIGGER assert_team_scope
+		BEFORE INSERT ON %s.teams
+		FOR EACH ROW EXECUTE FUNCTION %s.assert_team_scope()`, identifier, identifier, identifier))
 	require.NoError(t, err)
 }
 
