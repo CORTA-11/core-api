@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `in progress` |
+| Status | `complete` |
 | Branch | `feat/m02-d02-tenant-provisioning` |
 | PR title | `feat(tenancy): make tenant provisioning resumable` |
 | Predecessor | M02-D01 merged to refreshed `main` |
@@ -149,6 +149,8 @@ credentials available to tests, and commands/results used to establish currency.
 
 ## Implementation record
 
-**Merged PR:** _pending_
+**Merged PR:** [#24](https://github.com/CORTA-11/core-api/pull/24)
 
-**Merge commit:** _pending_
+**Implementation commit:** `91239ff`
+
+**Merge commit:** `59d6101`

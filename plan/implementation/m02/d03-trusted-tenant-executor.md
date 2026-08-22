@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `in progress` |
 | Branch | `refactor/m02-d03-tenant-executor` |
 | PR title | `refactor(tenancy): add trusted tenant executor` |
 | Predecessor | M02-D02 merged; all active organizations current |
@@ -91,10 +91,13 @@ route changes occur; existing code continues using the legacy path until D04.
 
 ## Atomic green commits
 
-1. `feat(tenancy): resolve trusted organization contexts`
-2. `feat(tenancy): execute organization transactions`
-3. `feat(tenancy): execute team transactions`
-4. `docs(plan): link m02-d03 implementation`
+1. `docs(plan): hand off m02-d02 to m02-d03`
+2. `feat(tenancy): resolve trusted organization contexts`
+3. `feat(tenancy): execute organization transactions`
+4. `security(tenancy): harden executor cleanup`
+5. `feat(tenancy): resolve trusted team contexts`
+6. `feat(tenancy): execute team transactions`
+7. `docs(plan): record m02-d03 implementation`
 
 ## Verification and acceptance
 
@@ -109,13 +112,13 @@ make test-race
 make check
 ```
 
-- [ ] Context state is opaque; invalid/zero values fail before transaction work.
-- [ ] Resolver validates identity, membership, lifecycle, canonical registry, and schema existence.
-- [ ] Callbacks receive only tenant queries and cannot retain raw transaction state.
-- [ ] Identifier-like attacks and missing settings fail in real PostgreSQL.
-- [ ] All error, panic, cancellation, setup, and commit paths clean up within a bound.
-- [ ] Pool reuse leaks no schema or application settings.
-- [ ] No handler/service uses the new executor yet; legacy schema code remains.
+- [x] Context state is opaque; invalid/zero values fail before transaction work.
+- [x] Resolver validates identity, membership, lifecycle, canonical registry, and schema existence.
+- [x] Callbacks receive only tenant queries and cannot retain raw transaction state.
+- [x] Identifier-like attacks and missing settings fail in real PostgreSQL.
+- [x] All error, panic, cancellation, setup, and commit paths clean up within a bound.
+- [x] Pool reuse leaks no schema or application settings.
+- [x] No handler/service uses the new executor yet; legacy schema code remains.
 
 ## Migration, rollout, rollback, and operations
 
@@ -133,8 +136,78 @@ resolution assumptions D04 must replace, and a complete inventory of direct
 schema/search-path callers. D04 must migrate that entire inventory before
 removing `internal/service/schema.go`.
 
+### Temporary D04 limitations
+
+- Team resolution authorizes only a current organization member against a
+  parameterized existing team slug. D04 must replace this bridge with current
+  team membership and public team identity, with RLS rechecking membership.
+- The executor installs `app.team_id`, but no production RLS policy consumes it
+  yet. D04 owns `ENABLE`/`FORCE ROW LEVEL SECURITY`, role separation, and the
+  production handler/service cutover.
+- Existing HTTP selectors, numeric team/task IDs, response contracts, JWT
+  behavior, and legacy schema derivation are deliberately unchanged.
+
+### Direct schema/search-path caller inventory
+
+Production application paths D04 must migrate:
+
+- `internal/service/schema.go`: `SchemaName` derives tenant names and
+  `setSchema` formats tenant `SET LOCAL search_path` statements.
+- `cmd/api/handlers/team.go`: `getTeams` and `createTeam` derive schemas;
+  `cmd/api/middleware/teams.go`: `TeamMiddleware` derives a schema and resolves a
+  numeric team ID.
+- `cmd/api/handlers/task.go`: `getTasks`, `createTask`, `updateTask`, and
+  `deleteTask` derive schemas and pass numeric team/task IDs.
+- `internal/service/team.go`, `team_cache_impl.go`, and `team_impl.go`: all three
+  team operations accept schema strings; the implementation begins its own
+  transactions and calls `setSchema`.
+- `internal/service/task.go` and `task_impl.go`: all four task operations accept
+  schema strings and numeric IDs; the implementation begins its own transactions
+  and calls `setSchema`.
+- `internal/service/org_impl.go`: `GetOrgs` and `CreateOrg` issue direct public
+  `SET LOCAL search_path`; `internal/service/user_impl.go`: `CreateUser` does the
+  same; all five operations in `internal/service/org_user_impl.go` do likewise.
+- `db/queries/public/orgs.sql` still generates the unused
+  `GetSchemaFromID` capability. D04 must remove it when no legacy caller can
+  request a raw schema.
+
+Expected non-production exceptions after the cutover are the privileged tenant
+migration/adoption scope in `internal/tenancy/reconciler.go` and disposable test
+setup in `internal/testsupport/integration.go` and integration tests. Legacy
+handler/service tests and mocks that assert `SchemaName` or raw `SET LOCAL`
+statements must be replaced together with their production callers.
+
 ## Implementation record
 
 **Merged PR:** _pending_
 
 **Merge commit:** _pending_
+
+**Branch commits:**
+
+- Handoff documentation: `35efb4d`
+- Organization resolver: `0f89a49`
+- Organization executor: `8b17b70`
+- Cleanup hardening: `b531b0d`
+- Team resolver: `25c1861`
+- Team executor and one-connection isolation proof: `b7cfe0d`
+
+**Pre-branch evidence:** `main` fast-forwarded at `59d6101`; a verified custom
+PostgreSQL dump was stored at `.cache/backups/pre-m02-d03-59d6101.dump`; public
+migrations completed; all three non-deleted organizations reconciled and
+`provisioner status --all` reported `active`, version `2`, and `current: true`.
+
+**Test-first evidence:** focused red runs failed on the absent
+`OrganizationContext`, `ErrInvalidCallback`, `TeamContext`, and `WithinTeam`
+interfaces before their respective slices. The cleanup fault matrix was added as
+security characterization after the base executor already implemented detached
+rollback; it passed on its first run and was committed separately with the
+explicit panic/discard contract rather than manufacturing a failing assertion.
+
+**Green verification:** `make generate-check`, `make test-unit`,
+`make test-integration`, `make test-isolation`, `make test-race`, `make check`,
+and `git diff --check` passed on 2026-08-22. Integration coverage includes
+nonmembership/deleted/stale/missing/malicious resolution, exact organization and
+team settings, callback rollback, panic, cancellation, setup race, deferred
+commit failure, backend termination and connection discard, retained query
+handles, and one-connection cross-organization/team reuse.
