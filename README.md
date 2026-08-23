@@ -2,22 +2,69 @@
 
 ## Development
 
-1. Copy env template:
+1. Copy the environment template and choose distinct development passwords:
+
    ```bash
    cp .env.example .env
    ```
+
+   If `.env` already exists, keep its working `DB_USER`/`DB_PASSWORD` values
+   and add `DB_RUNTIME_PASSWORD`, `DB_MIGRATOR_PASSWORD`, and
+   `DB_PROVISIONER_PASSWORD`. These three values become the PostgreSQL passwords
+   for their matching roles.
+
 2. Start Postgres, Redis, and MinIO:
+
    ```bash
    docker compose up -d
    ```
-3. Run schema migrations: `make migrate-up-all`
-4. If needed, seed data: `make seed`
-5. Start the tenant provisioner in a separate terminal: `make provisioner`
-6. Start socket-server (subscribes to Redis):
+
+3. Bootstrap the database roles and apply public migrations:
+
+   ```bash
+   make bootstrap-db
+   ```
+
+   This one-time/recovery command uses `DB_USER`/`DB_PASSWORD` as administrator
+   credentials, applies the public role migration, and assigns the three
+   operational role passwords. Normal migrations, provisioning, and API traffic
+   use the separated migrator, provisioner, and runtime credentials afterward.
+
+4. Create the configured MinIO bucket and optionally seed development data:
+
+   ```bash
+   make bootstrap
+   make seed
+   ```
+
+5. Start the tenant provisioner in its own terminal. It is a long-running
+   process and should remain running:
+
+   ```bash
+   make provisioner
+   ```
+
+6. Start the API in another terminal:
+
+   ```bash
+   make run
+   ```
+
+   Verify startup with `curl -i http://localhost:8080/health/ready`; a ready
+   development stack returns HTTP 204.
+
+7. Start socket-server if realtime behavior is needed:
+
    ```bash
    cd ../socket-server && cp -n .env.example .env && make run
    ```
-7. Start this API: `make run`
+
+For later public migrations use `make migrate-up-all`; do not rerun them with
+runtime credentials. `make bootstrap-db` is also the recovery command when an
+existing development `.env` receives new role passwords. If a password contains
+URL-reserved characters, set URL-encoded `BOOTSTRAP_DATABASE_URL`,
+`DATABASE_URL`, `MIGRATION_DATABASE_URL`, and `PROVISIONING_DATABASE_URL`
+explicitly instead of relying on the component-derived development URLs.
 
 ## Tenant provisioning operations
 

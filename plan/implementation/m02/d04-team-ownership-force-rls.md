@@ -198,7 +198,7 @@ remain stable through the tenancy-owned storage-scope helper.
 
 ## Implementation record
 
-**Merged PR:** _pending_
+**Pull request:** [#26](https://github.com/CORTA-11/core-api/pull/26)
 
 **Merge commit:** _pending_
 
@@ -213,6 +213,7 @@ remain stable through the tenancy-owned storage-scope helper.
 - Task service/handler executor cutover: `c797d60`
 - File route/service trusted-scope cutover: `36a4c90`
 - Legacy schema-selection removal and repository guard: `e612143`
+- Operational role credential bootstrap follow-up: `a71fe7d`
 
 **Test-first evidence:** role/config tests initially failed because migrate/seed
 still used `DATABASE_URL` and provisioning fell back to it. The disposable
@@ -226,6 +227,9 @@ focused tests then drove UUID/current-membership contexts, opaque executor
 callbacks, JWT-only routes, public DTOs, and preserved object keys. The final
 repository guard includes a forged service-local `SET LOCAL search_path` fixture
 and proves only the explicit executor/reconciler/test-fixture allowlist passes.
+The follow-up bootstrap test first failed to compile without `LoadConfig`, then
+proved all three configured role secrets permit their intended PostgreSQL login
+without changing the runtime role into an owner.
 
 **Migration and isolation evidence:** real PostgreSQL 18 tests cover fresh public
 and tenant databases, current-v2 tenant upgrades, unique UUIDs, viewer backfill,
@@ -247,6 +251,9 @@ was bootstrapped, then the API reached `/health/ready` with HTTP 204 using only 
 to the API. The runtime role could not take privileged actions. The stack,
 network, and all disposable volumes were removed after rehearsal. Upgrade and
 tenant-reconciliation paths are additionally exercised by the integration lane.
+The same flow is now available as `make bootstrap-db`; an end-to-end disposable
+rehearsal applied a fresh version-5 public database, configured all role secrets,
+and verified migrator status and provisioner access.
 
 **Green verification:** `make generate-check`, `make test-unit`,
 `make test-integration`, `make test-isolation`, `make test-race`, `make check`,
