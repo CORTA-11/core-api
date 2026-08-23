@@ -69,7 +69,7 @@ func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, outp
 	}
 	poolConfig, err := pgxpool.ParseConfig(cfg.DatabaseURL)
 	if err != nil {
-		return errors.New("DATABASE_URL is invalid")
+		return errors.New("PROVISIONING_DATABASE_URL is invalid")
 	}
 	// Workers may each hold a connection-scoped advisory lock. Two spare
 	// connections leave room for fleet coordination and detached failure writes.
