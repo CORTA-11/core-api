@@ -39,7 +39,11 @@ func run(args []string, getenv func(string) string, factory migratorFactory) err
 		return errors.New("usage: migrate [up|up-all|down|down-all|status]")
 	}
 
-	m, err := factory(publicMigrationsDir, getenv("DATABASE_URL"))
+	databaseURL := getenv("MIGRATION_DATABASE_URL")
+	if databaseURL == "" {
+		return errors.New("MIGRATION_DATABASE_URL is required")
+	}
+	m, err := factory(publicMigrationsDir, databaseURL)
 	if err != nil {
 		return fmt.Errorf("initialize migrator: %w", err)
 	}

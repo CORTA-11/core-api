@@ -28,20 +28,24 @@ func TestCanonicalSchemaRemovesUUIDDashes(t *testing.T) {
 
 func TestLoadConfigUsesBoundedDefaultsAndRejectsSecretsInErrors(t *testing.T) {
 	lookup := func(name string) (string, bool) {
+		if name == "PROVISIONING_DATABASE_URL" {
+			return "postgres://provisioner:very-secret@example/database", true
+		}
 		if name == "DATABASE_URL" {
-			return "postgres://operator:very-secret@example/database", true
+			return "postgres://runtime:very-secret@example/database", true
 		}
 		return "", false
 	}
 	cfg, err := LoadConfig(lookup)
 	require.NoError(t, err)
+	assert.Equal(t, "postgres://provisioner:very-secret@example/database", cfg.DatabaseURL)
 	assert.Equal(t, DefaultConcurrency, cfg.Concurrency)
 	assert.Equal(t, 5*time.Second, cfg.PollInterval)
 	assert.Equal(t, DefaultMaxAttempts, cfg.MaxAttempts)
 
 	badLookup := func(name string) (string, bool) {
-		if name == "DATABASE_URL" {
-			return "postgres://operator:very-secret@example/database", true
+		if name == "PROVISIONING_DATABASE_URL" {
+			return "postgres://provisioner:very-secret@example/database", true
 		}
 		if name == "PROVISIONER_CONCURRENCY" {
 			return "17", true

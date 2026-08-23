@@ -19,7 +19,7 @@ const (
 
 // Config contains bounded operational settings for tenant reconciliation.
 type Config struct {
-	// DatabaseURL supplies migration-capable credentials and must never be logged.
+	// DatabaseURL supplies provisioner credentials and must never be logged.
 	DatabaseURL string
 	// PollInterval controls how often an idle provisioner scans for due work.
 	PollInterval time.Duration
@@ -44,13 +44,13 @@ type LookupFunc func(string) (string, bool)
 // configuration keys but never include their values, which may contain secrets.
 func LoadConfig(lookup LookupFunc) (Config, error) {
 	cfg := Config{
-		DatabaseURL: strings.TrimSpace(value(lookup, "DATABASE_URL")), PollInterval: 5 * time.Second,
+		DatabaseURL: strings.TrimSpace(value(lookup, "PROVISIONING_DATABASE_URL")), PollInterval: 5 * time.Second,
 		RetryInitial: 5 * time.Second, RetryMaximum: 5 * time.Minute, MaxAttempts: DefaultMaxAttempts,
 		Concurrency: DefaultConcurrency, OperationTimeout: 2 * time.Minute, ShutdownTimeout: 10 * time.Second,
 	}
 	var problems []error
 	if cfg.DatabaseURL == "" {
-		problems = append(problems, errors.New("DATABASE_URL is required"))
+		problems = append(problems, errors.New("PROVISIONING_DATABASE_URL is required"))
 	}
 	for _, item := range []struct {
 		name string

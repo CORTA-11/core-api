@@ -30,6 +30,78 @@ func TestPublicAndTenantMigrations(t *testing.T) {
 	assert.Equal(t, "tenant_migration_test.tasks", tenantTable)
 }
 
+func TestDatabaseRolesAreSeparatedAndRuntimeCannotMutateLedger(t *testing.T) {
+	pool := testsupport.OpenPostgres(t)
+	testsupport.ResetPostgres(t, pool)
+	testsupport.ApplyMigrations(t, "db/migrations/public", testsupport.RequiredEnv(t, "TEST_DATABASE_URL"))
+	ctx := context.Background()
+
+	type roleAttributes struct {
+		login, superuser, createRole, createDB, replication, bypassRLS bool
+	}
+	for _, role := range []struct {
+		name  string
+		login bool
+	}{
+		{"synodus_owner", false},
+		{"synodus_migrator", true},
+		{"synodus_provisioner", true},
+		{"synodus_runtime", true},
+	} {
+		var got roleAttributes
+		err := pool.QueryRow(ctx, `
+			SELECT rolcanlogin, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolbypassrls
+			FROM pg_roles WHERE rolname = $1`, role.name).Scan(
+			&got.login, &got.superuser, &got.createRole, &got.createDB, &got.replication, &got.bypassRLS,
+		)
+		require.NoError(t, err)
+		assert.Equal(t, role.login, got.login)
+		assert.False(t, got.superuser)
+		assert.False(t, got.createRole)
+		assert.False(t, got.createDB)
+		assert.False(t, got.replication)
+		assert.False(t, got.bypassRLS)
+	}
+
+	for _, member := range []string{"synodus_migrator", "synodus_provisioner"} {
+		var inheritOption, setOption bool
+		require.NoError(t, pool.QueryRow(ctx, `
+			SELECT inherit_option, set_option
+			FROM pg_auth_members membership
+			JOIN pg_roles owner_role ON owner_role.oid = membership.roleid
+			JOIN pg_roles member_role ON member_role.oid = membership.member
+			WHERE owner_role.rolname = 'synodus_owner' AND member_role.rolname = $1`, member).Scan(
+			&inheritOption, &setOption,
+		))
+		assert.False(t, inheritOption)
+		assert.True(t, setOption)
+	}
+
+	var ledgerOwner string
+	require.NoError(t, pool.QueryRow(ctx, `
+		SELECT tableowner
+		FROM pg_tables
+		WHERE schemaname = 'public' AND tablename = 'schema_migrations'`).Scan(&ledgerOwner))
+	assert.Equal(t, "synodus_owner", ledgerOwner)
+
+	tx, err := pool.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	_, err = tx.Exec(ctx, `SET LOCAL ROLE synodus_runtime`)
+	require.NoError(t, err)
+	_, err = tx.Exec(ctx, `CREATE SCHEMA runtime_must_not_create`)
+	assert.Error(t, err)
+	require.NoError(t, tx.Rollback(ctx))
+
+	tx, err = pool.Begin(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	_, err = tx.Exec(ctx, `SET LOCAL ROLE synodus_runtime`)
+	require.NoError(t, err)
+	_, err = tx.Exec(ctx, `UPDATE public.schema_migrations SET dirty = dirty`)
+	assert.Error(t, err)
+}
+
 func TestPostgresQueryAndCleanup(t *testing.T) {
 	pool := testsupport.OpenPostgres(t)
 	testsupport.ResetPostgres(t, pool)

@@ -16,6 +16,13 @@ type fakeMigrator struct {
 	dirty   bool
 }
 
+func migrationEnvironment(name string) string {
+	if name == "MIGRATION_DATABASE_URL" {
+		return "postgres://migrator"
+	}
+	return ""
+}
+
 func (m *fakeMigrator) Up() error                    { return m.err }
 func (m *fakeMigrator) Down() error                  { return m.err }
 func (m *fakeMigrator) Steps(step int) error         { m.step = step; return m.err }
@@ -24,9 +31,14 @@ func (m *fakeMigrator) Version() (uint, bool, error) { return m.version, m.dirty
 
 func TestRunPropagatesMigrationFailure(t *testing.T) {
 	want := errors.New("database unavailable")
-	err := run([]string{"up-all"}, func(string) string { return "postgres://example" }, func(sourceURL, databaseURL string) (migrator, error) {
+	err := run([]string{"up-all"}, func(name string) string {
+		if name == "MIGRATION_DATABASE_URL" {
+			return "postgres://migrator"
+		}
+		return "postgres://runtime"
+	}, func(sourceURL, databaseURL string) (migrator, error) {
 		assert.Equal(t, publicMigrationsDir, sourceURL)
-		assert.Equal(t, "postgres://example", databaseURL)
+		assert.Equal(t, "postgres://migrator", databaseURL)
 		return &fakeMigrator{err: want}, nil
 	})
 
@@ -35,16 +47,16 @@ func TestRunPropagatesMigrationFailure(t *testing.T) {
 }
 
 func TestRunReportsPublicMigrationStatus(t *testing.T) {
-	require.NoError(t, run([]string{"status"}, func(string) string { return "" }, func(string, string) (migrator, error) {
+	require.NoError(t, run([]string{"status"}, migrationEnvironment, func(string, string) (migrator, error) {
 		return &fakeMigrator{version: 4}, nil
 	}))
-	require.Error(t, run([]string{"status"}, func(string) string { return "" }, func(string, string) (migrator, error) {
+	require.Error(t, run([]string{"status"}, migrationEnvironment, func(string, string) (migrator, error) {
 		return &fakeMigrator{version: 4, dirty: true}, nil
 	}))
 }
 
 func TestRunTreatsNoChangeAsSuccess(t *testing.T) {
-	err := run([]string{"up-all"}, func(string) string { return "unused" }, func(string, string) (migrator, error) {
+	err := run([]string{"up-all"}, migrationEnvironment, func(string, string) (migrator, error) {
 		return &fakeMigrator{err: migrate.ErrNoChange}, nil
 	})
 	require.NoError(t, err)
@@ -63,7 +75,7 @@ func TestRunUsesSingleStepCommands(t *testing.T) {
 	}{{"up", 1}, {"down", -1}} {
 		t.Run(test.command, func(t *testing.T) {
 			migration := &fakeMigrator{}
-			err := run([]string{test.command}, func(string) string { return "" }, func(string, string) (migrator, error) {
+			err := run([]string{test.command}, migrationEnvironment, func(string, string) (migrator, error) {
 				return migration, nil
 			})
 			require.NoError(t, err)

@@ -13,7 +13,11 @@ import (
 func main() {
 	ctx := context.Background()
 
-	conn, err := pgx.Connect(ctx, os.Getenv("DATABASE_URL"))
+	databaseURL := os.Getenv("MIGRATION_DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("MIGRATION_DATABASE_URL is required")
+	}
+	conn, err := pgx.Connect(ctx, databaseURL)
 	if err != nil {
 		log.Fatal(err)
 	}
