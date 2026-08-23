@@ -23,3 +23,11 @@ RETURNING id, team_id, description, status, created_at, updated_at, public_id;
 DELETE FROM tasks
 WHERE id = $1 AND team_id = $2
 RETURNING id, team_id, description, status, created_at, updated_at, public_id;
+
+-- name: IsolationProbeTasks :many
+-- Deliberately omits a team predicate: FORCE RLS is the isolation mechanism
+-- under proof. Keep this query bounded and out of production service paths.
+SELECT id, team_id, description, status, created_at, updated_at, public_id
+FROM tasks
+ORDER BY created_at ASC, id ASC
+LIMIT sqlc.arg('limit');
