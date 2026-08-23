@@ -71,13 +71,13 @@ and fleet partial failure. Empty-database and upgrade-from-current paths pass.
 **Artifacts:** `internal/tenancy/context.go`, `resolver.go`, `executor.go`, tests;
 removal of `internal/service/schema.go` after callers migrate.
 
-- [ ] Introduce opaque trusted tenant/team context types constructed only by a
+- [x] Introduce opaque trusted tenant/team context types constructed only by a
   control-database resolver.
-- [ ] In one transaction, set an identifier-quoted trusted search path plus
+- [x] In one transaction, set an identifier-quoted trusted search path plus
   transaction-local `app.user_id` and `app.team_id` settings.
-- [ ] Expose organization- and team-scoped execution callbacks that provide the
+- [x] Expose organization- and team-scoped execution callbacks that provide the
   tenant sqlc queries; do not expose the raw pool or schema string.
-- [ ] Guarantee rollback on error/panic/cancellation and verify connection state
+- [x] Guarantee rollback on error/panic/cancellation and verify connection state
   before reuse in tests.
 
 **Acceptance:** unit tests cover resolver failures and transaction outcomes;
@@ -123,4 +123,6 @@ handler should be migrated to tenant execution until D04 and its real database
 tests exist.
 
 **Implementation links:** M02-D01 [PR #23](https://github.com/CORTA-11/core-api/pull/23),
-implementation `3d7a1db`, merge `94b659b`. M02-D02 is active.
+implementation `3d7a1db`, merge `94b659b`. M02-D02 [PR #24](https://github.com/CORTA-11/core-api/pull/24)
+merged at `59d6101`; M02-D03 [PR #25](https://github.com/CORTA-11/core-api/pull/25)
+merged at `766ef56`. M02-D04 is active.

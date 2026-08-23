@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `in progress` |
+| Status | `complete` |
 | Branch | `refactor/m02-d03-tenant-executor` |
 | PR title | `refactor(tenancy): add trusted tenant executor` |
 | Predecessor | M02-D02 merged; all active organizations current |
@@ -179,9 +179,9 @@ statements must be replaced together with their production callers.
 
 ## Implementation record
 
-**Merged PR:** _pending_
+**Merged PR:** [#25](https://github.com/CORTA-11/core-api/pull/25)
 
-**Merge commit:** _pending_
+**Merge commit:** `766ef56`
 
 **Branch commits:**
 

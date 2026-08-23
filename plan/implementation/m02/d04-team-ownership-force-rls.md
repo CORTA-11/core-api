@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `in progress` |
 | Branch | `security/m02-d04-team-rls` |
 | PR title | `security(rls): enforce trusted team ownership` |
 | Predecessor | M02-D03 merged to refreshed `main` |
@@ -92,7 +92,8 @@ document affected endpoints and replacement UUID fields in the PR.
 
 ## Ordered implementation
 
-1. Add failing migration/backfill/catalog tests and bootstrap distinct database roles.
+1. Record the D03 handoff and bootstrap distinct database roles before installing
+   policies that refer to those roles.
 2. Add public IDs, membership/role constraints, safe quarantine backfill, NOT NULL, and indexes.
 3. Add failing unsafe-query/privilege tests; implement ENABLE/FORCE policies and least-privilege grants.
 4. Complete team resolver tests against current membership and public IDs.
@@ -103,14 +104,16 @@ document affected endpoints and replacement UUID fields in the PR.
 
 ## Atomic green commits
 
-1. `feat(teams): add public identity and team membership`
-2. `security(rls): force team ownership policies`
-3. `security(db): separate tenant database roles`
-4. `refactor(tenancy): resolve trusted team contexts`
-5. `refactor(teams): use the tenant executor`
-6. `refactor(tasks): use the tenant executor`
-7. `refactor(files): consume trusted team scope`
-8. `docs(plan): link m02-d04 implementation`
+1. `docs(plan): hand off m02-d03 to m02-d04`
+2. `security(db): separate tenant database roles`
+3. `feat(teams): add public identity and team membership`
+4. `security(rls): force team ownership policies`
+5. `refactor(tenancy): resolve trusted team contexts`
+6. `refactor(teams): use the tenant executor`
+7. `refactor(tasks): use the tenant executor`
+8. `refactor(files): consume trusted team scope`
+9. `refactor(db): remove legacy schema selection`
+10. `docs(plan): link m02-d04 implementation`
 
 ## Verification and acceptance
 
