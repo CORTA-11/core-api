@@ -104,6 +104,43 @@ func (q *Queries) GetTasks(ctx context.Context, arg GetTasksParams) ([]Task, err
 	return items, nil
 }
 
+const isolationProbeTasks = `-- name: IsolationProbeTasks :many
+SELECT id, team_id, description, status, created_at, updated_at, public_id
+FROM tasks
+ORDER BY created_at ASC, id ASC
+LIMIT $1
+`
+
+// Deliberately omits a team predicate: FORCE RLS is the isolation mechanism
+// under proof. Keep this query bounded and out of production service paths.
+func (q *Queries) IsolationProbeTasks(ctx context.Context, limit int32) ([]Task, error) {
+	rows, err := q.db.Query(ctx, isolationProbeTasks, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.TeamID,
+			&i.Description,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PublicID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
 SET description = $3,

@@ -14,6 +14,7 @@ import (
 func TestTwoSchemasDoNotShareRows(t *testing.T) {
 	pool := testsupport.OpenPostgres(t)
 	testsupport.ResetPostgres(t, pool)
+	testsupport.ApplyMigrations(t, "db/migrations/public", testsupport.RequiredEnv(t, "TEST_DATABASE_URL"))
 	for _, schema := range []string{"tenant_alpha", "tenant_beta"} {
 		testsupport.CreateSchema(t, pool, schema)
 		testsupport.ApplyMigrations(t, "db/migrations/tenant", testsupport.DatabaseURLForSchema(t, schema))
