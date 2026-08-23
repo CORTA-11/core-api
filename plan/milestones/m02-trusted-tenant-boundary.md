@@ -88,13 +88,13 @@ operations, and malicious schema-like strings.
 
 **Artifacts:** next tenant migrations and tenant queries.
 
-- [ ] Add public IDs to teams and team-owned entities; keep numeric IDs internal.
-- [ ] Add team membership with role and uniqueness constraints linked to the
+- [x] Add public IDs to teams and team-owned entities; keep numeric IDs internal.
+- [x] Add team membership with role and uniqueness constraints linked to the
   authenticated public user identity.
-- [ ] Make `tasks.team_id` non-null after backfill and add the access-path index.
-- [ ] `ENABLE` and `FORCE ROW LEVEL SECURITY` on every team-owned table, with
+- [x] Make `tasks.team_id` non-null after backfill and add the access-path index.
+- [x] `ENABLE` and `FORCE ROW LEVEL SECURITY` on every team-owned table, with
   policies driven by transaction-local settings and membership.
-- [ ] Use separate owner/migrator/runtime database roles so the runtime role
+- [x] Use separate owner/migrator/runtime database roles so the runtime role
   cannot create schemas, bypass RLS, or mutate migration ledgers.
 
 **Acceptance:** catalog assertions verify privileges, FORCE RLS, policies,
@@ -125,4 +125,6 @@ tests exist.
 **Implementation links:** M02-D01 [PR #23](https://github.com/CORTA-11/core-api/pull/23),
 implementation `3d7a1db`, merge `94b659b`. M02-D02 [PR #24](https://github.com/CORTA-11/core-api/pull/24)
 merged at `59d6101`; M02-D03 [PR #25](https://github.com/CORTA-11/core-api/pull/25)
-merged at `766ef56`. M02-D04 is active.
+merged at `766ef56`. M02-D04 implementation is complete through `e612143` on
+`security/m02-d04-team-rls`; its PR and merge commit remain pending. M02 stays
+`in progress` until D05 records the full adversarial isolation proof.

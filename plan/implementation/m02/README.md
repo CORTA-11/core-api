@@ -74,6 +74,10 @@ from multiple deliverables in one branch.
 - `X-Org-ID` may remain through D04 only as an organization public-ID selector;
   it is never trusted as a schema or authorization assertion.
 
+D04 implementation is complete on `security/m02-d04-team-rls` through
+`e612143`; its PR/merge links remain pending. The package and M02 milestone stay
+active because D05 still owns the final adversarial and stress-suite evidence.
+
 ## Documentation and completion discipline
 
 Each deliverable updates its plan placeholder with the merged PR and merge commit.
