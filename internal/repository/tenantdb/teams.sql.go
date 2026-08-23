@@ -12,7 +12,7 @@ import (
 const createTeam = `-- name: CreateTeam :one
 INSERT INTO teams (name, slug)
 VALUES ($1, $2)
-RETURNING id, name, slug, created_at, updated_at
+RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine
 `
 
 type CreateTeamParams struct {
@@ -29,6 +29,8 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		&i.Slug,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PublicID,
+		&i.IsQuarantine,
 	)
 	return i, err
 }
@@ -47,7 +49,7 @@ func (q *Queries) GetTeamID(ctx context.Context, slug string) (int64, error) {
 }
 
 const getTeams = `-- name: GetTeams :many
-SELECT id, name, slug, created_at, updated_at
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
 FROM teams
 ORDER BY created_at ASC, id ASC
 LIMIT $1
@@ -68,6 +70,8 @@ func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
 			&i.Slug,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PublicID,
+			&i.IsQuarantine,
 		); err != nil {
 			return nil, err
 		}

@@ -7,22 +7,33 @@ package tenantdb
 import (
 	"time"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
 type Task struct {
-	ID          int64       `json:"id"`
-	TeamID      pgtype.Int8 `json:"team_id"`
-	Description string      `json:"description"`
-	Status      string      `json:"status"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID          int64     `json:"id"`
+	TeamID      int64     `json:"team_id"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	PublicID    uuid.UUID `json:"public_id"`
 }
 
 type Team struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID           int64     `json:"id"`
+	Name         string    `json:"name"`
+	Slug         string    `json:"slug"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+	PublicID     uuid.UUID `json:"public_id"`
+	IsQuarantine bool      `json:"is_quarantine"`
+}
+
+type TeamMember struct {
+	TeamID       int64     `json:"team_id"`
+	UserPublicID uuid.UUID `json:"user_public_id"`
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }

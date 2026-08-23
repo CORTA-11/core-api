@@ -80,8 +80,8 @@ func TestTeamServiceGetTeamsUsesServerOwnedLimit(t *testing.T) {
 	mockPool.ExpectQuery("(?s)GetTeams :many.*SELECT").
 		WithArgs(int32(100)).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "name", "slug", "created_at", "updated_at",
-		}).AddRow(int64(1), "Example", "example", now, now))
+			"id", "name", "slug", "created_at", "updated_at", "public_id", "is_quarantine",
+		}).AddRow(int64(1), "Example", "example", now, now, uuid.New(), false))
 	mockPool.ExpectCommit()
 
 	service := NewTeamService(mockPool, tenantdb.New(mockPool))
@@ -103,8 +103,8 @@ func TestTaskServiceGetTasksUsesServerOwnedLimit(t *testing.T) {
 	mockPool.ExpectQuery("(?s)GetTasks :many.*SELECT").
 		WithArgs(int64(7), int32(100)).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "team_id", "description", "status", "created_at", "updated_at",
-		}).AddRow(int64(1), pgtype.Int8{Int64: 7, Valid: true}, "Example", "todo", now, now))
+			"id", "team_id", "description", "status", "created_at", "updated_at", "public_id",
+		}).AddRow(int64(1), int64(7), "Example", "todo", now, now, uuid.New()))
 	mockPool.ExpectCommit()
 
 	service := NewTaskService(mockPool, tenantdb.New(mockPool))
