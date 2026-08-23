@@ -2,17 +2,13 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
-	"strconv"
-	"strings"
 
-	"github.com/google/uuid"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/minio/minio-go/v7"
 )
 
-var ErrInvalidFileName = errors.New("invalid file name")
+var ErrInvalidFileName = tenancy.ErrInvalidStorageName
 
 type fileService struct {
 	client     *minio.Client
@@ -26,8 +22,8 @@ func NewFileService(client *minio.Client, bucketName string) FileService {
 	}
 }
 
-func (f *fileService) UploadFile(ctx context.Context, orgID uuid.UUID, teamID int, fileName string, file io.Reader) error {
-	key, err := fileObjectKey(orgID, teamID, fileName)
+func (f *fileService) UploadFile(ctx context.Context, team tenancy.TeamContext, fileName string, file io.Reader) error {
+	key, err := tenancy.StorageObjectKey(team, fileName)
 	if err != nil {
 		return err
 	}
@@ -36,8 +32,8 @@ func (f *fileService) UploadFile(ctx context.Context, orgID uuid.UUID, teamID in
 	return err
 }
 
-func (f *fileService) DownloadFile(ctx context.Context, orgID uuid.UUID, teamID int, fileName string, file io.Writer) error {
-	key, err := fileObjectKey(orgID, teamID, fileName)
+func (f *fileService) DownloadFile(ctx context.Context, team tenancy.TeamContext, fileName string, file io.Writer) error {
+	key, err := tenancy.StorageObjectKey(team, fileName)
 	if err != nil {
 		return err
 	}
@@ -50,13 +46,4 @@ func (f *fileService) DownloadFile(ctx context.Context, orgID uuid.UUID, teamID 
 
 	_, err = io.Copy(file, object)
 	return err
-}
-
-func fileObjectKey(orgID uuid.UUID, teamID int, fileName string) (string, error) {
-	if fileName == "" || fileName == "." || fileName == ".." ||
-		strings.ContainsAny(fileName, `/\\`) || strings.ContainsRune(fileName, '\x00') {
-		return "", ErrInvalidFileName
-	}
-
-	return fmt.Sprintf("orgs/%s/teams/%s/files/%s", orgID.String(), strconv.Itoa(teamID), fileName), nil
 }

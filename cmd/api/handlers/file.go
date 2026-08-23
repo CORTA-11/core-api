@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"html"
@@ -9,24 +8,24 @@ import (
 	"mime"
 	"net/http"
 
-	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 func (router *Router) getFiles() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// ctx := r.Context()
+		if _, ok := router.trustedTeam(w, r); !ok {
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
 func (router *Router) uploadFile() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		orgID, teamID, ok := fileScopeFromContext(ctx)
+		team, ok := router.trustedTeam(w, r)
 		if !ok {
-			http.Error(w, "failed to get file scope", http.StatusInternalServerError)
 			return
 		}
 
@@ -37,7 +36,7 @@ func (router *Router) uploadFile() http.HandlerFunc {
 		}
 		defer func() { _ = file.Close() }()
 
-		err = router.fileService.UploadFile(ctx, orgID, teamID, header.Filename, file)
+		err = router.fileService.UploadFile(ctx, team, header.Filename, file)
 		if err != nil {
 			if errors.Is(err, service.ErrInvalidFileName) {
 				http.Error(w, "invalid file name", http.StatusBadRequest)
@@ -57,9 +56,8 @@ func (router *Router) uploadFile() http.HandlerFunc {
 func (router *Router) downloadFile() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		orgID, teamID, ok := fileScopeFromContext(ctx)
+		team, ok := router.trustedTeam(w, r)
 		if !ok {
-			http.Error(w, "failed to get file scope", http.StatusInternalServerError)
 			return
 		}
 
@@ -72,7 +70,7 @@ func (router *Router) downloadFile() http.HandlerFunc {
 		w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": fileName}))
 		w.Header().Set("Content-Type", "application/octet-stream")
 
-		err := router.fileService.DownloadFile(ctx, orgID, teamID, fileName, w)
+		err := router.fileService.DownloadFile(ctx, team, fileName, w)
 
 		if err != nil {
 			w.Header().Del("Content-Disposition")
@@ -85,26 +83,4 @@ func (router *Router) downloadFile() http.HandlerFunc {
 			return
 		}
 	}
-}
-
-func fileScopeFromContext(ctx context.Context) (uuid.UUID, int, bool) {
-	orgIDString, ok := appMiddleware.OrgIDFromContext(ctx)
-	if !ok {
-		slog.ErrorContext(ctx, "organization ID missing from request context")
-		return uuid.Nil, 0, false
-	}
-
-	orgID, err := uuid.Parse(orgIDString)
-	if err != nil {
-		slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
-		return uuid.Nil, 0, false
-	}
-
-	teamID, ok := appMiddleware.TeamIDFromContext(ctx)
-	if !ok {
-		slog.ErrorContext(ctx, "team ID missing from request context")
-		return uuid.Nil, 0, false
-	}
-
-	return orgID, teamID, true
 }

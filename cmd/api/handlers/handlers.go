@@ -150,12 +150,11 @@ func taskRouter(router *Router) chi.Router {
 
 func fileRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
+	r.Use(appMiddleware.JWTMiddleware(router.tokenService))
 	r.Use(appMiddleware.OrgMiddleware)
 	if router.orgAvailability != nil {
 		r.Use(appMiddleware.RequireAvailableOrg(router.orgAvailability))
 	}
-	r.Use(appMiddleware.TeamMiddleware(router.legacyTeamLookup))
-
 	r.Get("/", router.getFiles())
 	r.Get("/download/{filename}", router.downloadFile())
 	r.Post("/upload", router.uploadFile())
