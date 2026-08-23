@@ -12,7 +12,7 @@ include tools.mk
 
 .PHONY: check build fmt fmt-check mod-check static vet lint diagnostics sec secrets migrations-check queries-check \
 	test test-unit test-race test-integration test-isolation generate generate-check \
-	migrate-up-all migrate-down-all migrate-up migrate-down migrate-status seed run provisioner bootstrap tools clean-tools
+	bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status seed run provisioner bootstrap tools clean-tools
 
 check: fmt-check mod-check build generate-check migrations-check queries-check static sec
 
@@ -105,23 +105,47 @@ clean-tools:
 	rm -rf "$(TOOLS_DIR)"
 
 # Runtime targets alone load local environment values. Explicit URLs win.
-RUNTIME_GOALS := run provisioner seed bootstrap migrate-up-all migrate-down-all migrate-up migrate-down migrate-status
+RUNTIME_GOALS := run provisioner seed bootstrap bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status
 ifneq ($(filter $(RUNTIME_GOALS),$(MAKECMDGOALS)),)
 -include .env
 DATABASE_URL ?= postgres://synodus_runtime:$(DB_RUNTIME_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 MIGRATION_DATABASE_URL ?= postgres://synodus_migrator:$(DB_MIGRATOR_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 PROVISIONING_DATABASE_URL ?= postgres://synodus_provisioner:$(DB_PROVISIONER_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
+BOOTSTRAP_DATABASE_URL ?= postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 REDIS_URL ?= redis://$(if $(REDIS_HOST),$(REDIS_HOST),localhost):$(if $(REDIS_PORT),$(REDIS_PORT),6379)/0
+unexport DATABASE_URL MIGRATION_DATABASE_URL PROVISIONING_DATABASE_URL BOOTSTRAP_DATABASE_URL
+unexport DB_USER DB_PASSWORD DB_RUNTIME_PASSWORD DB_MIGRATOR_PASSWORD DB_PROVISIONER_PASSWORD
 export APP_ENV HTTP_ADDR HTTP_READ_TIMEOUT HTTP_WRITE_TIMEOUT HTTP_IDLE_TIMEOUT
 export SHUTDOWN_TIMEOUT DEPENDENCY_TIMEOUT PPROF_ENABLED
 export PROVISIONER_POLL_INTERVAL PROVISIONER_RETRY_INITIAL PROVISIONER_RETRY_MAXIMUM
 export PROVISIONER_MAX_ATTEMPTS PROVISIONER_CONCURRENCY PROVISIONER_OPERATION_TIMEOUT
 export PROVISIONER_SHUTDOWN_TIMEOUT
-export DATABASE_URL MIGRATION_DATABASE_URL PROVISIONING_DATABASE_URL REDIS_URL JWT_SECRET
+export REDIS_URL JWT_SECRET
 export MINIO_ENDPOINT MINIO_ACCESS_KEY MINIO_SECRET_KEY MINIO_BUCKET_NAME MINIO_USE_SSL
 endif
 
+ifneq ($(filter run bootstrap,$(MAKECMDGOALS)),)
+export DATABASE_URL
+endif
+
+ifneq ($(filter provisioner,$(MAKECMDGOALS)),)
+export PROVISIONING_DATABASE_URL
+endif
+
+ifneq ($(filter seed migrate-up-all migrate-down-all migrate-up migrate-down migrate-status,$(MAKECMDGOALS)),)
+export MIGRATION_DATABASE_URL
+endif
+
+ifneq ($(filter bootstrap-db,$(MAKECMDGOALS)),)
+export BOOTSTRAP_DATABASE_URL DB_RUNTIME_PASSWORD DB_MIGRATOR_PASSWORD DB_PROVISIONER_PASSWORD
+endif
+
 PUBLIC_MIGRATION_PATH := ./cmd/migrate
+
+bootstrap-db: export MIGRATION_DATABASE_URL := $(BOOTSTRAP_DATABASE_URL)
+bootstrap-db:
+	go run "$(PUBLIC_MIGRATION_PATH)" up-all
+	go run ./cmd/dbroles
 
 migrate-up-all:
 	go run "$(PUBLIC_MIGRATION_PATH)" up-all
