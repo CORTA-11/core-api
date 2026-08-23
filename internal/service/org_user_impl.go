@@ -30,11 +30,6 @@ func (s *orgUserService) AddUserToOrg(ctx context.Context, orgPublicID uuid.UUID
 
 	qtx := s.queries.WithTx(tx)
 
-	_, err = tx.Exec(ctx, "SET LOCAL search_path TO public")
-	if err != nil {
-		return err
-	}
-
 	orgID, err := qtx.GetOrgID(ctx, orgPublicID)
 	if err != nil {
 		return fmt.Errorf("failed to find organization: %w", err)
@@ -65,11 +60,6 @@ func (s *orgUserService) RemoveUserFromOrg(ctx context.Context, orgPublicID uuid
 
 	qtx := s.queries.WithTx(tx)
 
-	_, err = tx.Exec(ctx, "SET LOCAL search_path TO public")
-	if err != nil {
-		return err
-	}
-
 	orgID, err := qtx.GetOrgID(ctx, orgPublicID)
 	if err != nil {
 		return fmt.Errorf("failed to find organization: %w", err)
@@ -99,11 +89,6 @@ func (s *orgUserService) GetOrgsForUser(ctx context.Context, userPublicID uuid.U
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	qtx := s.queries.WithTx(tx)
-
-	_, err = tx.Exec(ctx, "SET LOCAL search_path TO public")
-	if err != nil {
-		return nil, err
-	}
 
 	repoUser, err := qtx.GetUserByID(ctx, userPublicID)
 	if err != nil {
@@ -139,11 +124,6 @@ func (s *orgUserService) GetUsersInOrg(ctx context.Context, orgPublicID uuid.UUI
 
 	qtx := s.queries.WithTx(tx)
 
-	_, err = tx.Exec(ctx, "SET LOCAL search_path TO public")
-	if err != nil {
-		return nil, err
-	}
-
 	orgID, err := qtx.GetOrgID(ctx, orgPublicID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find organization: %w", err)
@@ -177,11 +157,6 @@ func (s *orgUserService) GetNumberOfUsersInOrg(ctx context.Context, orgPublicID 
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	qtx := s.queries.WithTx(tx)
-
-	_, err = tx.Exec(ctx, "SET LOCAL search_path TO public")
-	if err != nil {
-		return 0, err
-	}
 
 	orgID, err := qtx.GetOrgID(ctx, orgPublicID)
 	if err != nil {

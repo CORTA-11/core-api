@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/google/uuid"
 )
 
@@ -14,8 +14,7 @@ type orgService struct {
 	queries *publicdb.Queries
 }
 
-func NewOrgService(pool pgxPool, queries *publicdb.Queries, databaseURL string) OrgService {
-	_ = databaseURL // Kept temporarily for source compatibility with D01 callers.
+func NewOrgService(pool pgxPool, queries *publicdb.Queries) OrgService {
 	return &orgService{
 		pool:    pool,
 		queries: queries,
@@ -23,23 +22,7 @@ func NewOrgService(pool pgxPool, queries *publicdb.Queries, databaseURL string) 
 }
 
 func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
-	// start transaction
-	tx, err := o.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	qtx := o.queries.WithTx(tx)
-
-	// insert into public.orgs
-	setPathPublicQuery := "SET LOCAL search_path TO public"
-	_, err = tx.Exec(ctx, setPathPublicQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set search path: %w", err)
-	}
-
-	dbOrgs, err := qtx.GetOrgs(ctx, listResultLimit)
+	dbOrgs, err := o.queries.GetOrgs(ctx, listResultLimit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch orgs: %w", err)
 	}
@@ -50,12 +33,6 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 		domainOrgs = append(domainOrgs, mapDBOrgToDomain(dbOrg))
 	}
 
-	// commit transaction
-	err = tx.Commit(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return domainOrgs, nil
 }
 
@@ -63,7 +40,7 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	// Derive the schema identifier from a server-generated UUID so organization
 	// names and other client input never influence an SQL identifier.
 	publicID := uuid.New()
-	schemaName := "org_" + strings.ReplaceAll(publicID.String(), "-", "")
+	schemaName := tenancy.CanonicalSchema(publicID.String())
 
 	tx, err := o.pool.Begin(ctx)
 	if err != nil {
@@ -73,13 +50,6 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 
 	qtx := o.queries.WithTx(tx)
 
-	// Keep registry access explicitly transaction-local to public; pooled
-	// connections may previously have served tenant-scoped work.
-	setPathPublicQuery := "SET LOCAL search_path TO public"
-	_, err = tx.Exec(ctx, setPathPublicQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set search path: %w", err)
-	}
 	org, err := qtx.CreateOrg(ctx, publicdb.CreateOrgParams{
 		Name:       name,
 		PublicID:   publicID,

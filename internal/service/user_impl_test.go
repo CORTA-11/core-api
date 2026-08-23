@@ -108,7 +108,6 @@ func TestUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
 			WithArgs(email).
 			WillReturnError(pgx.ErrNoRows)
-		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
 		mockPool.ExpectQuery("(?s)CreateUser :one.*INSERT").
 			WithArgs(email, "hashed-password", displayName).
 			WillReturnRows(pgxmock.NewRows(columns).

@@ -45,9 +45,6 @@ func TestOrgServiceGetOrgsUsesServerOwnedLimit(t *testing.T) {
 	defer mockPool.Close()
 
 	now := time.Now().UTC()
-	mockPool.ExpectBegin()
-	mockPool.ExpectExec("^SET LOCAL search_path TO public$").
-		WillReturnResult(pgxmock.NewResult("SET", 0))
 	mockPool.ExpectQuery("(?s)GetOrgs :many.*SELECT").
 		WithArgs(int32(100)).
 		WillReturnRows(pgxmock.NewRows([]string{
@@ -58,9 +55,7 @@ func TestOrgServiceGetOrgsUsesServerOwnedLimit(t *testing.T) {
 			int64(1), uuid.New(), "Example", "org_example", now, now, pgtype.Timestamptz{Valid: false},
 			"provisioning", int64(0), "", int32(0), now, pgtype.Text{}, pgtype.Text{}, pgtype.Timestamptz{}, pgtype.Timestamptz{},
 		))
-	mockPool.ExpectCommit()
-
-	service := NewOrgService(mockPool, publicdb.New(mockPool), "postgres://unused")
+	service := NewOrgService(mockPool, publicdb.New(mockPool))
 	orgs, err := service.GetOrgs(context.Background())
 	require.NoError(t, err)
 	require.Len(t, orgs, 1)
@@ -73,7 +68,6 @@ func TestOrgServiceCreateOrgOnlyRecordsProvisioningIntent(t *testing.T) {
 	defer mockPool.Close()
 	now := time.Now().UTC()
 	mockPool.ExpectBegin()
-	mockPool.ExpectExec("^SET LOCAL search_path TO public$").WillReturnResult(pgxmock.NewResult("SET", 0))
 	mockPool.ExpectQuery("(?s)CreateOrg :one.*INSERT").
 		WithArgs("Example", pgxmock.AnyArg(), pgxmock.AnyArg()).
 		WillReturnRows(pgxmock.NewRows([]string{
@@ -86,7 +80,7 @@ func TestOrgServiceCreateOrgOnlyRecordsProvisioningIntent(t *testing.T) {
 		))
 	mockPool.ExpectCommit()
 
-	service := NewOrgService(mockPool, publicdb.New(mockPool), "postgres://unused")
+	service := NewOrgService(mockPool, publicdb.New(mockPool))
 	organization, err := service.CreateOrg(context.Background(), "Example")
 	require.NoError(t, err)
 	assert.Equal(t, "provisioning", organization.LifecycleState)

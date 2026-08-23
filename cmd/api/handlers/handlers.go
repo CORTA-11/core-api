@@ -20,7 +20,6 @@ type Router struct {
 	mux              *chi.Mux
 	orgService       service.OrgService
 	teamService      service.TeamService
-	legacyTeamLookup service.LegacyTeamLookup
 	taskService      service.TaskService
 	fileService      service.FileService
 	userService      service.UserService
@@ -41,7 +40,6 @@ type TenantResolver interface {
 type RouterConf struct {
 	OrgService       *service.OrgService
 	TeamService      *service.TeamService
-	LegacyTeamLookup service.LegacyTeamLookup
 	TaskService      *service.TaskService
 	FileService      *service.FileService
 	UserService      *service.UserService
@@ -61,7 +59,6 @@ func NewRouter(conf RouterConf) *Router {
 		mux:              chi.NewRouter(),
 		orgService:       *conf.OrgService,
 		teamService:      *conf.TeamService,
-		legacyTeamLookup: conf.LegacyTeamLookup,
 		taskService:      *conf.TaskService,
 		fileService:      *conf.FileService,
 		userService:      *conf.UserService,

@@ -13,11 +13,6 @@ RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine;
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
 FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'));
 
--- name: GetTeamID :one
-SELECT id
-FROM teams
-WHERE slug = $1;
-
 -- name: ResolveTeamContext :one
 SELECT teams.id, teams.public_id
 FROM teams

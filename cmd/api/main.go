@@ -16,7 +16,6 @@ import (
 	"github.com/CORTA-11/core-api/internal/config"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
-	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -84,12 +83,10 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return err
 	}
 	availability := tenancy.NewAvailabilityChecker(pool, migrationSource)
-	tenantQueries := tenantdb.New(pool)
-	orgService := service.NewOrgService(pool, publicQueries, cfg.DatabaseURL)
+	orgService := service.NewOrgService(pool, publicQueries)
 	tenantExecutor := tenancy.NewExecutor(pool)
 	tenantResolver := tenancy.NewResolver(pool, migrationSource)
 	teamService := service.NewTeamService(tenantExecutor)
-	legacyTeamLookup := service.NewLegacyTeamLookup(pool, tenantQueries)
 	taskService := service.NewTaskService(tenantExecutor)
 	tokenService := service.NewTokenService(cfg.JWTSecret)
 	passwordService := service.NewPasswordService()
@@ -104,7 +101,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		},
 	}
 	router := handlers.NewRouter(handlers.RouterConf{
-		OrgService: &orgService, TeamService: &teamService, LegacyTeamLookup: legacyTeamLookup,
+		OrgService: &orgService, TeamService: &teamService,
 		TaskService: &taskService, UserService: &userService, FileService: &fileService,
 		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
 		ReadinessTimeout: cfg.DependencyTimeout, PprofEnabled: cfg.PprofEnabled,

@@ -90,12 +90,6 @@ func (u *userService) CreateUser(ctx context.Context, name string, email string,
 		return nil, err
 	}
 
-	setPathPublicQuery := "SET LOCAL search_path TO public"
-	_, err = tx.Exec(ctx, setPathPublicQuery)
-	if err != nil {
-		return nil, err
-	}
-
 	userParams := publicdb.CreateUserParams{
 		Email:        email,
 		PasswordHash: hashedPassword,
