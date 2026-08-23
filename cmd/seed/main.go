@@ -4,9 +4,8 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
-	"sort"
 
+	"github.com/CORTA-11/core-api/internal/seeding"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -28,40 +27,8 @@ func main() {
 		}
 	}(conn, ctx)
 
-	files, err := filepath.Glob("db/seeds/*.sql")
-	if err != nil {
+	if err := seeding.Apply(ctx, conn, "db/seeds"); err != nil {
 		log.Fatal(err)
-	}
-
-	sort.Strings(files)
-
-	for _, file := range files {
-		log.Println("running seed:", file)
-
-		// #nosec G304 -- file paths are from a hardcoded migration list
-		sql, err := os.ReadFile(file)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		tx, err := conn.Begin(ctx)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		_, err = tx.Exec(ctx, string(sql))
-		if err != nil {
-			err := tx.Rollback(ctx)
-			if err != nil {
-				log.Fatal(err)
-				return
-			}
-			log.Fatalf("failed seed %s: %v", file, err)
-		}
-
-		if err := tx.Commit(ctx); err != nil {
-			log.Fatal(err)
-		}
 	}
 
 	log.Println("seeding completed")
