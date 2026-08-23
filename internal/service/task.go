@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
+	"github.com/CORTA-11/core-api/internal/tenancy"
+	"github.com/google/uuid"
 )
 
 type Task struct {
-	ID          int64     `json:"id"`
-	TeamID      int       `json:"team_id"`
+	PublicID    uuid.UUID `json:"public_id"`
 	Description string    `json:"description"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -41,8 +42,7 @@ func IsValidTaskStatus(status string) bool {
 
 func mapDBTaskToDomain(row tenantdb.Task) Task {
 	return Task{
-		ID:          row.ID,
-		TeamID:      int(row.TeamID),
+		PublicID:    row.PublicID,
 		Description: row.Description,
 		Status:      row.Status,
 		CreatedAt:   row.CreatedAt,
@@ -51,8 +51,12 @@ func mapDBTaskToDomain(row tenantdb.Task) Task {
 }
 
 type TaskService interface {
-	GetTasks(ctx context.Context, schema string, teamID int) ([]Task, error)
-	CreateTask(ctx context.Context, schema string, teamID int, desc string, status string) (*Task, error)
-	UpdateTask(ctx context.Context, schema string, teamID int, taskID int, desc string, status string) (*Task, error)
-	DeleteTask(ctx context.Context, schema string, teamID int, taskID int) (*Task, error)
+	GetTasks(ctx context.Context, team tenancy.TeamContext) ([]Task, error)
+	CreateTask(ctx context.Context, team tenancy.TeamContext, desc string, status string) (*Task, error)
+	UpdateTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID, desc string, status string) (*Task, error)
+	DeleteTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID) (*Task, error)
+}
+
+type teamExecutor interface {
+	WithinTeam(context.Context, tenancy.TeamContext, func(*tenantdb.Queries) error) error
 }

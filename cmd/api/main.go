@@ -90,7 +90,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	tenantResolver := tenancy.NewResolver(pool, migrationSource)
 	teamService := service.NewTeamService(tenantExecutor)
 	legacyTeamLookup := service.NewLegacyTeamLookup(pool, tenantQueries)
-	taskService := service.NewTaskService(pool, tenantQueries)
+	taskService := service.NewTaskService(tenantExecutor)
 	tokenService := service.NewTokenService(cfg.JWTSecret)
 	passwordService := service.NewPasswordService()
 	userService := service.NewUserService(pool, publicQueries, tokenService, passwordService)
