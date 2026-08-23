@@ -13,3 +13,12 @@ RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine;
 SELECT id
 FROM teams
 WHERE slug = $1;
+
+-- name: ResolveTeamContext :one
+SELECT teams.id, teams.public_id
+FROM teams
+JOIN team_members
+  ON team_members.team_id = teams.id
+WHERE teams.public_id = sqlc.arg('public_id')
+  AND team_members.user_public_id = sqlc.arg('user_public_id')
+  AND NOT teams.is_quarantine;

@@ -327,25 +327,26 @@ func TestWithinOrganizationRetainedQueriesFailAfterCompletion(t *testing.T) {
 	assertConnectionHasDefaultScope(t, pool)
 }
 
-func TestResolveTeamRevalidatesOrganizationAndUsesParameterizedSlug(t *testing.T) {
+func TestResolveTeamRevalidatesOrganizationAndRequiresCurrentMembership(t *testing.T) {
 	t.Run("valid and unknown team", func(t *testing.T) {
 		fixture := newResolverFixture(t)
 		applyTenantFixture(t, fixture)
 		organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
 		require.NoError(t, err)
 		executor := tenancy.NewExecutor(fixture.pool)
+		var teamPublicID uuid.UUID
 		require.NoError(t, executor.WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
-			_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Research", Slug: "research"})
+			team, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Research", Slug: "research"})
+			teamPublicID = team.PublicID
 			return createErr
 		}))
+		addTeamMembership(t, fixture, teamPublicID)
 
-		team, err := fixture.resolver.ResolveTeam(context.Background(), organization, "research")
+		team, err := fixture.resolver.ResolveTeam(context.Background(), organization, teamPublicID)
 		require.NoError(t, err)
 		require.NotEqual(t, tenancy.TeamContext{}, team)
 
-		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "missing")
-		require.ErrorIs(t, err, tenancy.ErrTeamUnavailable)
-		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, `research' OR true --`)
+		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, uuid.New())
 		require.ErrorIs(t, err, tenancy.ErrTeamUnavailable)
 	})
 
@@ -357,7 +358,7 @@ func TestResolveTeamRevalidatesOrganizationAndUsesParameterizedSlug(t *testing.T
 		_, err = fixture.pool.Exec(context.Background(), `DELETE FROM public.org_user`)
 		require.NoError(t, err)
 
-		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "research")
+		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, uuid.New())
 		require.ErrorIs(t, err, tenancy.ErrOrganizationUnavailable)
 	})
 
@@ -369,7 +370,7 @@ func TestResolveTeamRevalidatesOrganizationAndUsesParameterizedSlug(t *testing.T
 		_, err = fixture.pool.Exec(context.Background(), `UPDATE public.orgs SET lifecycle_state = 'provisioning'`)
 		require.NoError(t, err)
 
-		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "research")
+		_, err = fixture.resolver.ResolveTeam(context.Background(), organization, uuid.New())
 		require.ErrorIs(t, err, tenancy.ErrOrganizationUnavailable)
 	})
 }
@@ -380,10 +381,10 @@ func TestResolveTeamRejectsInvalidInputBeforeDatabaseWork(t *testing.T) {
 	require.NoError(t, err)
 	before := fixture.pool.Stat().AcquireCount()
 
-	_, err = fixture.resolver.ResolveTeam(context.Background(), organization, "")
+	_, err = fixture.resolver.ResolveTeam(context.Background(), organization, uuid.Nil)
 	require.ErrorIs(t, err, tenancy.ErrTeamUnavailable)
 	assert.Equal(t, before, fixture.pool.Stat().AcquireCount())
-	_, err = fixture.resolver.ResolveTeam(context.Background(), tenancy.OrganizationContext{}, "research")
+	_, err = fixture.resolver.ResolveTeam(context.Background(), tenancy.OrganizationContext{}, uuid.New())
 	require.ErrorIs(t, err, tenancy.ErrInvalidContext)
 	assert.Equal(t, before, fixture.pool.Stat().AcquireCount())
 }
@@ -443,7 +444,7 @@ func applyTenantFixture(t *testing.T, fixture resolverFixture) {
 		CREATE FUNCTION %s.assert_organization_scope() RETURNS trigger
 		LANGUAGE plpgsql AS $function$
 		BEGIN
-			IF current_setting('app.user_id', true) !~ '^[1-9][0-9]*$' THEN
+			IF NULLIF(current_setting('app.user_id', true), '')::UUID IS NULL THEN
 				RAISE EXCEPTION 'missing user scope';
 			END IF;
 			IF COALESCE(current_setting('app.team_id', true), '') <> '' THEN
@@ -458,6 +459,17 @@ func applyTenantFixture(t *testing.T, fixture resolverFixture) {
 		CREATE TRIGGER assert_organization_scope
 		BEFORE INSERT ON %s.teams
 		FOR EACH ROW EXECUTE FUNCTION %s.assert_organization_scope()`, identifier, identifier, identifier))
+	require.NoError(t, err)
+}
+
+func addTeamMembership(t *testing.T, fixture resolverFixture, teamPublicID uuid.UUID) {
+	t.Helper()
+	qualifiedMembers := pgx.Identifier{fixture.schemaName, "team_members"}.Sanitize()
+	qualifiedTeams := pgx.Identifier{fixture.schemaName, "teams"}.Sanitize()
+	_, err := fixture.pool.Exec(context.Background(), `
+		INSERT INTO `+qualifiedMembers+` (team_id, user_public_id, role)
+		SELECT id, $2, 'viewer' FROM `+qualifiedTeams+` WHERE public_id = $1`,
+		teamPublicID, fixture.userPublicID)
 	require.NoError(t, err)
 }
 
@@ -486,11 +498,14 @@ func resolvedTeamFixture(t *testing.T) (resolverFixture, tenancy.TeamContext, in
 	applyTenantFixture(t, fixture)
 	organization, err := fixture.resolver.ResolveOrganization(context.Background(), fixture.userPublicID, fixture.organizationID)
 	require.NoError(t, err)
+	var teamPublicID uuid.UUID
 	require.NoError(t, tenancy.NewExecutor(fixture.pool).WithinOrganization(context.Background(), organization, func(queries *tenantdb.Queries) error {
-		_, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Team scope", Slug: "team-scope"})
+		team, createErr := queries.CreateTeam(context.Background(), tenantdb.CreateTeamParams{Name: "Team scope", Slug: "team-scope"})
+		teamPublicID = team.PublicID
 		return createErr
 	}))
-	team, err := fixture.resolver.ResolveTeam(context.Background(), organization, "team-scope")
+	addTeamMembership(t, fixture, teamPublicID)
+	team, err := fixture.resolver.ResolveTeam(context.Background(), organization, teamPublicID)
 	require.NoError(t, err)
 	var teamID int64
 	require.NoError(t, fixture.pool.QueryRow(context.Background(), `SELECT id FROM `+pgx.Identifier{fixture.schemaName, "teams"}.Sanitize()+` WHERE slug = 'team-scope'`).Scan(&teamID))
@@ -508,7 +523,7 @@ func installTeamScopeTrigger(t *testing.T, fixture resolverFixture) {
 		CREATE FUNCTION %s.assert_team_scope() RETURNS trigger
 		LANGUAGE plpgsql AS $function$
 		BEGIN
-			IF current_setting('app.user_id', true) !~ '^[1-9][0-9]*$' THEN
+			IF NULLIF(current_setting('app.user_id', true), '')::UUID IS NULL THEN
 				RAISE EXCEPTION 'missing user scope';
 			END IF;
 			IF current_setting('app.team_id', true) <> split_part(NEW.name, ':', 1) THEN
