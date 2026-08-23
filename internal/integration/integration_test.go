@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/CORTA-11/core-api/internal/dbroles"
 	"github.com/CORTA-11/core-api/internal/testsupport"
+	"github.com/jackc/pgx/v5/pgxpool"
 	miniogo "github.com/minio/minio-go/v7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,6 +102,50 @@ func TestDatabaseRolesAreSeparatedAndRuntimeCannotMutateLedger(t *testing.T) {
 	require.NoError(t, err)
 	_, err = tx.Exec(ctx, `UPDATE public.schema_migrations SET dirty = dirty`)
 	assert.Error(t, err)
+}
+
+func TestDatabaseRoleBootstrapConfiguresOperationalLogins(t *testing.T) {
+	pool := testsupport.OpenPostgres(t)
+	testsupport.ResetPostgres(t, pool)
+	databaseURL := testsupport.RequiredEnv(t, "TEST_DATABASE_URL")
+	testsupport.ApplyMigrations(t, "db/migrations/public", databaseURL)
+
+	passwords := map[string]string{
+		"synodus_runtime":     "runtime-integration-password",
+		"synodus_migrator":    "migrator-integration-password",
+		"synodus_provisioner": "provisioner-integration-password",
+	}
+	require.NoError(t, dbroles.Configure(context.Background(), dbroles.Config{
+		BootstrapDatabaseURL: databaseURL,
+		RuntimePassword:      passwords["synodus_runtime"],
+		MigratorPassword:     passwords["synodus_migrator"],
+		ProvisionerPassword:  passwords["synodus_provisioner"],
+	}))
+
+	for _, test := range []struct {
+		role        string
+		currentUser string
+	}{
+		{role: "synodus_runtime", currentUser: "synodus_runtime"},
+		{role: "synodus_migrator", currentUser: "synodus_owner"},
+		{role: "synodus_provisioner", currentUser: "synodus_owner"},
+	} {
+		t.Run(test.role, func(t *testing.T) {
+			config, err := pgxpool.ParseConfig(databaseURL)
+			require.NoError(t, err)
+			config.ConnConfig.User = test.role
+			config.ConnConfig.Password = passwords[test.role]
+			rolePool, err := pgxpool.NewWithConfig(context.Background(), config)
+			require.NoError(t, err)
+			t.Cleanup(rolePool.Close)
+
+			var sessionUser, currentUser string
+			require.NoError(t, rolePool.QueryRow(context.Background(),
+				`SELECT session_user, current_user`).Scan(&sessionUser, &currentUser))
+			assert.Equal(t, test.role, sessionUser)
+			assert.Equal(t, test.currentUser, currentUser)
+		})
+	}
 }
 
 func TestPostgresQueryAndCleanup(t *testing.T) {
