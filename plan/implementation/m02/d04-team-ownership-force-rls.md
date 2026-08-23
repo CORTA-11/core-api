@@ -214,6 +214,8 @@ remain stable through the tenancy-owned storage-scope helper.
 - File route/service trusted-scope cutover: `36a4c90`
 - Legacy schema-selection removal and repository guard: `e612143`
 - Operational role credential bootstrap follow-up: `a71fe7d`
+- Database bootstrap running guide: `be557a8`
+- Idempotent development users, organizations, and memberships: `62cd6e2`
 
 **Test-first evidence:** role/config tests initially failed because migrate/seed
 still used `DATABASE_URL` and provisioning fell back to it. The disposable
@@ -230,6 +232,10 @@ and proves only the explicit executor/reconciler/test-fixture allowlist passes.
 The follow-up bootstrap test first failed to compile without `LoadConfig`, then
 proved all three configured role secrets permit their intended PostgreSQL login
 without changing the runtime role into an owner.
+The development-seed integration test first failed because the reusable
+`internal/seeding` package did not exist, then passed against PostgreSQL after
+the runner and ordered seeds created the exact user/organization membership
+matrix twice without duplicates and verified every demo password hash.
 
 **Migration and isolation evidence:** real PostgreSQL 18 tests cover fresh public
 and tenant databases, current-v2 tenant upgrades, unique UUIDs, viewer backfill,

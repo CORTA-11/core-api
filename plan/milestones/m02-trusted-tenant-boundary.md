@@ -125,7 +125,7 @@ tests exist.
 **Implementation links:** M02-D01 [PR #23](https://github.com/CORTA-11/core-api/pull/23),
 implementation `3d7a1db`, merge `94b659b`. M02-D02 [PR #24](https://github.com/CORTA-11/core-api/pull/24)
 merged at `59d6101`; M02-D03 [PR #25](https://github.com/CORTA-11/core-api/pull/25)
-merged at `766ef56`. M02-D04 implementation is complete through `a71fe7d` in
+merged at `766ef56`. M02-D04 implementation is complete through `62cd6e2` in
 [PR #26](https://github.com/CORTA-11/core-api/pull/26); its merge commit remains
 pending. M02 stays `in progress` until D05 records the full adversarial isolation
 proof.
