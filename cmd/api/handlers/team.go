@@ -1,36 +1,50 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 
 	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
-	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/google/uuid"
 )
+
+func (router *Router) resolveOrganizationContext(ctx context.Context) (tenancy.OrganizationContext, error) {
+	organizationValue, ok := appMiddleware.OrgIDFromContext(ctx)
+	if !ok {
+		return tenancy.OrganizationContext{}, tenancy.ErrOrganizationUnavailable
+	}
+	userValue, ok := appMiddleware.UserIDFromContext(ctx)
+	if !ok {
+		return tenancy.OrganizationContext{}, tenancy.ErrOrganizationUnavailable
+	}
+	organizationID, err := uuid.Parse(organizationValue)
+	if err != nil {
+		return tenancy.OrganizationContext{}, tenancy.ErrOrganizationUnavailable
+	}
+	userID, err := uuid.Parse(userValue)
+	if err != nil {
+		return tenancy.OrganizationContext{}, tenancy.ErrOrganizationUnavailable
+	}
+	if router.tenantResolver == nil {
+		return tenancy.OrganizationContext{}, tenancy.ErrOrganizationUnavailable
+	}
+	return router.tenantResolver.ResolveOrganization(ctx, userID, organizationID)
+}
 
 func (router *Router) getTeams() http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		orgIDStr, ok := appMiddleware.OrgIDFromContext(ctx)
-		if !ok {
-			slog.ErrorContext(ctx, "organization ID missing from request context")
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
-			return
-		}
-
-		orgID, err := uuid.Parse(orgIDStr)
+		organization, err := router.resolveOrganizationContext(ctx)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+			http.Error(w, "organization unavailable", http.StatusNotFound)
 			return
 		}
 
-		schemaName := service.SchemaName(orgID)
-
-		teams, err := router.teamService.GetTeams(ctx, schemaName)
+		teams, err := router.teamService.GetTeams(ctx, organization)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to get teams", "error", err)
 			http.Error(w, "failed to get teams", http.StatusInternalServerError)
@@ -70,23 +84,13 @@ func (router *Router) createTeam() http.HandlerFunc {
 			return
 		}
 
-		orgIDStr, ok := appMiddleware.OrgIDFromContext(ctx)
-		if !ok {
-			slog.ErrorContext(ctx, "organization ID missing from request context")
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
-			return
-		}
-
-		orgID, err := uuid.Parse(orgIDStr)
+		organization, err := router.resolveOrganizationContext(ctx)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+			http.Error(w, "organization unavailable", http.StatusNotFound)
 			return
 		}
 
-		schemaName := service.SchemaName(orgID)
-
-		team, err := router.teamService.CreateTeam(ctx, req.Name, schemaName)
+		team, err := router.teamService.CreateTeam(ctx, organization, req.Name)
 		if err != nil {
 			slog.ErrorContext(ctx, "failed to create team", "error", err)
 			http.Error(w, "failed to create team", http.StatusInternalServerError)

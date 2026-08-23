@@ -7,12 +7,25 @@ import (
 
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pashagolub/pgxmock/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type immediateOrganizationExecutor struct {
+	queries *tenantdb.Queries
+}
+
+func (executor immediateOrganizationExecutor) WithinOrganization(
+	ctx context.Context,
+	_ tenancy.OrganizationContext,
+	callback func(*tenantdb.Queries) error,
+) error {
+	return callback(executor.queries)
+}
 
 func TestOrgServiceGetOrgsUsesServerOwnedLimit(t *testing.T) {
 	mockPool, err := pgxmock.NewPool()
@@ -74,18 +87,14 @@ func TestTeamServiceGetTeamsUsesServerOwnedLimit(t *testing.T) {
 	defer mockPool.Close()
 
 	now := time.Now().UTC()
-	mockPool.ExpectBegin()
-	mockPool.ExpectExec("^SET LOCAL search_path TO org_example$").
-		WillReturnResult(pgxmock.NewResult("SET", 0))
 	mockPool.ExpectQuery("(?s)GetTeams :many.*SELECT").
 		WithArgs(int32(100)).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "name", "slug", "created_at", "updated_at", "public_id", "is_quarantine",
 		}).AddRow(int64(1), "Example", "example", now, now, uuid.New(), false))
-	mockPool.ExpectCommit()
 
-	service := NewTeamService(mockPool, tenantdb.New(mockPool))
-	teams, err := service.GetTeams(context.Background(), "org_example")
+	service := NewTeamService(immediateOrganizationExecutor{queries: tenantdb.New(mockPool)})
+	teams, err := service.GetTeams(context.Background(), tenancy.OrganizationContext{})
 	require.NoError(t, err)
 	require.Len(t, teams, 1)
 	require.NoError(t, mockPool.ExpectationsWereMet())

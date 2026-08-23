@@ -37,6 +37,31 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 	return i, err
 }
 
+const createTeamWithCreator = `-- name: CreateTeamWithCreator :one
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+FROM create_team_with_creator($1, $2)
+`
+
+type CreateTeamWithCreatorParams struct {
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+func (q *Queries) CreateTeamWithCreator(ctx context.Context, arg CreateTeamWithCreatorParams) (Team, error) {
+	row := q.db.QueryRow(ctx, createTeamWithCreator, arg.Name, arg.Slug)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PublicID,
+		&i.IsQuarantine,
+	)
+	return i, err
+}
+
 const getTeamID = `-- name: GetTeamID :one
 SELECT id
 FROM teams

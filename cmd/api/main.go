@@ -86,15 +86,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	availability := tenancy.NewAvailabilityChecker(pool, migrationSource)
 	tenantQueries := tenantdb.New(pool)
 	orgService := service.NewOrgService(pool, publicQueries, cfg.DatabaseURL)
-	teamService := service.NewTeamService(pool, tenantQueries)
+	tenantExecutor := tenancy.NewExecutor(pool)
+	tenantResolver := tenancy.NewResolver(pool, migrationSource)
+	teamService := service.NewTeamService(tenantExecutor)
+	legacyTeamLookup := service.NewLegacyTeamLookup(pool, tenantQueries)
 	taskService := service.NewTaskService(pool, tenantQueries)
 	tokenService := service.NewTokenService(cfg.JWTSecret)
 	passwordService := service.NewPasswordService()
 	userService := service.NewUserService(pool, publicQueries, tokenService, passwordService)
 	orgUserService := service.NewOrgUserService(pool, publicQueries)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
-	cacheService := service.NewCacheService(rdb)
-	cachedTeamService := service.NewCachedTeamService(teamService, cacheService)
 	readiness := map[string]handlers.ReadinessCheck{
 		"postgres": pool.Ping,
 		"redis":    func(checkCtx context.Context) error { return rdb.Ping(checkCtx).Err() },
@@ -103,11 +104,11 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		},
 	}
 	router := handlers.NewRouter(handlers.RouterConf{
-		OrgService: &orgService, TeamService: &cachedTeamService,
+		OrgService: &orgService, TeamService: &teamService, LegacyTeamLookup: legacyTeamLookup,
 		TaskService: &taskService, UserService: &userService, FileService: &fileService,
 		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
 		ReadinessTimeout: cfg.DependencyTimeout, PprofEnabled: cfg.PprofEnabled,
-		OrgAvailability: availability,
+		OrgAvailability: availability, TenantResolver: tenantResolver,
 	})
 	router.SetupRoutes()
 	server := &http.Server{

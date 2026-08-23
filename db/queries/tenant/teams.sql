@@ -9,6 +9,10 @@ INSERT INTO teams (name, slug)
 VALUES ($1, $2)
 RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine;
 
+-- name: CreateTeamWithCreator :one
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'));
+
 -- name: GetTeamID :one
 SELECT id
 FROM teams

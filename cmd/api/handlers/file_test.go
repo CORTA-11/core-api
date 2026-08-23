@@ -33,14 +33,6 @@ type stubFileTeamService struct {
 	teamID int
 }
 
-func (s *stubFileTeamService) GetTeams(context.Context, string) ([]service.Team, error) {
-	return nil, nil
-}
-
-func (s *stubFileTeamService) CreateTeam(context.Context, string, string) (*service.Team, error) {
-	return nil, nil
-}
-
 func (s *stubFileTeamService) GetTeamID(context.Context, string, string) (int, error) {
 	return s.teamID, nil
 }
@@ -50,8 +42,8 @@ func performFileRequest(t *testing.T, fileService service.FileService, method, t
 
 	router := chi.NewRouter()
 	router.Mount("/{team}/files", fileRouter(&Router{
-		teamService: &stubFileTeamService{teamID: 42},
-		fileService: fileService,
+		legacyTeamLookup: &stubFileTeamService{teamID: 42},
+		fileService:      fileService,
 	}))
 
 	var body bytes.Buffer

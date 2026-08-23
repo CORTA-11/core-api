@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -9,14 +10,17 @@ import (
 	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 )
 
 type Router struct {
 	mux              *chi.Mux
 	orgService       service.OrgService
 	teamService      service.TeamService
+	legacyTeamLookup service.LegacyTeamLookup
 	taskService      service.TaskService
 	fileService      service.FileService
 	userService      service.UserService
@@ -26,11 +30,18 @@ type Router struct {
 	readinessTimeout time.Duration
 	pprofEnabled     bool
 	orgAvailability  appMiddleware.OrgAvailabilityChecker
+	tenantResolver   TenantResolver
+}
+
+type TenantResolver interface {
+	ResolveOrganization(context.Context, uuid.UUID, uuid.UUID) (tenancy.OrganizationContext, error)
+	ResolveTeam(context.Context, tenancy.OrganizationContext, uuid.UUID) (tenancy.TeamContext, error)
 }
 
 type RouterConf struct {
 	OrgService       *service.OrgService
 	TeamService      *service.TeamService
+	LegacyTeamLookup service.LegacyTeamLookup
 	TaskService      *service.TaskService
 	FileService      *service.FileService
 	UserService      *service.UserService
@@ -42,6 +53,7 @@ type RouterConf struct {
 	// OrgAvailability gates tenant-scoped routes; production wiring must provide
 	// it.
 	OrgAvailability appMiddleware.OrgAvailabilityChecker
+	TenantResolver  TenantResolver
 }
 
 func NewRouter(conf RouterConf) *Router {
@@ -49,6 +61,7 @@ func NewRouter(conf RouterConf) *Router {
 		mux:              chi.NewRouter(),
 		orgService:       *conf.OrgService,
 		teamService:      *conf.TeamService,
+		legacyTeamLookup: conf.LegacyTeamLookup,
 		taskService:      *conf.TaskService,
 		fileService:      *conf.FileService,
 		userService:      *conf.UserService,
@@ -58,6 +71,7 @@ func NewRouter(conf RouterConf) *Router {
 		readinessTimeout: conf.ReadinessTimeout,
 		pprofEnabled:     conf.PprofEnabled,
 		orgAvailability:  conf.OrgAvailability,
+		tenantResolver:   conf.TenantResolver,
 	}
 }
 
@@ -107,6 +121,7 @@ func orgRouter(router *Router) chi.Router {
 
 func teamRouter(router *Router) chi.Router {
 	r := chi.NewRouter()
+	r.Use(appMiddleware.JWTMiddleware(router.tokenService))
 	r.Use(appMiddleware.OrgMiddleware)
 	if router.orgAvailability != nil {
 		r.Use(appMiddleware.RequireAvailableOrg(router.orgAvailability))
@@ -124,7 +139,7 @@ func taskRouter(router *Router) chi.Router {
 	if router.orgAvailability != nil {
 		r.Use(appMiddleware.RequireAvailableOrg(router.orgAvailability))
 	}
-	r.Use(appMiddleware.TeamMiddleware(router.teamService))
+	r.Use(appMiddleware.TeamMiddleware(router.legacyTeamLookup))
 
 	r.Get("/", router.getTasks())
 	r.Post("/", router.createTask())
@@ -140,7 +155,7 @@ func fileRouter(router *Router) chi.Router {
 	if router.orgAvailability != nil {
 		r.Use(appMiddleware.RequireAvailableOrg(router.orgAvailability))
 	}
-	r.Use(appMiddleware.TeamMiddleware(router.teamService))
+	r.Use(appMiddleware.TeamMiddleware(router.legacyTeamLookup))
 
 	r.Get("/", router.getFiles())
 	r.Get("/download/{filename}", router.downloadFile())
