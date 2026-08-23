@@ -6,40 +6,26 @@ import (
 	"strings"
 
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 )
 
 type teamService struct {
-	pool    pgxPool
-	queries *tenantdb.Queries
+	executor organizationExecutor
 }
 
-func NewTeamService(pool pgxPool, queries *tenantdb.Queries) TeamService {
-	return &teamService{
-		pool:    pool,
-		queries: queries,
-	}
+func NewTeamService(executor organizationExecutor) TeamService {
+	return &teamService{executor: executor}
 }
 
-func (t *teamService) GetTeams(ctx context.Context, schema string) ([]Team, error) {
-	tx, err := t.pool.Begin(ctx)
+func (t *teamService) GetTeams(ctx context.Context, organization tenancy.OrganizationContext) ([]Team, error) {
+	var teams []tenantdb.Team
+	err := t.executor.WithinOrganization(ctx, organization, func(queries *tenantdb.Queries) error {
+		var queryErr error
+		teams, queryErr = queries.GetTeams(ctx, listResultLimit)
+		return queryErr
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %q", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := setSchema(ctx, tx, schema); err != nil {
-		return nil, fmt.Errorf("failed to set search_path: %q", err)
-	}
-
-	qtx := t.queries.WithTx(tx)
-
-	teams, err := qtx.GetTeams(ctx, listResultLimit)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch teams: %q", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %q", err)
+		return nil, fmt.Errorf("fetch teams: %w", err)
 	}
 
 	domainTeams := make([]Team, 0, len(teams))
@@ -51,59 +37,19 @@ func (t *teamService) GetTeams(ctx context.Context, schema string) ([]Team, erro
 	return domainTeams, nil
 }
 
-func (t *teamService) CreateTeam(ctx context.Context, name, schema string) (*Team, error) {
-	tx, err := t.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %q", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := setSchema(ctx, tx, schema); err != nil {
-		return nil, fmt.Errorf("failed to set search_path: %q", err)
-	}
-
-	qtx := t.queries.WithTx(tx)
-
+func (t *teamService) CreateTeam(ctx context.Context, organization tenancy.OrganizationContext, name string) (*Team, error) {
 	slug := strings.ReplaceAll(strings.ToLower(name), " ", "-")
-
-	team, err := qtx.CreateTeam(ctx, tenantdb.CreateTeamParams{
-		Name: name,
-		Slug: slug,
+	var team tenantdb.Team
+	err := t.executor.WithinOrganization(ctx, organization, func(queries *tenantdb.Queries) error {
+		var queryErr error
+		team, queryErr = queries.CreateTeamWithCreator(ctx, tenantdb.CreateTeamWithCreatorParams{Name: name, Slug: slug})
+		return queryErr
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create team: %q", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %q", err)
+		return nil, fmt.Errorf("create team: %w", err)
 	}
 
 	ret := mapDBTeamToDomain(team)
 
 	return &ret, nil
-}
-
-func (t *teamService) GetTeamID(ctx context.Context, slug, schema string) (int, error) {
-	tx, err := t.pool.Begin(ctx)
-	if err != nil {
-		return -1, fmt.Errorf("failed to start transaction: %q", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := setSchema(ctx, tx, schema); err != nil {
-		return -1, fmt.Errorf("failed to set search_path: %q", err)
-	}
-
-	qtx := t.queries.WithTx(tx)
-
-	teamID, err := qtx.GetTeamID(ctx, slug)
-	if err != nil {
-		return -1, fmt.Errorf("failed to get teamID: %q", err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return -1, fmt.Errorf("failed to commit transaction: %q", err)
-	}
-
-	return int(teamID), nil
 }

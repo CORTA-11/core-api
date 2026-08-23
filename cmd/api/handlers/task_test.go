@@ -56,14 +56,6 @@ type stubTaskTeamService struct {
 	getTeamIDFn func(context.Context, string, string) (int, error)
 }
 
-func (s *stubTaskTeamService) GetTeams(context.Context, string) ([]service.Team, error) {
-	panic("unexpected GetTeams call")
-}
-
-func (s *stubTaskTeamService) CreateTeam(context.Context, string, string) (*service.Team, error) {
-	panic("unexpected CreateTeam call")
-}
-
 func (s *stubTaskTeamService) GetTeamID(ctx context.Context, slug, schema string) (int, error) {
 	if s.getTeamIDFn == nil {
 		panic("unexpected GetTeamID call")
@@ -73,7 +65,7 @@ func (s *stubTaskTeamService) GetTeamID(ctx context.Context, slug, schema string
 
 func performTaskRequest(
 	t *testing.T,
-	teamService service.TeamService,
+	teamService service.LegacyTeamLookup,
 	taskService service.TaskService,
 	method, teamSlug, body, orgID string,
 ) *httptest.ResponseRecorder {
@@ -81,8 +73,8 @@ func performTaskRequest(
 
 	router := chi.NewRouter()
 	router.Mount("/{team}/tasks", taskRouter(&Router{
-		teamService: teamService,
-		taskService: taskService,
+		legacyTeamLookup: teamService,
+		taskService:      taskService,
 	}))
 
 	path := "/" + strings.TrimPrefix(teamSlug, "/")
