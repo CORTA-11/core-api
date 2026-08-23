@@ -19,6 +19,18 @@ type immediateOrganizationExecutor struct {
 	queries *tenantdb.Queries
 }
 
+type immediateTeamExecutor struct {
+	queries *tenantdb.Queries
+}
+
+func (executor immediateTeamExecutor) WithinTeam(
+	ctx context.Context,
+	_ tenancy.TeamContext,
+	callback func(*tenantdb.Queries) error,
+) error {
+	return callback(executor.queries)
+}
+
 func (executor immediateOrganizationExecutor) WithinOrganization(
 	ctx context.Context,
 	_ tenancy.OrganizationContext,
@@ -106,18 +118,14 @@ func TestTaskServiceGetTasksUsesServerOwnedLimit(t *testing.T) {
 	defer mockPool.Close()
 
 	now := time.Now().UTC()
-	mockPool.ExpectBegin()
-	mockPool.ExpectExec("^SET LOCAL search_path TO org_example$").
-		WillReturnResult(pgxmock.NewResult("SET", 0))
 	mockPool.ExpectQuery("(?s)GetTasks :many.*SELECT").
-		WithArgs(int64(7), int32(100)).
+		WithArgs(int32(100)).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "team_id", "description", "status", "created_at", "updated_at", "public_id",
 		}).AddRow(int64(1), int64(7), "Example", "todo", now, now, uuid.New()))
-	mockPool.ExpectCommit()
 
-	service := NewTaskService(mockPool, tenantdb.New(mockPool))
-	tasks, err := service.GetTasks(context.Background(), "org_example", 7)
+	service := NewTaskService(immediateTeamExecutor{queries: tenantdb.New(mockPool)})
+	tasks, err := service.GetTasks(context.Background(), tenancy.TeamContext{})
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	require.NoError(t, mockPool.ExpectationsWereMet())

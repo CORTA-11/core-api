@@ -6,161 +6,89 @@ import (
 	"strings"
 
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
+	"github.com/CORTA-11/core-api/internal/tenancy"
+	"github.com/google/uuid"
 )
 
 type taskService struct {
-	pool    pgxPool
-	queries *tenantdb.Queries
+	executor teamExecutor
 }
 
-func NewTaskService(pool pgxPool, queries *tenantdb.Queries) TaskService {
-	return &taskService{
-		pool:    pool,
-		queries: queries,
-	}
+func NewTaskService(executor teamExecutor) TaskService {
+	return &taskService{executor: executor}
 }
 
-func (t *taskService) GetTasks(ctx context.Context, schema string, teamID int) ([]Task, error) {
-	tx, err := t.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %q", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := setSchema(ctx, tx, schema); err != nil {
-		return nil, fmt.Errorf("failed to set search_path: %q", err)
-	}
-
-	qtx := t.queries.WithTx(tx)
-
-	tasks, err := qtx.GetTasks(ctx, tenantdb.GetTasksParams{
-		TeamID: int64(teamID),
-		Limit:  listResultLimit,
+func (service *taskService) GetTasks(ctx context.Context, team tenancy.TeamContext) ([]Task, error) {
+	var rows []tenantdb.Task
+	err := service.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {
+		var queryErr error
+		rows, queryErr = queries.GetTasks(ctx, listResultLimit)
+		return queryErr
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch tasks: %q", err)
+		return nil, fmt.Errorf("fetch tasks: %w", err)
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %q", err)
+	tasks := make([]Task, 0, len(rows))
+	for _, row := range rows {
+		tasks = append(tasks, mapDBTaskToDomain(row))
 	}
-
-	domainTasks := make([]Task, 0, len(tasks))
-
-	for _, task := range tasks {
-		domainTasks = append(domainTasks, mapDBTaskToDomain(task))
-	}
-
-	return domainTasks, nil
+	return tasks, nil
 }
 
-func (t *taskService) CreateTask(ctx context.Context, schema string, teamID int, desc string, status string) (*Task, error) {
-	desc = strings.TrimSpace(desc)
-	if desc == "" {
+func (service *taskService) CreateTask(ctx context.Context, team tenancy.TeamContext, description, status string) (*Task, error) {
+	description = strings.TrimSpace(description)
+	if description == "" {
 		return nil, fmt.Errorf("task description is required")
 	}
-
 	status = NormalizeTaskStatus(status)
 	if !IsValidTaskStatus(status) {
 		return nil, fmt.Errorf("task status is invalid")
 	}
-
-	tx, err := t.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %q", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := setSchema(ctx, tx, schema); err != nil {
-		return nil, fmt.Errorf("failed to set search_path: %q", err)
-	}
-
-	qtx := t.queries.WithTx(tx)
-
-	task, err := qtx.CreateTask(ctx, tenantdb.CreateTaskParams{
-		TeamID:      int64(teamID),
-		Description: desc,
-		Status:      status,
+	var row tenantdb.Task
+	err := service.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {
+		var queryErr error
+		row, queryErr = queries.CreateTask(ctx, tenantdb.CreateTaskParams{Description: description, Status: status})
+		return queryErr
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create task: %q", err)
+		return nil, fmt.Errorf("create task: %w", err)
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %q", err)
-	}
-
-	ret := mapDBTaskToDomain(task)
-
-	return &ret, nil
+	task := mapDBTaskToDomain(row)
+	return &task, nil
 }
 
-func (t *taskService) UpdateTask(ctx context.Context, schema string, teamID int, taskID int, desc string, status string) (*Task, error) {
-	desc = strings.TrimSpace(desc)
-	if desc == "" {
+func (service *taskService) UpdateTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID, description, status string) (*Task, error) {
+	description = strings.TrimSpace(description)
+	if description == "" {
 		return nil, fmt.Errorf("task description is required")
 	}
-
 	status = NormalizeTaskStatus(status)
 	if !IsValidTaskStatus(status) {
 		return nil, fmt.Errorf("task status is invalid")
 	}
-
-	tx, err := t.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %q", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := setSchema(ctx, tx, schema); err != nil {
-		return nil, fmt.Errorf("failed to set search_path: %q", err)
-	}
-
-	qtx := t.queries.WithTx(tx)
-
-	task, err := qtx.UpdateTask(ctx, tenantdb.UpdateTaskParams{
-		ID:          int64(taskID),
-		TeamID:      int64(teamID),
-		Description: desc,
-		Status:      status,
+	var row tenantdb.Task
+	err := service.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {
+		var queryErr error
+		row, queryErr = queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{PublicID: taskID, Description: description, Status: status})
+		return queryErr
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to update task: %q", err)
+		return nil, fmt.Errorf("update task: %w", err)
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %q", err)
-	}
-
-	ret := mapDBTaskToDomain(task)
-	return &ret, nil
+	task := mapDBTaskToDomain(row)
+	return &task, nil
 }
 
-func (t *taskService) DeleteTask(ctx context.Context, schema string, teamID int, taskID int) (*Task, error) {
-	tx, err := t.pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start transaction: %q", err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := setSchema(ctx, tx, schema); err != nil {
-		return nil, fmt.Errorf("failed to set search_path: %q", err)
-	}
-
-	qtx := t.queries.WithTx(tx)
-
-	task, err := qtx.DeleteTask(ctx, tenantdb.DeleteTaskParams{
-		ID:     int64(taskID),
-		TeamID: int64(teamID),
+func (service *taskService) DeleteTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID) (*Task, error) {
+	var row tenantdb.Task
+	err := service.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {
+		var queryErr error
+		row, queryErr = queries.DeleteTask(ctx, taskID)
+		return queryErr
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to delete task: %q", err)
+		return nil, fmt.Errorf("delete task: %w", err)
 	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %q", err)
-	}
-
-	ret := mapDBTaskToDomain(task)
-	return &ret, nil
+	task := mapDBTaskToDomain(row)
+	return &task, nil
 }

@@ -7,22 +7,23 @@ package tenantdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createTask = `-- name: CreateTask :one
 INSERT INTO tasks (team_id, description, status)
-VALUES ($1, $2, $3)
+VALUES (NULLIF(current_setting('app.team_id', true), '')::BIGINT, $1, $2)
 RETURNING id, team_id, description, status, created_at, updated_at, public_id
 `
 
 type CreateTaskParams struct {
-	TeamID      int64  `json:"team_id"`
 	Description string `json:"description"`
 	Status      string `json:"status"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, createTask, arg.TeamID, arg.Description, arg.Status)
+	row := q.db.QueryRow(ctx, createTask, arg.Description, arg.Status)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -38,17 +39,12 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 
 const deleteTask = `-- name: DeleteTask :one
 DELETE FROM tasks
-WHERE id = $1 AND team_id = $2
+WHERE public_id = $1
 RETURNING id, team_id, description, status, created_at, updated_at, public_id
 `
 
-type DeleteTaskParams struct {
-	ID     int64 `json:"id"`
-	TeamID int64 `json:"team_id"`
-}
-
-func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, deleteTask, arg.ID, arg.TeamID)
+func (q *Queries) DeleteTask(ctx context.Context, publicID uuid.UUID) (Task, error) {
+	row := q.db.QueryRow(ctx, deleteTask, publicID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -65,19 +61,12 @@ func (q *Queries) DeleteTask(ctx context.Context, arg DeleteTaskParams) (Task, e
 const getTasks = `-- name: GetTasks :many
 SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
 FROM tasks
-JOIN teams ON teams.id = tasks.team_id
-WHERE teams.id = $1
 ORDER BY tasks.created_at ASC, tasks.id ASC
-LIMIT $2
+LIMIT $1
 `
 
-type GetTasksParams struct {
-	TeamID int64 `json:"team_id"`
-	Limit  int32 `json:"limit"`
-}
-
-func (q *Queries) GetTasks(ctx context.Context, arg GetTasksParams) ([]Task, error) {
-	rows, err := q.db.Query(ctx, getTasks, arg.TeamID, arg.Limit)
+func (q *Queries) GetTasks(ctx context.Context, limit int32) ([]Task, error) {
+	rows, err := q.db.Query(ctx, getTasks, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -143,27 +132,21 @@ func (q *Queries) IsolationProbeTasks(ctx context.Context, limit int32) ([]Task,
 
 const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
-SET description = $3,
-    status = $4,
+SET description = $2,
+    status = $3,
     updated_at = NOW()
-WHERE id = $1 AND team_id = $2
+WHERE public_id = $1
 RETURNING id, team_id, description, status, created_at, updated_at, public_id
 `
 
 type UpdateTaskParams struct {
-	ID          int64  `json:"id"`
-	TeamID      int64  `json:"team_id"`
-	Description string `json:"description"`
-	Status      string `json:"status"`
+	PublicID    uuid.UUID `json:"public_id"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
 }
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, updateTask,
-		arg.ID,
-		arg.TeamID,
-		arg.Description,
-		arg.Status,
-	)
+	row := q.db.QueryRow(ctx, updateTask, arg.PublicID, arg.Description, arg.Status)
 	var i Task
 	err := row.Scan(
 		&i.ID,

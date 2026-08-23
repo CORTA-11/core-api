@@ -38,6 +38,7 @@ func (s *stubTeamService) CreateTeam(ctx context.Context, organization tenancy.O
 
 type stubTeamResolver struct {
 	resolveOrganizationFn func(context.Context, uuid.UUID, uuid.UUID) (tenancy.OrganizationContext, error)
+	resolveTeamFn         func(context.Context, tenancy.OrganizationContext, uuid.UUID) (tenancy.TeamContext, error)
 }
 
 func (resolver stubTeamResolver) ResolveOrganization(ctx context.Context, userID, organizationID uuid.UUID) (tenancy.OrganizationContext, error) {
@@ -47,8 +48,11 @@ func (resolver stubTeamResolver) ResolveOrganization(ctx context.Context, userID
 	return tenancy.OrganizationContext{}, nil
 }
 
-func (stubTeamResolver) ResolveTeam(context.Context, tenancy.OrganizationContext, uuid.UUID) (tenancy.TeamContext, error) {
-	panic("unexpected ResolveTeam call")
+func (resolver stubTeamResolver) ResolveTeam(ctx context.Context, organization tenancy.OrganizationContext, teamID uuid.UUID) (tenancy.TeamContext, error) {
+	if resolver.resolveTeamFn != nil {
+		return resolver.resolveTeamFn(ctx, organization, teamID)
+	}
+	return tenancy.TeamContext{}, nil
 }
 
 func performTeamRequest(t *testing.T, teamService service.TeamService, method, target, body, orgID string) *httptest.ResponseRecorder {

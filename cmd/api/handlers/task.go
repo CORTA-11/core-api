@@ -1,235 +1,153 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 
-	appMiddleware "github.com/CORTA-11/core-api/cmd/api/middleware"
 	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
+func (router *Router) trustedTeam(w http.ResponseWriter, r *http.Request) (tenancy.TeamContext, bool) {
+	teamID, err := uuid.Parse(chi.URLParam(r, "team"))
+	if err != nil {
+		http.Error(w, "invalid team id", http.StatusBadRequest)
+		return tenancy.TeamContext{}, false
+	}
+	organization, err := router.resolveOrganizationContext(r.Context())
+	if err != nil {
+		http.Error(w, "team unavailable", http.StatusNotFound)
+		return tenancy.TeamContext{}, false
+	}
+	team, err := router.tenantResolver.ResolveTeam(r.Context(), organization, teamID)
+	if err != nil {
+		http.Error(w, "team unavailable", http.StatusNotFound)
+		return tenancy.TeamContext{}, false
+	}
+	return team, true
+}
+
+func writeTaskServiceError(ctx context.Context, w http.ResponseWriter, operation string, err error) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		http.Error(w, "task unavailable", http.StatusNotFound)
+		return
+	}
+	slog.ErrorContext(ctx, operation, "error", err)
+	http.Error(w, operation, http.StatusInternalServerError)
+}
+
 func (router *Router) getTasks() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		teamID, ok := appMiddleware.TeamIDFromContext(ctx)
+	return func(w http.ResponseWriter, r *http.Request) {
+		team, ok := router.trustedTeam(w, r)
 		if !ok {
-			slog.ErrorContext(ctx, "team ID missing from request context")
-			http.Error(w, "failed to get team ID", http.StatusInternalServerError)
 			return
 		}
-
-		orgIDStr, ok := appMiddleware.OrgIDFromContext(ctx)
-		if !ok {
-			slog.ErrorContext(ctx, "organization ID missing from request context")
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
-			return
-		}
-
-		orgID, err := uuid.Parse(orgIDStr)
+		tasks, err := router.taskService.GetTasks(r.Context(), team)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+			writeTaskServiceError(r.Context(), w, "failed to fetch tasks", err)
 			return
 		}
-
-		schemaName := service.SchemaName(orgID)
-
-		tasks, err := router.taskService.GetTasks(ctx, schemaName, teamID)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to fetch tasks", "error", err)
-			http.Error(w, "failed to fetch tasks", http.StatusInternalServerError)
-			return
-		}
-
 		w.Header().Set("Content-Type", "application/json")
-
 		if err := json.NewEncoder(w).Encode(tasks); err != nil {
-			slog.ErrorContext(ctx, "failed to encode task object", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.ErrorContext(r.Context(), "failed to encode tasks", "error", err)
 		}
-	})
+	}
 }
 
 func (router *Router) createTask() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-
-		var req struct {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
 			Description string `json:"description"`
 			Status      string `json:"status"`
 		}
-
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-
-		if strings.TrimSpace(req.Description) == "" {
+		if strings.TrimSpace(request.Description) == "" {
 			http.Error(w, "task description is required", http.StatusBadRequest)
 			return
 		}
-
-		if req.Status != "" && !service.IsValidTaskStatus(req.Status) {
+		if request.Status != "" && !service.IsValidTaskStatus(request.Status) {
 			http.Error(w, "task status is invalid", http.StatusBadRequest)
 			return
 		}
-
-		teamID, ok := appMiddleware.TeamIDFromContext(ctx)
+		team, ok := router.trustedTeam(w, r)
 		if !ok {
-			slog.ErrorContext(ctx, "team ID missing from request context")
-			http.Error(w, "failed to get team ID", http.StatusInternalServerError)
 			return
 		}
-
-		orgIDStr, ok := appMiddleware.OrgIDFromContext(ctx)
-		if !ok {
-			slog.ErrorContext(ctx, "organization ID missing from request context")
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
-			return
-		}
-
-		orgID, err := uuid.Parse(orgIDStr)
+		task, err := router.taskService.CreateTask(r.Context(), team, request.Description, request.Status)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+			writeTaskServiceError(r.Context(), w, "failed to create task", err)
 			return
 		}
-
-		schemaName := service.SchemaName(orgID)
-
-		task, err := router.taskService.CreateTask(ctx, schemaName, teamID, req.Description, req.Status)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to create task", "error", err)
-			http.Error(w, "failed to create task", http.StatusInternalServerError)
-			return
-		}
-
 		w.Header().Set("Content-Type", "application/json")
-
-		if err := json.NewEncoder(w).Encode(task); err != nil {
-			slog.ErrorContext(ctx, "failed to encode task object", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(task)
+	}
 }
 
 func (router *Router) updateTask() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		taskIDStr := chi.URLParam(r, "taskID")
-		taskID, err := strconv.Atoi(taskIDStr)
-		if err != nil || taskID <= 0 {
+	return func(w http.ResponseWriter, r *http.Request) {
+		taskID, err := uuid.Parse(chi.URLParam(r, "taskID"))
+		if err != nil {
 			http.Error(w, "invalid task id", http.StatusBadRequest)
 			return
 		}
-
-		var req struct {
+		var request struct {
 			Description string `json:"description"`
 			Status      string `json:"status"`
 		}
-
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-
-		if strings.TrimSpace(req.Description) == "" {
+		if strings.TrimSpace(request.Description) == "" {
 			http.Error(w, "task description is required", http.StatusBadRequest)
 			return
 		}
-
-		if !service.IsValidTaskStatus(req.Status) {
+		if !service.IsValidTaskStatus(request.Status) {
 			http.Error(w, "task status is invalid", http.StatusBadRequest)
 			return
 		}
-
-		teamID, ok := appMiddleware.TeamIDFromContext(ctx)
+		team, ok := router.trustedTeam(w, r)
 		if !ok {
-			slog.ErrorContext(ctx, "team ID missing from request context")
-			http.Error(w, "failed to get team ID", http.StatusInternalServerError)
 			return
 		}
-
-		orgIDStr, ok := appMiddleware.OrgIDFromContext(ctx)
-		if !ok {
-			slog.ErrorContext(ctx, "organization ID missing from request context")
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
-			return
-		}
-
-		orgID, err := uuid.Parse(orgIDStr)
+		task, err := router.taskService.UpdateTask(r.Context(), team, taskID, request.Description, request.Status)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+			writeTaskServiceError(r.Context(), w, "failed to update task", err)
 			return
 		}
-
-		schemaName := service.SchemaName(orgID)
-
-		task, err := router.taskService.UpdateTask(ctx, schemaName, teamID, taskID, req.Description, req.Status)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to update task", "error", err)
-			http.Error(w, "failed to update task", http.StatusInternalServerError)
-			return
-		}
-
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(task); err != nil {
-			slog.ErrorContext(ctx, "failed to encode task object", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
+		_ = json.NewEncoder(w).Encode(task)
+	}
 }
 
 func (router *Router) deleteTask() http.HandlerFunc {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		taskIDStr := chi.URLParam(r, "taskID")
-		taskID, err := strconv.Atoi(taskIDStr)
-		if err != nil || taskID <= 0 {
+	return func(w http.ResponseWriter, r *http.Request) {
+		taskID, err := uuid.Parse(chi.URLParam(r, "taskID"))
+		if err != nil {
 			http.Error(w, "invalid task id", http.StatusBadRequest)
 			return
 		}
-
-		teamID, ok := appMiddleware.TeamIDFromContext(ctx)
+		team, ok := router.trustedTeam(w, r)
 		if !ok {
-			slog.ErrorContext(ctx, "team ID missing from request context")
-			http.Error(w, "failed to get team ID", http.StatusInternalServerError)
 			return
 		}
-
-		orgIDStr, ok := appMiddleware.OrgIDFromContext(ctx)
-		if !ok {
-			slog.ErrorContext(ctx, "organization ID missing from request context")
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
-			return
-		}
-
-		orgID, err := uuid.Parse(orgIDStr)
+		task, err := router.taskService.DeleteTask(r.Context(), team, taskID)
 		if err != nil {
-			slog.ErrorContext(ctx, "invalid organization ID in request context", "error", err)
-			http.Error(w, "failed to get organization ID", http.StatusInternalServerError)
+			writeTaskServiceError(r.Context(), w, "failed to delete task", err)
 			return
 		}
-
-		schemaName := service.SchemaName(orgID)
-
-		task, err := router.taskService.DeleteTask(ctx, schemaName, teamID, taskID)
-		if err != nil {
-			slog.ErrorContext(ctx, "failed to delete task", "error", err)
-			http.Error(w, "failed to delete task", http.StatusInternalServerError)
-			return
-		}
-
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(task); err != nil {
-			slog.ErrorContext(ctx, "failed to encode task object", "error", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
+		_ = json.NewEncoder(w).Encode(task)
+	}
 }

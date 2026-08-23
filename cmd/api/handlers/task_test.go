@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,340 +19,137 @@ import (
 )
 
 type stubTaskService struct {
-	getTasksFn   func(context.Context, string, int) ([]service.Task, error)
-	createTaskFn func(context.Context, string, int, string, string) (*service.Task, error)
-	updateTaskFn func(context.Context, string, int, int, string, string) (*service.Task, error)
-	deleteTaskFn func(context.Context, string, int, int) (*service.Task, error)
+	getTasksFn   func(context.Context, tenancy.TeamContext) ([]service.Task, error)
+	createTaskFn func(context.Context, tenancy.TeamContext, string, string) (*service.Task, error)
+	updateTaskFn func(context.Context, tenancy.TeamContext, uuid.UUID, string, string) (*service.Task, error)
+	deleteTaskFn func(context.Context, tenancy.TeamContext, uuid.UUID) (*service.Task, error)
 }
 
-func (s *stubTaskService) GetTasks(ctx context.Context, schema string, teamID int) ([]service.Task, error) {
-	if s.getTasksFn == nil {
-		panic("unexpected GetTasks call")
+func (stub *stubTaskService) GetTasks(ctx context.Context, team tenancy.TeamContext) ([]service.Task, error) {
+	return stub.getTasksFn(ctx, team)
+}
+
+func (stub *stubTaskService) CreateTask(ctx context.Context, team tenancy.TeamContext, description, status string) (*service.Task, error) {
+	return stub.createTaskFn(ctx, team, description, status)
+}
+
+func (stub *stubTaskService) UpdateTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID, description, status string) (*service.Task, error) {
+	return stub.updateTaskFn(ctx, team, taskID, description, status)
+}
+
+func (stub *stubTaskService) DeleteTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID) (*service.Task, error) {
+	return stub.deleteTaskFn(ctx, team, taskID)
+}
+
+func taskFixture() service.Task {
+	return service.Task{
+		PublicID:    uuid.MustParse("3daaba7d-bab9-41b8-bf1c-1d4977774120"),
+		Description: "Add pagination",
+		Status:      "todo",
+		CreatedAt:   time.Date(2026, time.August, 23, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, time.August, 23, 10, 0, 0, 0, time.UTC),
 	}
-	return s.getTasksFn(ctx, schema, teamID)
 }
 
-func (s *stubTaskService) CreateTask(ctx context.Context, schema string, teamID int, description string, status string) (*service.Task, error) {
-	if s.createTaskFn == nil {
-		panic("unexpected CreateTask call")
-	}
-	return s.createTaskFn(ctx, schema, teamID, description, status)
-}
-
-func (s *stubTaskService) UpdateTask(ctx context.Context, schema string, teamID int, taskID int, description string, status string) (*service.Task, error) {
-	if s.updateTaskFn == nil {
-		panic("unexpected UpdateTask call")
-	}
-	return s.updateTaskFn(ctx, schema, teamID, taskID, description, status)
-}
-
-func (s *stubTaskService) DeleteTask(ctx context.Context, schema string, teamID int, taskID int) (*service.Task, error) {
-	if s.deleteTaskFn == nil {
-		panic("unexpected DeleteTask call")
-	}
-	return s.deleteTaskFn(ctx, schema, teamID, taskID)
-}
-
-type stubTaskTeamService struct {
-	getTeamIDFn func(context.Context, string, string) (int, error)
-}
-
-func (s *stubTaskTeamService) GetTeamID(ctx context.Context, slug, schema string) (int, error) {
-	if s.getTeamIDFn == nil {
-		panic("unexpected GetTeamID call")
-	}
-	return s.getTeamIDFn(ctx, slug, schema)
-}
-
-func performTaskRequest(
-	t *testing.T,
-	teamService service.LegacyTeamLookup,
-	taskService service.TaskService,
-	method, teamSlug, body, orgID string,
-) *httptest.ResponseRecorder {
+func performTrustedTaskRequest(t *testing.T, taskService service.TaskService, method, path, body string, resolver stubTeamResolver) *httptest.ResponseRecorder {
 	t.Helper()
-
+	tokenService := service.NewTokenService("task-handler-test-secret")
+	token, err := tokenService.GenerateToken(uuid.MustParse("5a17231d-7570-4b82-b7cf-24ab0248d724"), "task@example.test")
+	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Mount("/{team}/tasks", taskRouter(&Router{
-		legacyTeamLookup: teamService,
-		taskService:      taskService,
+		taskService: taskService, tokenService: tokenService, tenantResolver: resolver,
 	}))
-
-	path := "/" + strings.TrimPrefix(teamSlug, "/")
-	if strings.Contains(path, "/tasks") {
-		// keep explicit task endpoints such as /{team}/tasks/101 as-is
-	} else {
-		path = path + "/tasks"
-		if method == http.MethodGet || method == http.MethodPost {
-			path = path + "/"
-		}
-	}
-
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	if orgID != "" {
-		req.Header.Set("X-Org-ID", orgID)
-	}
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, req)
-	return recorder
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("X-Org-ID", "30ee7153-9b48-4560-8cbf-972587a60fda")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	return response
 }
 
-func testTask() service.Task {
-	return service.Task{
-		ID:          101,
-		TeamID:      42,
-		Description: "Add pagination to the API",
-		Status:      "todo",
-		CreatedAt:   time.Date(2026, time.August, 15, 10, 0, 0, 0, time.UTC),
-		UpdatedAt:   time.Date(2026, time.August, 15, 11, 0, 0, 0, time.UTC),
-	}
-}
+func TestTaskRoutesUseTrustedUUIDContextsAndPublicDTOs(t *testing.T) {
+	teamID := uuid.MustParse("7ba60f7b-0ae7-4be4-a444-ce344276ed6e")
+	task := taskFixture()
+	resolver := stubTeamResolver{resolveTeamFn: func(_ context.Context, _ tenancy.OrganizationContext, got uuid.UUID) (tenancy.TeamContext, error) {
+		assert.Equal(t, teamID, got)
+		return tenancy.TeamContext{}, nil
+	}}
 
-func TestGetTasks(t *testing.T) {
-	orgID := uuid.MustParse("30ee7153-9b48-4560-8cbf-972587a60fda")
-	const (
-		teamSlug = "platform-engineering"
-		teamID   = 42
-	)
-
-	teamService := func() *stubTaskTeamService {
-		return &stubTaskTeamService{
-			getTeamIDFn: func(ctx context.Context, slug, schema string) (int, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, teamSlug, slug)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				return teamID, nil
-			},
-		}
-	}
-
-	t.Run("returns tasks for the team", func(t *testing.T) {
-		want := []service.Task{testTask()}
-		taskService := &stubTaskService{
-			getTasksFn: func(ctx context.Context, schema string, gotTeamID int) ([]service.Task, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				assert.Equal(t, teamID, gotTeamID)
-				return want, nil
-			},
-		}
-
-		response := performTaskRequest(t, teamService(), taskService, http.MethodGet, teamSlug, "", orgID.String())
-
+	t.Run("list", func(t *testing.T) {
+		serviceStub := &stubTaskService{getTasksFn: func(context.Context, tenancy.TeamContext) ([]service.Task, error) {
+			return []service.Task{task}, nil
+		}}
+		response := performTrustedTaskRequest(t, serviceStub, http.MethodGet, "/"+teamID.String()+"/tasks/", "", resolver)
 		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-		var got []service.Task
-		require.NoError(t, json.NewDecoder(response.Body).Decode(&got))
-		assert.Equal(t, want, got)
+		assert.NotContains(t, response.Body.String(), `"team_id"`)
+		assert.NotContains(t, response.Body.String(), `"id":`)
+		assert.Contains(t, response.Body.String(), `"public_id"`)
 	})
 
-	t.Run("returns service error", func(t *testing.T) {
-		taskService := &stubTaskService{
-			getTasksFn: func(context.Context, string, int) ([]service.Task, error) {
-				return nil, errors.New("database unavailable")
-			},
-		}
-
-		response := performTaskRequest(t, teamService(), taskService, http.MethodGet, teamSlug, "", orgID.String())
-
-		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "failed to fetch tasks\n", response.Body.String())
+	t.Run("create", func(t *testing.T) {
+		serviceStub := &stubTaskService{createTaskFn: func(_ context.Context, _ tenancy.TeamContext, description, status string) (*service.Task, error) {
+			assert.Equal(t, "Add pagination", description)
+			assert.Equal(t, "todo", status)
+			return &task, nil
+		}}
+		response := performTrustedTaskRequest(t, serviceStub, http.MethodPost, "/"+teamID.String()+"/tasks/", `{"description":"Add pagination","status":"todo"}`, resolver)
+		assert.Equal(t, http.StatusCreated, response.Code)
 	})
-}
 
-func TestCreateTask(t *testing.T) {
-	orgID := uuid.MustParse("30ee7153-9b48-4560-8cbf-972587a60fda")
-	const (
-		teamSlug = "platform-engineering"
-		teamID   = 42
-	)
-
-	teamService := func() *stubTaskTeamService {
-		return &stubTaskTeamService{
-			getTeamIDFn: func(ctx context.Context, slug, schema string) (int, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, teamSlug, slug)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				return teamID, nil
-			},
-		}
-	}
-
-	t.Run("creates a task for the team", func(t *testing.T) {
-		want := testTask()
-		taskService := &stubTaskService{
-			createTaskFn: func(ctx context.Context, schema string, gotTeamID int, description string, status string) (*service.Task, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				assert.Equal(t, teamID, gotTeamID)
-				assert.Equal(t, want.Description, description)
-				assert.Equal(t, want.Status, status)
-				return &want, nil
-			},
-		}
-
-		response := performTaskRequest(t, teamService(), taskService, http.MethodPost, teamSlug, `{"description":"Add pagination to the API","status":"todo"}`, orgID.String())
-
+	t.Run("update", func(t *testing.T) {
+		serviceStub := &stubTaskService{updateTaskFn: func(_ context.Context, _ tenancy.TeamContext, gotTaskID uuid.UUID, _, _ string) (*service.Task, error) {
+			assert.Equal(t, task.PublicID, gotTaskID)
+			return &task, nil
+		}}
+		response := performTrustedTaskRequest(t, serviceStub, http.MethodPut, "/"+teamID.String()+"/tasks/"+task.PublicID.String(), `{"description":"Updated","status":"done"}`, resolver)
 		assert.Equal(t, http.StatusOK, response.Code)
-		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
-		var got service.Task
-		require.NoError(t, json.NewDecoder(response.Body).Decode(&got))
-		assert.Equal(t, want, got)
 	})
 
-	t.Run("rejects malformed JSON", func(t *testing.T) {
-		response := performTaskRequest(t, teamService(), &stubTaskService{}, http.MethodPost, teamSlug, `{`, orgID.String())
-
-		assert.Equal(t, http.StatusBadRequest, response.Code)
-		assert.Equal(t, "invalid request body\n", response.Body.String())
-	})
-
-	t.Run("returns service error", func(t *testing.T) {
-		taskService := &stubTaskService{
-			createTaskFn: func(context.Context, string, int, string, string) (*service.Task, error) {
-				return nil, errors.New("create failed")
-			},
-		}
-
-		response := performTaskRequest(t, teamService(), taskService, http.MethodPost, teamSlug, `{"description":"Add pagination to the API","status":"todo"}`, orgID.String())
-
-		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "failed to create task\n", response.Body.String())
-	})
-}
-
-func TestUpdateTask(t *testing.T) {
-	orgID := uuid.MustParse("30ee7153-9b48-4560-8cbf-972587a60fda")
-	const (
-		teamSlug = "platform-engineering"
-		teamID   = 42
-		taskID   = 101
-	)
-
-	teamService := func() *stubTaskTeamService {
-		return &stubTaskTeamService{
-			getTeamIDFn: func(ctx context.Context, slug, schema string) (int, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, teamSlug, slug)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				return teamID, nil
-			},
-		}
-	}
-
-	t.Run("updates a task for the team", func(t *testing.T) {
-		want := testTask()
-		want.Status = "in_progress"
-		want.Description = "Fix the login bug"
-
-		taskService := &stubTaskService{
-			updateTaskFn: func(ctx context.Context, schema string, gotTeamID int, gotTaskID int, description string, status string) (*service.Task, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				assert.Equal(t, teamID, gotTeamID)
-				assert.Equal(t, taskID, gotTaskID)
-				assert.Equal(t, want.Description, description)
-				assert.Equal(t, want.Status, status)
-				return &want, nil
-			},
-		}
-
-		response := performTaskRequest(t, teamService(), taskService, http.MethodPut, teamSlug+"/tasks/101", `{"description":"Fix the login bug","status":"in_progress"}`, orgID.String())
-
+	t.Run("delete", func(t *testing.T) {
+		serviceStub := &stubTaskService{deleteTaskFn: func(_ context.Context, _ tenancy.TeamContext, gotTaskID uuid.UUID) (*service.Task, error) {
+			assert.Equal(t, task.PublicID, gotTaskID)
+			return &task, nil
+		}}
+		response := performTrustedTaskRequest(t, serviceStub, http.MethodDelete, "/"+teamID.String()+"/tasks/"+task.PublicID.String(), "", resolver)
 		assert.Equal(t, http.StatusOK, response.Code)
-		var got service.Task
-		require.NoError(t, json.NewDecoder(response.Body).Decode(&got))
-		assert.Equal(t, want, got)
-	})
-
-	t.Run("rejects invalid status", func(t *testing.T) {
-		response := performTaskRequest(t, teamService(), &stubTaskService{}, http.MethodPut, teamSlug+"/tasks/101", `{"description":"Fix the login bug","status":"not-real"}`, orgID.String())
-
-		assert.Equal(t, http.StatusBadRequest, response.Code)
-		assert.Equal(t, "task status is invalid\n", response.Body.String())
 	})
 }
 
-func TestDeleteTask(t *testing.T) {
-	orgID := uuid.MustParse("30ee7153-9b48-4560-8cbf-972587a60fda")
-	const (
-		teamSlug = "platform-engineering"
-		teamID   = 42
-		taskID   = 101
-	)
+func TestTaskRoutesRejectUntrustedSelectorsAndMissingJWT(t *testing.T) {
+	tokenService := service.NewTokenService("task-handler-test-secret")
+	router := chi.NewRouter()
+	router.Mount("/{team}/tasks", taskRouter(&Router{taskService: &stubTaskService{}, tokenService: tokenService, tenantResolver: stubTeamResolver{}}))
+	request := httptest.NewRequest(http.MethodGet, "/"+uuid.NewString()+"/tasks/", nil)
+	request.Header.Set("X-Org-ID", uuid.NewString())
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
 
-	teamService := func() *stubTaskTeamService {
-		return &stubTaskTeamService{
-			getTeamIDFn: func(ctx context.Context, slug, schema string) (int, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, teamSlug, slug)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				return teamID, nil
-			},
-		}
-	}
+	response = performTrustedTaskRequest(t, &stubTaskService{}, http.MethodGet, "/not-a-uuid/tasks/", "", stubTeamResolver{})
+	assert.Equal(t, http.StatusBadRequest, response.Code)
 
-	t.Run("deletes a task for the team", func(t *testing.T) {
-		want := testTask()
-		taskService := &stubTaskService{
-			deleteTaskFn: func(ctx context.Context, schema string, gotTeamID int, gotTaskID int) (*service.Task, error) {
-				require.NotNil(t, ctx)
-				assert.Equal(t, service.SchemaName(orgID), schema)
-				assert.Equal(t, teamID, gotTeamID)
-				assert.Equal(t, taskID, gotTaskID)
-				return &want, nil
-			},
-		}
+	teamID := uuid.New()
+	response = performTrustedTaskRequest(t, &stubTaskService{}, http.MethodPut, "/"+teamID.String()+"/tasks/not-a-uuid", `{}`, stubTeamResolver{})
+	assert.Equal(t, http.StatusBadRequest, response.Code)
 
-		response := performTaskRequest(t, teamService(), taskService, http.MethodDelete, teamSlug+"/tasks/101", "", orgID.String())
-
-		assert.Equal(t, http.StatusOK, response.Code)
-		var got service.Task
-		require.NoError(t, json.NewDecoder(response.Body).Decode(&got))
-		assert.Equal(t, want, got)
+	response = performTrustedTaskRequest(t, &stubTaskService{}, http.MethodGet, "/"+teamID.String()+"/tasks/", "", stubTeamResolver{
+		resolveTeamFn: func(context.Context, tenancy.OrganizationContext, uuid.UUID) (tenancy.TeamContext, error) {
+			return tenancy.TeamContext{}, tenancy.ErrTeamUnavailable
+		},
 	})
-
-	t.Run("returns service error", func(t *testing.T) {
-		taskService := &stubTaskService{
-			deleteTaskFn: func(context.Context, string, int, int) (*service.Task, error) {
-				return nil, errors.New("delete failed")
-			},
-		}
-
-		response := performTaskRequest(t, teamService(), taskService, http.MethodDelete, teamSlug+"/tasks/101", "", orgID.String())
-
-		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "failed to delete task\n", response.Body.String())
-	})
+	assert.Equal(t, http.StatusNotFound, response.Code)
 }
 
-func TestTaskRoutesRejectInvalidRequestContext(t *testing.T) {
-	orgID := uuid.MustParse("30ee7153-9b48-4560-8cbf-972587a60fda")
+func TestTaskRouteReturnsServiceErrorWithoutLeakingIt(t *testing.T) {
+	teamID := uuid.New()
+	serviceStub := &stubTaskService{getTasksFn: func(context.Context, tenancy.TeamContext) ([]service.Task, error) {
+		return nil, errors.New("database secret")
+	}}
+	response := performTrustedTaskRequest(t, serviceStub, http.MethodGet, "/"+teamID.String()+"/tasks/", "", stubTeamResolver{})
+	assert.Equal(t, http.StatusInternalServerError, response.Code)
+	assert.NotContains(t, response.Body.String(), "database secret")
 
-	t.Run("rejects a missing organization header", func(t *testing.T) {
-		response := performTaskRequest(t, &stubTaskTeamService{}, &stubTaskService{}, http.MethodGet, "platform-engineering", "", "")
-
-		assert.Equal(t, http.StatusBadRequest, response.Code)
-		assert.Equal(t, "organization id header is missing\n", response.Body.String())
-	})
-
-	t.Run("rejects an invalid organization ID", func(t *testing.T) {
-		response := performTaskRequest(t, &stubTaskTeamService{}, &stubTaskService{}, http.MethodGet, "platform-engineering", "", "not-a-uuid")
-
-		assert.Equal(t, http.StatusBadRequest, response.Code)
-		assert.Equal(t, "invalid uuid\n", response.Body.String())
-	})
-
-	t.Run("returns a team lookup error", func(t *testing.T) {
-		teamService := &stubTaskTeamService{
-			getTeamIDFn: func(context.Context, string, string) (int, error) {
-				return 0, errors.New("team not found")
-			},
-		}
-
-		response := performTaskRequest(t, teamService, &stubTaskService{}, http.MethodGet, "unknown-team", "", orgID.String())
-
-		assert.Equal(t, http.StatusInternalServerError, response.Code)
-		assert.Equal(t, "failed to get team ID\n", response.Body.String())
-	})
+	var decoded []service.Task
+	_ = json.Unmarshal(response.Body.Bytes(), &decoded)
 }

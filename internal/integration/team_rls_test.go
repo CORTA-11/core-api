@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/CORTA-11/core-api/internal/testsupport"
 	"github.com/google/uuid"
@@ -79,20 +80,15 @@ func TestRuntimeTeamRLSDefaultsToDenyAndRechecksMembership(t *testing.T) {
 		if execErr != nil {
 			return nil, execErr
 		}
-		rows, queryErr := tx.Query(ctx, `SELECT description FROM tasks ORDER BY created_at, id LIMIT 100`)
+		tasks, queryErr := tenantdb.New(tx).GetTasks(ctx, 100)
 		if queryErr != nil {
 			return nil, queryErr
 		}
-		defer rows.Close()
-		var descriptions []string
-		for rows.Next() {
-			var description string
-			if scanErr := rows.Scan(&description); scanErr != nil {
-				return nil, scanErr
-			}
-			descriptions = append(descriptions, description)
+		descriptions := make([]string, 0, len(tasks))
+		for _, task := range tasks {
+			descriptions = append(descriptions, task.Description)
 		}
-		return descriptions, rows.Err()
+		return descriptions, nil
 	}
 
 	descriptions, err := queryAsRuntime("")
