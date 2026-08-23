@@ -31,11 +31,14 @@ func TestTeamScopesAlternateAcrossOrganizationsOnOneConnection(t *testing.T) {
 	pool := openSingleConnectionPool(t)
 	executor := tenancy.NewExecutor(pool)
 
-	require.NoError(t, executor.WithinOrganization(ctx, firstOrganization, createScopedTeam(ctx, "First scope", "first-scope")))
-	require.NoError(t, executor.WithinOrganization(ctx, secondOrganization, createScopedTeam(ctx, "Second scope", "second-scope")))
-	firstTeam, err := first.resolver.ResolveTeam(ctx, firstOrganization, "first-scope")
+	var firstTeamPublicID, secondTeamPublicID uuid.UUID
+	require.NoError(t, executor.WithinOrganization(ctx, firstOrganization, createScopedTeam(ctx, "First scope", "first-scope", &firstTeamPublicID)))
+	require.NoError(t, executor.WithinOrganization(ctx, secondOrganization, createScopedTeam(ctx, "Second scope", "second-scope", &secondTeamPublicID)))
+	addTeamMembership(t, first, firstTeamPublicID)
+	addTeamMembership(t, second, secondTeamPublicID)
+	firstTeam, err := first.resolver.ResolveTeam(ctx, firstOrganization, firstTeamPublicID)
 	require.NoError(t, err)
-	secondTeam, err := second.resolver.ResolveTeam(ctx, secondOrganization, "second-scope")
+	secondTeam, err := second.resolver.ResolveTeam(ctx, secondOrganization, secondTeamPublicID)
 	require.NoError(t, err)
 	firstTeamID := lookupTeamID(t, first, "first-scope")
 	secondTeamID := lookupTeamID(t, second, "second-scope")
@@ -98,9 +101,12 @@ func addResolverFixture(t *testing.T, first resolverFixture, email string) resol
 	}
 }
 
-func createScopedTeam(ctx context.Context, name, slug string) func(*tenantdb.Queries) error {
+func createScopedTeam(ctx context.Context, name, slug string, publicID *uuid.UUID) func(*tenantdb.Queries) error {
 	return func(queries *tenantdb.Queries) error {
-		_, err := queries.CreateTeam(ctx, tenantdb.CreateTeamParams{Name: name, Slug: slug})
+		team, err := queries.CreateTeam(ctx, tenantdb.CreateTeamParams{Name: name, Slug: slug})
+		if err == nil {
+			*publicID = team.PublicID
+		}
 		return err
 	}
 }

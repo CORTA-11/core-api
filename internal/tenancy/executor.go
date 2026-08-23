@@ -122,7 +122,7 @@ func installTenantScope(
 		SELECT set_config('search_path', $1, true),
 		       set_config('app.user_id', $2, true),
 		       set_config('app.team_id', $3, true)`,
-		searchPath, strconv.FormatInt(organization.userID, 10), teamSetting); err != nil {
+		searchPath, organization.userPublicID.String(), teamSetting); err != nil {
 		return fmt.Errorf("install tenant transaction scope: %w", err)
 	}
 	return nil

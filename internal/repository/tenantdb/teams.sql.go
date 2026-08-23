@@ -7,6 +7,8 @@ package tenantdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createTeam = `-- name: CreateTeam :one
@@ -81,4 +83,31 @@ func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const resolveTeamContext = `-- name: ResolveTeamContext :one
+SELECT teams.id, teams.public_id
+FROM teams
+JOIN team_members
+  ON team_members.team_id = teams.id
+WHERE teams.public_id = $1
+  AND team_members.user_public_id = $2
+  AND NOT teams.is_quarantine
+`
+
+type ResolveTeamContextParams struct {
+	PublicID     uuid.UUID `json:"public_id"`
+	UserPublicID uuid.UUID `json:"user_public_id"`
+}
+
+type ResolveTeamContextRow struct {
+	ID       int64     `json:"id"`
+	PublicID uuid.UUID `json:"public_id"`
+}
+
+func (q *Queries) ResolveTeamContext(ctx context.Context, arg ResolveTeamContextParams) (ResolveTeamContextRow, error) {
+	row := q.db.QueryRow(ctx, resolveTeamContext, arg.PublicID, arg.UserPublicID)
+	var i ResolveTeamContextRow
+	err := row.Scan(&i.ID, &i.PublicID)
+	return i, err
 }
