@@ -103,3 +103,18 @@ func TestCheckReportsQueryName(t *testing.T) {
 		t.Fatalf("Check() issues = %v, want query name GetUsers", issues)
 	}
 }
+
+func TestCheckSchemaBoundaryRejectsProductionBypassAndAllowsOwnedPaths(t *testing.T) {
+	t.Parallel()
+	unsafe := []byte("func bypass() { tx.Exec(ctx, `SET LOCAL search_path TO org_forged`) }")
+	issues := CheckSchemaBoundary("internal/service/bypass.go", unsafe)
+	if len(issues) != 1 || !strings.Contains(issues[0].Error(), "outside the explicit allowlist") {
+		t.Fatalf("CheckSchemaBoundary() issues = %v, want one allowlist issue", issues)
+	}
+	if issues := CheckSchemaBoundary("internal/tenancy/executor.go", unsafe); len(issues) != 0 {
+		t.Fatalf("trusted executor issues = %v, want none", issues)
+	}
+	if issues := CheckSchemaBoundary("internal/testsupport/integration.go", []byte("CREATE SCHEMA fixture")); len(issues) != 0 {
+		t.Fatalf("test fixture issues = %v, want none", issues)
+	}
+}

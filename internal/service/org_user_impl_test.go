@@ -34,7 +34,6 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		defer mockPool.Close()
 
 		mockPool.ExpectBegin()
-		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
 
 		// 1. GetOrgID mock lookup
 		mockPool.ExpectQuery("(?s)GetOrgID :one.*SELECT").
@@ -68,7 +67,6 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		defer mockPool.Close()
 
 		mockPool.ExpectBegin()
-		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
 
 		// 1. GetOrgID mock lookup
 		mockPool.ExpectQuery("(?s)GetOrgID :one.*SELECT").
@@ -102,7 +100,6 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		defer mockPool.Close()
 
 		mockPool.ExpectBegin()
-		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
 
 		// 1. GetUserByID mock lookup
 		mockPool.ExpectQuery("(?s)GetUserByID :one.*SELECT").
@@ -137,7 +134,6 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		defer mockPool.Close()
 
 		mockPool.ExpectBegin()
-		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
 
 		// 1. GetOrgID mock lookup
 		mockPool.ExpectQuery("(?s)GetOrgID :one.*SELECT").
@@ -169,7 +165,6 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		defer mockPool.Close()
 
 		mockPool.ExpectBegin()
-		mockPool.ExpectExec("^SET LOCAL search_path TO public").WillReturnResult(pgxmock.NewResult("SET", 0))
 
 		// 1. GetOrgID mock lookup
 		mockPool.ExpectQuery("(?s)GetOrgID :one.*SELECT").

@@ -62,8 +62,3 @@ RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at,
           lifecycle_state, tenant_version, tenant_checksum,
           reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
           last_attempt_at, provisioned_at;
-
--- name: GetSchemaFromID :one
-SELECT schema_name
-FROM public.orgs
-WHERE id = $1;

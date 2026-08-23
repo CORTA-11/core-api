@@ -146,19 +146,6 @@ func (q *Queries) GetOrgs(ctx context.Context, limit int32) ([]Org, error) {
 	return items, nil
 }
 
-const getSchemaFromID = `-- name: GetSchemaFromID :one
-SELECT schema_name
-FROM public.orgs
-WHERE id = $1
-`
-
-func (q *Queries) GetSchemaFromID(ctx context.Context, id int64) (string, error) {
-	row := q.db.QueryRow(ctx, getSchemaFromID, id)
-	var schema_name string
-	err := row.Scan(&schema_name)
-	return schema_name, err
-}
-
 const restoreOrg = `-- name: RestoreOrg :one
 UPDATE public.orgs
 SET deleted_at = NULL, lifecycle_state = 'provisioning', reconcile_attempts = 0,

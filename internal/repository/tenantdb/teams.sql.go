@@ -62,19 +62,6 @@ func (q *Queries) CreateTeamWithCreator(ctx context.Context, arg CreateTeamWithC
 	return i, err
 }
 
-const getTeamID = `-- name: GetTeamID :one
-SELECT id
-FROM teams
-WHERE slug = $1
-`
-
-func (q *Queries) GetTeamID(ctx context.Context, slug string) (int64, error) {
-	row := q.db.QueryRow(ctx, getTeamID, slug)
-	var id int64
-	err := row.Scan(&id)
-	return id, err
-}
-
 const getTeams = `-- name: GetTeams :many
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
 FROM teams
