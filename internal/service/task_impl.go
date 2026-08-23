@@ -78,7 +78,7 @@ func (t *taskService) CreateTask(ctx context.Context, schema string, teamID int,
 	qtx := t.queries.WithTx(tx)
 
 	task, err := qtx.CreateTask(ctx, tenantdb.CreateTaskParams{
-		TeamID:      intToPgtypeInt8(teamID),
+		TeamID:      int64(teamID),
 		Description: desc,
 		Status:      status,
 	})
@@ -120,7 +120,7 @@ func (t *taskService) UpdateTask(ctx context.Context, schema string, teamID int,
 
 	task, err := qtx.UpdateTask(ctx, tenantdb.UpdateTaskParams{
 		ID:          int64(taskID),
-		TeamID:      intToPgtypeInt8(teamID),
+		TeamID:      int64(teamID),
 		Description: desc,
 		Status:      status,
 	})
@@ -151,7 +151,7 @@ func (t *taskService) DeleteTask(ctx context.Context, schema string, teamID int,
 
 	task, err := qtx.DeleteTask(ctx, tenantdb.DeleteTaskParams{
 		ID:     int64(taskID),
-		TeamID: intToPgtypeInt8(teamID),
+		TeamID: int64(teamID),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to delete task: %q", err)

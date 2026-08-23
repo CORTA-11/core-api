@@ -40,14 +40,9 @@ func IsValidTaskStatus(status string) bool {
 }
 
 func mapDBTaskToDomain(row tenantdb.Task) Task {
-	teamID := 0
-	if row.TeamID.Valid {
-		teamID = int(row.TeamID.Int64)
-	}
-
 	return Task{
 		ID:          row.ID,
-		TeamID:      teamID,
+		TeamID:      int(row.TeamID),
 		Description: row.Description,
 		Status:      row.Status,
 		CreatedAt:   row.CreatedAt,

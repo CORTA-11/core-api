@@ -106,8 +106,14 @@ func TestTenantProvisioningAdoptsVerifiedM01LedgerWithoutDataLoss(t *testing.T) 
 	id := insertOrganization(t, pool)
 	schema := tenancy.CanonicalSchema(id.String())
 	testsupport.CreateSchema(t, pool, schema)
-	testsupport.ApplyMigrations(t, "db/migrations/tenant", testsupport.DatabaseURLForSchema(t, schema))
-	_, err := pool.Exec(context.Background(), `INSERT INTO `+schema+`.teams (name, slug) VALUES ('Preserved', 'preserved')`)
+	legacyMigrator, err := migrate.New(
+		"file://"+filepath.Join(testsupport.RepositoryRoot(), "db/migrations/tenant"),
+		testsupport.DatabaseURLForSchema(t, schema),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = legacyMigrator.Close() })
+	require.NoError(t, legacyMigrator.Steps(2))
+	_, err = pool.Exec(context.Background(), `INSERT INTO `+schema+`.teams (name, slug) VALUES ('Preserved', 'preserved')`)
 	require.NoError(t, err)
 
 	result := reconciler.Reconcile(context.Background(), id)
