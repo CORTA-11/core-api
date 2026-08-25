@@ -200,7 +200,7 @@ remain stable through the tenancy-owned storage-scope helper.
 
 **Pull request:** [#26](https://github.com/CORTA-11/core-api/pull/26)
 
-**Merge commit:** _pending_
+**Merge commit:** `ecb962c`
 
 **Branch commits:**
 

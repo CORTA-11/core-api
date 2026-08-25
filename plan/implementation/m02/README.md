@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `active` |
+| Status | `complete` |
 | Milestone | [M02 — Trusted tenant boundary](../../milestones/m02-trusted-tenant-boundary.md) |
 | Predecessor | [M01 — Reproducible baseline](../../milestones/m01-reproducible-baseline.md), merged in PR #21 at `f2ee418` |
 | Planning branch | `docs/m02-test-driven-handoff` |
@@ -74,10 +74,10 @@ from multiple deliverables in one branch.
 - `X-Org-ID` may remain through D04 only as an organization public-ID selector;
   it is never trusted as a schema or authorization assertion.
 
-D04 implementation is complete on `security/m02-d04-team-rls` through
-`62cd6e2` in [PR #26](https://github.com/CORTA-11/core-api/pull/26); its merge
-commit remains pending. The package and M02 milestone stay active because D05
-still owns the final adversarial and stress-suite evidence.
+D04 implementation is complete through `62cd6e2` and merged in
+[PR #26](https://github.com/CORTA-11/core-api/pull/26) at `ecb962c`. D05 completes
+the package in [PR #27](https://github.com/CORTA-11/core-api/pull/27) through
+`bd60779`; its merge commit remains pending while the prepared PR is reviewed.
 
 ## Documentation and completion discipline
 

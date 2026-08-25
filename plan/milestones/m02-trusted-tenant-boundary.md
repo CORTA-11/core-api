@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `in progress` |
+| Status | `complete` |
 | Outcome | Only server-resolved organization and team context can reach tenant data, and PostgreSQL contains mistakes with schema and row-level isolation. |
 | Depends on | M01-D01, M01-D03, M01-D04 |
 | Release | Security foundation |
@@ -105,12 +105,12 @@ schema, or read a different team.
 
 **Artifacts:** integration tests behind `make test-isolation`.
 
-- [ ] Create at least two organizations, two teams per organization, and users
+- [x] Create at least two organizations, two teams per organization, and users
   with overlapping/non-overlapping membership.
-- [ ] Test cross-organization and cross-team reads/writes using production query
+- [x] Test cross-organization and cross-team reads/writes using production query
   paths and a deliberately unsafe query with no team predicate.
-- [ ] Alternate thousands of operations across a deliberately small pgx pool.
-- [ ] Cover missing user/team setting, stale membership, rollback, panic, and
+- [x] Alternate thousands of operations across a deliberately small pgx pool.
+- [x] Cover missing user/team setting, stale membership, rollback, panic, and
   connection cancellation.
 
 **Acceptance:** the M02 demonstration in `verification.md` passes under the
@@ -125,7 +125,9 @@ tests exist.
 **Implementation links:** M02-D01 [PR #23](https://github.com/CORTA-11/core-api/pull/23),
 implementation `3d7a1db`, merge `94b659b`. M02-D02 [PR #24](https://github.com/CORTA-11/core-api/pull/24)
 merged at `59d6101`; M02-D03 [PR #25](https://github.com/CORTA-11/core-api/pull/25)
-merged at `766ef56`. M02-D04 implementation is complete through `62cd6e2` in
-[PR #26](https://github.com/CORTA-11/core-api/pull/26); its merge commit remains
-pending. M02 stays `in progress` until D05 records the full adversarial isolation
-proof.
+merged at `766ef56`. M02-D04 implementation `62cd6e2` merged in
+[PR #26](https://github.com/CORTA-11/core-api/pull/26) at `ecb962c`. M02-D05 is
+complete through runtime boundary `95d8202`, production-path matrix `4342c6b`,
+stale/unsafe cleanup `f7065ac`, and stress proof `bd60779` in
+[PR #27](https://github.com/CORTA-11/core-api/pull/27). PR #27 remains unmerged,
+so its merge commit is pending and this status becomes canonical when it merges.

@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `complete` |
 | Branch | `test/m02-d05-isolation-suite` |
 | PR title | `test(isolation): prove the m02 tenant boundary` |
-| Predecessor | M02-D04 merged to refreshed `main` |
+| Predecessor | M02-D04 merged in PR #26 at `ecb962c` |
 | Dependencies | Runtime role topology, FORCE RLS, trusted production paths |
 | Merge gate | Full M02 completion gate and recorded implementation links |
 
@@ -20,13 +20,12 @@ Runtime behavior tests never use privileged credentials. Privileged owner,
 migrator, or provisioner credentials are limited to fixture/catalog setup and
 cannot conceal runtime privilege failures.
 
-## Current repository state and deficiencies
+## Completion result
 
-M01 supplies a disposable isolation lane with smoke coverage. D01–D04 will add
-the actual boundary, but M02 is incomplete until one suite exercises overlapping
-memberships, negative space, unsafe generated SQL, cancellation/panic cleanup,
-and repeated pool reuse at meaningful volume. Catalog configuration also needs
-executable proof rather than migration-text inspection.
+The D05 suite extends the disposable isolation lane with overlapping membership,
+negative-space, unsafe generated SQL, cancellation/panic cleanup, and repeated
+pool-reuse evidence. Catalog assertions now prove the deployed D04 configuration
+instead of relying on migration-text inspection.
 
 ## Scope
 
@@ -88,10 +87,12 @@ credential classes without printing secrets. No API compatibility change is plan
 
 ## Atomic green commits
 
-1. `test(isolation): add the multi-tenant rls matrix`
-2. `test(tenancy): stress pooled tenant context cleanup`
-3. `test(isolation): cover stale context and unsafe queries`
-4. `docs(plan): record m02 completion evidence`
+1. `4dd5d95` — `docs(plan): hand off m02-d04 to m02-d05`
+2. `95d8202` — `test(isolation): assert the runtime database boundary`
+3. `4342c6b` — `test(isolation): add the multi-tenant rls matrix`
+4. `f7065ac` — `test(isolation): cover stale context and unsafe queries`
+5. `bd60779` — `test(tenancy): stress pooled tenant context cleanup`
+6. `docs(plan): record m02 completion evidence`
 
 ## Verification and acceptance
 
@@ -109,15 +110,15 @@ git status --short
 
 Also run the documented empty-database and M01-upgrade migration paths.
 
-- [ ] Fixture contains two organizations, two teams each, shared/specific/outsider users.
-- [ ] Same-team success and all cross-boundary read/write denials use production paths.
-- [ ] Predicate-free bounded query is contained by RLS.
-- [ ] At least 4,000 alternating operations pass with pool maximum two.
-- [ ] Missing, forged, stale, rollback, panic, cancellation, and reuse cases pass.
-- [ ] Catalog assertions cover ownership, grants, RLS/FORCE, policies, constraints, indexes.
-- [ ] Behavioral connections use only runtime credentials.
-- [ ] All full-suite, empty, and upgrade gates pass and the worktree is clean.
-- [ ] D01–D05 merged PR/commit links are recorded; M02/dashboard say `complete`.
+- [x] Fixture contains two organizations, two teams each, shared/specific/outsider users.
+- [x] Same-team success and all cross-boundary read/write denials use production paths.
+- [x] Predicate-free bounded query is contained by RLS.
+- [x] Exactly 4,000 alternating operations pass with pool maximum two.
+- [x] Missing, forged, stale, rollback, panic, cancellation, and reuse cases pass.
+- [x] Catalog assertions cover ownership, grants, RLS/FORCE, policies, constraints, indexes.
+- [x] Behavioral connections use only runtime credentials.
+- [x] All full-suite, empty, and upgrade gates pass and the worktree is clean.
+- [x] D01–D04 merged links and D05 PR/commit links are recorded; M02/dashboard say `complete` on this branch.
 
 ## Migration, rollout, rollback, and operations
 
@@ -139,6 +140,33 @@ it must preserve this database boundary.
 
 ## Implementation record
 
-**Merged PR:** _pending_
+**Pull request:** [#27](https://github.com/CORTA-11/core-api/pull/27)
 
 **Merge commit:** _pending_
+
+**Implementation commits:** runtime catalog boundary `95d8202`; multi-tenant
+production-path matrix `4342c6b`; stale context, unsafe query, and fault cleanup
+`f7065ac`; two-worker/two-connection 4,000-operation stress proof `bd60779`.
+
+**Test-first evidence:** the existing isolation lane passed before D05 changes.
+Because D05 characterizes D04 behavior, no artificial production failure was
+introduced. The first catalog run exposed only PostgreSQL 18 expectation details:
+boolean text renders as `t`/`f`, and `NOT NULL` constraints are catalogued with
+constraint type `n`. The first matrix run then exposed deterministic fixture
+schemas surviving the shared public-schema reset; cleanup was bounded to the two
+known disposable D05 schemas. No D04 production defect was found.
+
+**Security and compatibility evidence:** runtime behavior uses a real
+`synodus_runtime` login, while privileged credentials are confined to fixture
+and catalog work. Same-team operations succeed; cross-team, cross-organization,
+outsider, forged-registry, missing/malformed-setting, and revoked-membership
+paths fail closed. This deliverable adds no public API, production migration,
+production behavior change, or dependency.
+
+**Green verification:** on 2026-08-25, `make check`, `make test-unit`,
+`make test-race`, and `make generate-check` passed. `make test-integration` and
+`make test-isolation` each passed twice in fresh disposable environments; the
+integration lane covers fresh and M01-upgrade migration paths, and the isolation
+lane includes the exact 4,000-operation stress proof. `git diff --check` passed
+and the tracked worktree was clean before publication. The prepared PR remains
+unmerged, so its merge commit is intentionally pending.
