@@ -8,7 +8,7 @@ in the linked milestone files.
 | Milestone | Status | Merge-sized deliverables | Release result |
 | --- | --- | ---: | --- |
 | [M01 — Reproducible baseline](milestones/m01-reproducible-baseline.md) | `complete` | 5 | Reliable local/CI development loop |
-| [M02 — Trusted tenant boundary](milestones/m02-trusted-tenant-boundary.md) | `in progress` | 5 | Database-enforced organization/team isolation |
+| [M02 — Trusted tenant boundary](milestones/m02-trusted-tenant-boundary.md) | `complete` | 5 | Database-enforced organization/team isolation |
 | [M03 — Identity, authorization, and API](milestones/m03-identity-authorization-api.md) | `not started` | 6 | Authenticated, default-deny `/api/v1` contract |
 | [M04 — Team and task reference slice](milestones/m04-team-task-slice.md) | `not started` | 6 | Complete concurrent Kanban backend slice |
 | [M05 — Files, events, and operations](milestones/m05-files-events-operations.md) | `not started` | 7 | Core backend release |
@@ -17,8 +17,9 @@ in the linked milestone files.
 | [M08 — Authorization-aware AI](milestones/m08-authorization-aware-ai.md) | `not started` | 5 | Optional, controlled AI capabilities |
 
 `M01` completed in [PR #21](https://github.com/CORTA-11/core-api/pull/21) at
-merge commit `f2ee418`. `M02` is in progress under its linked implementation
-package; deliverables must merge in order.
+merge commit `f2ee418`. `M02` implementation is complete in prepared
+[PR #27](https://github.com/CORTA-11/core-api/pull/27); the status becomes
+canonical when that PR merges, and its merge commit remains pending.
 
 ## Dependency and release cuts
 
