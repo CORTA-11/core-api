@@ -76,8 +76,8 @@ from multiple deliverables in one branch.
 
 D04 implementation is complete through `62cd6e2` and merged in
 [PR #26](https://github.com/CORTA-11/core-api/pull/26) at `ecb962c`. D05 completes
-the package in [PR #27](https://github.com/CORTA-11/core-api/pull/27) through
-`bd60779`; its merge commit remains pending while the prepared PR is reviewed.
+the package through `bd60779`, merged in
+[PR #27](https://github.com/CORTA-11/core-api/pull/27) at `56d0a6d`.
 
 ## Documentation and completion discipline
 

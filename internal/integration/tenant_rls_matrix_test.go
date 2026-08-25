@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestM02D05MultiTenantRLSMatrix(t *testing.T) {
-	fixture := newD05Fixture(t)
+func TestTenantRLSMatrix(t *testing.T) {
+	fixture := newTenantBoundaryFixture(t)
 	ctx := context.Background()
 	alpha := fixture.orgs[0]
 	beta := fixture.orgs[1]
@@ -119,10 +119,10 @@ func TestM02D05MultiTenantRLSMatrix(t *testing.T) {
 
 	assertPrivilegedTask(t, fixture, alpha, alpha.teams[1].taskID, alpha.teams[1].slug+" initial task", "todo")
 	assertPrivilegedTask(t, fixture, beta, beta.teams[0].taskID, beta.teams[0].slug+" initial task", "todo")
-	assertD05PoolClean(t, fixture.runtimePool)
+	assertRuntimePoolClean(t, fixture.runtimePool)
 }
 
-func assertTaskScope(t *testing.T, fixture *d05Fixture, team tenancy.TeamContext, wantTask uuid.UUID) {
+func assertTaskScope(t *testing.T, fixture *tenantBoundaryFixture, team tenancy.TeamContext, wantTask uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
 	tasks, err := fixture.taskService.GetTasks(ctx, team)
@@ -142,8 +142,8 @@ func assertTaskScope(t *testing.T, fixture *d05Fixture, team tenancy.TeamContext
 
 func assertPrivilegedTask(
 	t *testing.T,
-	fixture *d05Fixture,
-	organization d05Organization,
+	fixture *tenantBoundaryFixture,
+	organization tenantBoundaryOrganization,
 	publicID uuid.UUID,
 	wantDescription string,
 	wantStatus string,

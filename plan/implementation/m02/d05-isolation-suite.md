@@ -142,7 +142,7 @@ it must preserve this database boundary.
 
 **Pull request:** [#27](https://github.com/CORTA-11/core-api/pull/27)
 
-**Merge commit:** _pending_
+**Merge commit:** `56d0a6d`
 
 **Implementation commits:** runtime catalog boundary `95d8202`; multi-tenant
 production-path matrix `4342c6b`; stale context, unsafe query, and fault cleanup
@@ -168,5 +168,5 @@ production behavior change, or dependency.
 `make test-isolation` each passed twice in fresh disposable environments; the
 integration lane covers fresh and M01-upgrade migration paths, and the isolation
 lane includes the exact 4,000-operation stress proof. `git diff --check` passed
-and the tracked worktree was clean before publication. The prepared PR remains
-unmerged, so its merge commit is intentionally pending.
+and the tracked worktree was clean before publication. The work merged in PR #27
+at `56d0a6d`.

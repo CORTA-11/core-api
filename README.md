@@ -135,9 +135,10 @@ divergence fails immediately and requires operator repair followed by `retry`.
 
 Apply public migrations before deploying a new API/provisioner. Stop the old
 provisioner before starting a binary with a different embedded migration set.
-Before proceeding to M02-D03, require `provisioner status --all` to report
-`"current":true` for every non-deleting organization. Back up the public
-registry before first adopting an existing M01 fleet.
+Before deploying application code that depends on the new tenant migration set,
+require `provisioner status --all` to report `"current":true` for every
+non-deleting organization. Back up the public registry before first adopting an
+existing legacy tenant fleet.
 
 ## File storage
 

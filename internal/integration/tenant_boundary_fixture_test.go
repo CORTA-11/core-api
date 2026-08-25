@@ -19,30 +19,30 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const d05RuntimePassword = "m02-d05-runtime-password"
+const runtimePoolPassword = "tenant-boundary-runtime-password"
 
-type d05UserSet struct {
+type tenantBoundaryUserSet struct {
 	shared   uuid.UUID
 	alpha    uuid.UUID
 	beta     uuid.UUID
 	outsider uuid.UUID
 }
 
-type d05Team struct {
+type tenantBoundaryTeam struct {
 	id       int64
 	publicID uuid.UUID
 	slug     string
 	taskID   uuid.UUID
 }
 
-type d05Organization struct {
+type tenantBoundaryOrganization struct {
 	id       int64
 	publicID uuid.UUID
 	schema   string
-	teams    [2]d05Team
+	teams    [2]tenantBoundaryTeam
 }
 
-type d05Fixture struct {
+type tenantBoundaryFixture struct {
 	adminPool   *pgxpool.Pool
 	runtimePool *pgxpool.Pool
 	source      tenancy.MigrationSet
@@ -50,11 +50,11 @@ type d05Fixture struct {
 	executor    *tenancy.Executor
 	teamService service.TeamService
 	taskService service.TaskService
-	users       d05UserSet
-	orgs        [2]d05Organization
+	users       tenantBoundaryUserSet
+	orgs        [2]tenantBoundaryOrganization
 }
 
-func newD05Fixture(t *testing.T) *d05Fixture {
+func newTenantBoundaryFixture(t *testing.T) *tenantBoundaryFixture {
 	t.Helper()
 	ctx := context.Background()
 	organizationIDs := [2]uuid.UUID{
@@ -73,32 +73,32 @@ func newD05Fixture(t *testing.T) *d05Fixture {
 	testsupport.ApplyMigrations(t, "db/migrations/public", databaseURL)
 	require.NoError(t, dbroles.Configure(ctx, dbroles.Config{
 		BootstrapDatabaseURL: databaseURL,
-		RuntimePassword:      d05RuntimePassword,
-		MigratorPassword:     "m02-d05-migrator-password",
-		ProvisionerPassword:  "m02-d05-provisioner-password",
+		RuntimePassword:      runtimePoolPassword,
+		MigratorPassword:     "tenant-boundary-migrator-password",
+		ProvisionerPassword:  "tenant-boundary-provisioner-password",
 	}))
 
 	source, err := tenancy.EmbeddedMigrations()
 	require.NoError(t, err)
-	fixture := &d05Fixture{
+	fixture := &tenantBoundaryFixture{
 		adminPool: adminPool,
 		source:    source,
-		users: d05UserSet{
+		users: tenantBoundaryUserSet{
 			shared:   uuid.MustParse("20000000-0000-4000-8000-000000000001"),
 			alpha:    uuid.MustParse("20000000-0000-4000-8000-000000000002"),
 			beta:     uuid.MustParse("20000000-0000-4000-8000-000000000003"),
 			outsider: uuid.MustParse("20000000-0000-4000-8000-000000000004"),
 		},
-		orgs: [2]d05Organization{
+		orgs: [2]tenantBoundaryOrganization{
 			{publicID: organizationIDs[0]},
 			{publicID: organizationIDs[1]},
 		},
 	}
-	fixture.orgs[0].teams = [2]d05Team{
+	fixture.orgs[0].teams = [2]tenantBoundaryTeam{
 		{publicID: uuid.MustParse("30000000-0000-4000-8000-000000000001"), slug: "alpha-one", taskID: uuid.MustParse("40000000-0000-4000-8000-000000000001")},
 		{publicID: uuid.MustParse("30000000-0000-4000-8000-000000000002"), slug: "alpha-two", taskID: uuid.MustParse("40000000-0000-4000-8000-000000000002")},
 	}
-	fixture.orgs[1].teams = [2]d05Team{
+	fixture.orgs[1].teams = [2]tenantBoundaryTeam{
 		{publicID: uuid.MustParse("30000000-0000-4000-8000-000000000003"), slug: "beta-one", taskID: uuid.MustParse("40000000-0000-4000-8000-000000000003")},
 		{publicID: uuid.MustParse("30000000-0000-4000-8000-000000000004"), slug: "beta-two", taskID: uuid.MustParse("40000000-0000-4000-8000-000000000004")},
 	}
@@ -106,7 +106,7 @@ func newD05Fixture(t *testing.T) *d05Fixture {
 	fixture.insertUsers(t)
 	fixture.insertOrganizations(t)
 	fixture.insertTenantData(t)
-	fixture.runtimePool = openD05RuntimePool(t, databaseURL)
+	fixture.runtimePool = openRuntimePool(t, databaseURL)
 	fixture.resolver = tenancy.NewResolver(fixture.runtimePool, source)
 	fixture.executor = tenancy.NewExecutor(fixture.runtimePool)
 	fixture.teamService = service.NewTeamService(fixture.executor)
@@ -114,17 +114,17 @@ func newD05Fixture(t *testing.T) *d05Fixture {
 	return fixture
 }
 
-func (fixture *d05Fixture) insertUsers(t *testing.T) {
+func (fixture *tenantBoundaryFixture) insertUsers(t *testing.T) {
 	t.Helper()
 	users := []struct {
 		publicID uuid.UUID
 		email    string
 		name     string
 	}{
-		{fixture.users.shared, "shared@m02-d05.example.test", "Shared User"},
-		{fixture.users.alpha, "alpha@m02-d05.example.test", "Alpha User"},
-		{fixture.users.beta, "beta@m02-d05.example.test", "Beta User"},
-		{fixture.users.outsider, "outsider@m02-d05.example.test", "Outsider"},
+		{fixture.users.shared, "shared@tenant-boundary.example.test", "Shared User"},
+		{fixture.users.alpha, "alpha@tenant-boundary.example.test", "Alpha User"},
+		{fixture.users.beta, "beta@tenant-boundary.example.test", "Beta User"},
+		{fixture.users.outsider, "outsider@tenant-boundary.example.test", "Outsider"},
 	}
 	for _, user := range users {
 		_, err := fixture.adminPool.Exec(context.Background(), `
@@ -134,7 +134,7 @@ func (fixture *d05Fixture) insertUsers(t *testing.T) {
 	}
 }
 
-func (fixture *d05Fixture) insertOrganizations(t *testing.T) {
+func (fixture *tenantBoundaryFixture) insertOrganizations(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
 	for index := range fixture.orgs {
@@ -145,7 +145,7 @@ func (fixture *d05Fixture) insertOrganizations(t *testing.T) {
 				public_id, name, schema_name, lifecycle_state, tenant_version,
 				tenant_checksum, provisioned_at
 			) VALUES ($1, $2, $3, 'active', $4, $5, now())
-			RETURNING id`, organization.publicID, fmt.Sprintf("D05 Organization %d", index+1),
+			RETURNING id`, organization.publicID, fmt.Sprintf("Tenant Boundary Organization %d", index+1),
 			organization.schema, fixture.source.Version, fixture.source.Checksum).Scan(&organization.id))
 		testsupport.CreateSchema(t, fixture.adminPool, organization.schema)
 		testsupport.ApplyMigrations(t, "db/migrations/tenant", testsupport.DatabaseURLForSchema(t, organization.schema))
@@ -169,7 +169,7 @@ func (fixture *d05Fixture) insertOrganizations(t *testing.T) {
 	}
 }
 
-func (fixture *d05Fixture) insertTenantData(t *testing.T) {
+func (fixture *tenantBoundaryFixture) insertTenantData(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
 	for organizationIndex := range fixture.orgs {
@@ -185,7 +185,7 @@ func (fixture *d05Fixture) insertTenantData(t *testing.T) {
 			team := &organization.teams[teamIndex]
 			require.NoError(t, fixture.adminPool.QueryRow(ctx, `INSERT INTO `+teamsTable+`
 				(public_id, name, slug) VALUES ($1, $2, $3) RETURNING id`,
-				team.publicID, fmt.Sprintf("D05 Team %d-%d", organizationIndex+1, teamIndex+1), team.slug).Scan(&team.id))
+				team.publicID, fmt.Sprintf("Tenant Boundary Team %d-%d", organizationIndex+1, teamIndex+1), team.slug).Scan(&team.id))
 			for _, user := range []uuid.UUID{fixture.users.shared, organizationUser} {
 				_, err := fixture.adminPool.Exec(ctx, `INSERT INTO `+membersTable+`
 					(team_id, user_public_id, role) VALUES ($1, $2, 'viewer')`, team.id, user)
@@ -199,12 +199,12 @@ func (fixture *d05Fixture) insertTenantData(t *testing.T) {
 	}
 }
 
-func openD05RuntimePool(t *testing.T, databaseURL string) *pgxpool.Pool {
+func openRuntimePool(t *testing.T, databaseURL string) *pgxpool.Pool {
 	t.Helper()
 	config, err := pgxpool.ParseConfig(databaseURL)
 	require.NoError(t, err)
 	config.ConnConfig.User = "synodus_runtime"
-	config.ConnConfig.Password = d05RuntimePassword
+	config.ConnConfig.Password = runtimePoolPassword
 	config.MaxConns = 2
 	runtimePool, err := pgxpool.NewWithConfig(context.Background(), config)
 	require.NoError(t, err)
@@ -213,10 +213,10 @@ func openD05RuntimePool(t *testing.T, databaseURL string) *pgxpool.Pool {
 	return runtimePool
 }
 
-func (fixture *d05Fixture) resolveOrganization(
+func (fixture *tenantBoundaryFixture) resolveOrganization(
 	t *testing.T,
 	user uuid.UUID,
-	organization d05Organization,
+	organization tenantBoundaryOrganization,
 ) tenancy.OrganizationContext {
 	t.Helper()
 	resolved, err := fixture.resolver.ResolveOrganization(context.Background(), user, organization.publicID)
@@ -224,11 +224,11 @@ func (fixture *d05Fixture) resolveOrganization(
 	return resolved
 }
 
-func (fixture *d05Fixture) resolveTeam(
+func (fixture *tenantBoundaryFixture) resolveTeam(
 	t *testing.T,
 	user uuid.UUID,
-	organization d05Organization,
-	team d05Team,
+	organization tenantBoundaryOrganization,
+	team tenantBoundaryTeam,
 ) tenancy.TeamContext {
 	t.Helper()
 	resolvedOrganization := fixture.resolveOrganization(t, user, organization)
@@ -237,7 +237,7 @@ func (fixture *d05Fixture) resolveTeam(
 	return resolvedTeam
 }
 
-func assertD05PoolClean(t *testing.T, pool *pgxpool.Pool) {
+func assertRuntimePoolClean(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	connections := pool.AcquireAllIdle(context.Background())
 	require.Len(t, connections, int(pool.Stat().TotalConns()))

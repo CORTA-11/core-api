@@ -17,9 +17,8 @@ in the linked milestone files.
 | [M08 — Authorization-aware AI](milestones/m08-authorization-aware-ai.md) | `not started` | 5 | Optional, controlled AI capabilities |
 
 `M01` completed in [PR #21](https://github.com/CORTA-11/core-api/pull/21) at
-merge commit `f2ee418`. `M02` implementation is complete in prepared
-[PR #27](https://github.com/CORTA-11/core-api/pull/27); the status becomes
-canonical when that PR merges, and its merge commit remains pending.
+merge commit `f2ee418`. `M02` completed in
+[PR #27](https://github.com/CORTA-11/core-api/pull/27) at merge commit `56d0a6d`.
 
 ## Dependency and release cuts
 

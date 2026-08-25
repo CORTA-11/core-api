@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestM02D05RuntimeDatabaseBoundary(t *testing.T) {
-	fixture := newD05Fixture(t)
+func TestRuntimeDatabaseBoundary(t *testing.T) {
+	fixture := newTenantBoundaryFixture(t)
 	ctx := context.Background()
 
 	var sessionUser, currentUser string
@@ -66,7 +66,7 @@ func TestM02D05RuntimeDatabaseBoundary(t *testing.T) {
 	fixture.assertRuntimeDenials(t)
 }
 
-func (fixture *d05Fixture) assertPublicCatalog(t *testing.T) {
+func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 	t.Helper()
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', tablename, tableowner)
@@ -95,7 +95,7 @@ func (fixture *d05Fixture) assertPublicCatalog(t *testing.T) {
 	}
 }
 
-func (fixture *d05Fixture) assertTenantCatalog(t *testing.T, organization d05Organization) {
+func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organization tenantBoundaryOrganization) {
 	t.Helper()
 	schema := organization.schema
 	assertCatalogRows(t, fixture, `
@@ -201,7 +201,7 @@ func (fixture *d05Fixture) assertTenantCatalog(t *testing.T, organization d05Org
 	assert.Equal(t, "NO", teamIDNullable)
 }
 
-func (fixture *d05Fixture) assertSchemaPrivileges(t *testing.T, schema string) {
+func (fixture *tenantBoundaryFixture) assertSchemaPrivileges(t *testing.T, schema string) {
 	t.Helper()
 	var usage, createPrivilege bool
 	require.NoError(t, fixture.adminPool.QueryRow(context.Background(), `
@@ -211,7 +211,7 @@ func (fixture *d05Fixture) assertSchemaPrivileges(t *testing.T, schema string) {
 	assert.False(t, createPrivilege, schema)
 }
 
-func (fixture *d05Fixture) assertSequencePrivileges(
+func (fixture *tenantBoundaryFixture) assertSequencePrivileges(
 	t *testing.T,
 	schema string,
 	sequence string,
@@ -231,7 +231,7 @@ func (fixture *d05Fixture) assertSequencePrivileges(
 	assert.Equal(t, wantUpdate, update, qualified)
 }
 
-func (fixture *d05Fixture) assertRuntimeDenials(t *testing.T) {
+func (fixture *tenantBoundaryFixture) assertRuntimeDenials(t *testing.T) {
 	t.Helper()
 	ctx := context.Background()
 	_, err := fixture.runtimePool.Exec(ctx, `SELECT version FROM public.schema_migrations`)
@@ -241,7 +241,7 @@ func (fixture *d05Fixture) assertRuntimeDenials(t *testing.T) {
 		_, err = fixture.runtimePool.Exec(ctx, `SELECT version FROM `+ledger)
 		assert.Error(t, err, organization.schema)
 	}
-	_, err = fixture.runtimePool.Exec(ctx, `CREATE SCHEMA d05_runtime_must_not_create`)
+	_, err = fixture.runtimePool.Exec(ctx, `CREATE SCHEMA tenant_boundary_runtime_must_not_create`)
 	assert.Error(t, err)
 	_, err = fixture.runtimePool.Exec(ctx, `SET ROLE synodus_owner`)
 	assert.Error(t, err)
@@ -255,11 +255,11 @@ const runtimeTableGrantsSQL = `
 	WHERE grantee = 'synodus_runtime' AND table_schema = ANY($1)
 	ORDER BY table_schema, table_name, privilege_type`
 
-func (fixture *d05Fixture) schemaNamesWithPublic() []string {
+func (fixture *tenantBoundaryFixture) schemaNamesWithPublic() []string {
 	return []string{"public", fixture.orgs[0].schema, fixture.orgs[1].schema}
 }
 
-func assertCatalogRows(t *testing.T, fixture *d05Fixture, query string, arguments []any, want []string) {
+func assertCatalogRows(t *testing.T, fixture *tenantBoundaryFixture, query string, arguments []any, want []string) {
 	t.Helper()
 	rows, err := fixture.adminPool.Query(context.Background(), query, arguments...)
 	require.NoError(t, err)

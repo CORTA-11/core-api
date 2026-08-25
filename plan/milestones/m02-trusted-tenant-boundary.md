@@ -129,5 +129,4 @@ merged at `766ef56`. M02-D04 implementation `62cd6e2` merged in
 [PR #26](https://github.com/CORTA-11/core-api/pull/26) at `ecb962c`. M02-D05 is
 complete through runtime boundary `95d8202`, production-path matrix `4342c6b`,
 stale/unsafe cleanup `f7065ac`, and stress proof `bd60779` in
-[PR #27](https://github.com/CORTA-11/core-api/pull/27). PR #27 remains unmerged,
-so its merge commit is pending and this status becomes canonical when it merges.
+[PR #27](https://github.com/CORTA-11/core-api/pull/27), merged at `56d0a6d`.

@@ -10,8 +10,9 @@ import (
 var ErrInvalidStorageName = errors.New("invalid storage object name")
 
 // StorageObjectKey is the only compatibility bridge from opaque trusted team
-// scope to the pre-D04 MinIO layout. It deliberately exposes only the complete
-// key, never the internal relational team identifier.
+// scope to the MinIO layout whose team segment uses a numeric database ID. It
+// deliberately exposes only the complete key, never the internal relational
+// team identifier.
 func StorageObjectKey(team TeamContext, fileName string) (string, error) {
 	if team.validate() != nil {
 		return "", ErrInvalidContext

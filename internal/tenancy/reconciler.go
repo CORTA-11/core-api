@@ -81,7 +81,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, publicID uuid.UUID) Result {
 	alreadyCurrent := org.LifecycleState == StateActive && org.TenantVersion == r.source.Version && org.TenantChecksum == r.source.Checksum
 	if alreadyCurrent {
 		// Registry metadata alone cannot prove that the tenant ledger or verified
-		// M01 catalog baseline was not altered out of band.
+		// base catalog was not altered out of band.
 		if err := r.prepareAndValidateLedger(ctx, conn, org); err != nil {
 			return r.failureResult(ctx, result, org.ReconcileAttempts, err)
 		}
@@ -176,7 +176,7 @@ func (r *Reconciler) prepareAndValidateLedger(ctx context.Context, conn *pgxpool
 		return err
 	}
 	adoptedLegacy := false
-	// Only an empty schema, the exact M01 golang-migrate ledger, or the current
+	// Only an empty schema, the exact legacy golang-migrate ledger, or the current
 	// checksum ledger is recognized. Unknown layouts fail closed rather than
 	// guessing which migrations are safe to replay.
 	switch {
@@ -220,7 +220,7 @@ func (r *Reconciler) prepareAndValidateLedger(ctx context.Context, conn *pgxpool
 	} else if ledgerVersion != org.TenantVersion {
 		return permanent("registry_ledger_divergence", "tenant registry version differs from its migration ledger")
 	}
-	if err := validateM01Catalog(ctx, tx, org.SchemaName, ledgerVersion); err != nil {
+	if err := validateBaseCatalog(ctx, tx, org.SchemaName, ledgerVersion); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -281,14 +281,14 @@ func (r *Reconciler) adoptLegacy(ctx context.Context, tx pgx.Tx, schema string) 
 	if dirty {
 		return permanent("legacy_migration_dirty", "legacy tenant migration ledger is dirty")
 	}
-	const m01Version = int64(2)
-	if version != m01Version || r.source.Version < m01Version {
+	const baseCatalogVersion = int64(2)
+	if version != baseCatalogVersion || r.source.Version < baseCatalogVersion {
 		return permanent("legacy_version_divergence", "legacy tenant schema is partial, unknown, or ahead of source")
 	}
 	// The old ledger has no checksums, so adoption is permitted only for the one
-	// known M01 endpoint after its concrete catalog shape has been verified.
-	if err := validateM01Catalog(ctx, tx, schema, version); err != nil {
-		return permanent("legacy_catalog_divergence", "legacy tenant catalog does not match the verified M01 layout")
+	// known base version after its concrete catalog shape has been verified.
+	if err := validateBaseCatalog(ctx, tx, schema, version); err != nil {
+		return permanent("legacy_catalog_divergence", "legacy tenant catalog does not match the verified base layout")
 	}
 	if _, err := tx.Exec(ctx, `DROP TABLE schema_migrations`); err != nil {
 		return fmt.Errorf("replace legacy migration ledger: %w", err)
@@ -307,8 +307,8 @@ func (r *Reconciler) adoptLegacy(ctx context.Context, tx pgx.Tx, schema string) 
 	return nil
 }
 
-func validateM01Catalog(ctx context.Context, tx pgx.Tx, schema string, version int64) error {
-	// This is deliberately a compatibility check for the fixed M01 baseline. For
+func validateBaseCatalog(ctx context.Context, tx pgx.Tx, schema string, version int64) error {
+	// This is deliberately a compatibility check for the fixed base catalog. For
 	// later migrations, the ledger proves migration-source identity; it does not
 	// claim to detect arbitrary out-of-band DDL changes.
 	if version < 0 {

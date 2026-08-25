@@ -15,14 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestM02D05PredicateFreeQueryAndUnsafeSettingsDefaultToDeny(t *testing.T) {
-	fixture := newD05Fixture(t)
+func TestTenantBoundaryPredicateFreeQueryAndUnsafeSettingsDefaultToDeny(t *testing.T) {
+	fixture := newTenantBoundaryFixture(t)
 	ctx := context.Background()
 
 	for _, scope := range []struct {
 		name         string
-		organization d05Organization
-		team         d05Team
+		organization tenantBoundaryOrganization
+		team         tenantBoundaryTeam
 	}{
 		{"alpha one", fixture.orgs[0], fixture.orgs[0].teams[0]},
 		{"alpha two", fixture.orgs[0], fixture.orgs[0].teams[1]},
@@ -66,13 +66,13 @@ func TestM02D05PredicateFreeQueryAndUnsafeSettingsDefaultToDeny(t *testing.T) {
 				require.NoError(t, err)
 				assert.Empty(t, tasks)
 			}
-			assertD05PoolClean(t, fixture.runtimePool)
+			assertRuntimePoolClean(t, fixture.runtimePool)
 		})
 	}
 }
 
-func TestM02D05RejectsForgedRegistryAndRechecksRevokedMembership(t *testing.T) {
-	fixture := newD05Fixture(t)
+func TestTenantBoundaryRejectsForgedRegistryAndRechecksRevokedMembership(t *testing.T) {
+	fixture := newTenantBoundaryFixture(t)
 	ctx := context.Background()
 	alpha := fixture.orgs[0]
 	team := alpha.teams[0]
@@ -110,18 +110,18 @@ func TestM02D05RejectsForgedRegistryAndRechecksRevokedMembership(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, team.taskID, tasks[0].PublicID)
-	assertD05PoolClean(t, fixture.runtimePool)
+	assertRuntimePoolClean(t, fixture.runtimePool)
 }
 
-func TestM02D05ExecutorFaultsRollbackAndLeavePoolReusable(t *testing.T) {
-	fixture := newD05Fixture(t)
+func TestTenantBoundaryExecutorFaultsRollbackAndLeavesPoolReusable(t *testing.T) {
+	fixture := newTenantBoundaryFixture(t)
 	ctx := context.Background()
 	alpha := fixture.orgs[0]
 	beta := fixture.orgs[1]
 	alphaTeam := fixture.resolveTeam(t, fixture.users.shared, alpha, alpha.teams[0])
 	betaTeam := fixture.resolveTeam(t, fixture.users.shared, beta, beta.teams[1])
 
-	callbackErr := errors.New("d05 callback rollback")
+	callbackErr := errors.New("tenant boundary callback rollback")
 	err := fixture.executor.WithinTeam(ctx, alphaTeam, func(queries *tenantdb.Queries) error {
 		_, createErr := queries.CreateTask(ctx, tenantdb.CreateTaskParams{Description: "callback rollback", Status: "todo"})
 		require.NoError(t, createErr)
@@ -129,9 +129,9 @@ func TestM02D05ExecutorFaultsRollbackAndLeavePoolReusable(t *testing.T) {
 	})
 	require.ErrorIs(t, err, callbackErr)
 	assertTaskDescriptionAbsent(t, fixture, alpha, "callback rollback")
-	assertD05PoolClean(t, fixture.runtimePool)
+	assertRuntimePoolClean(t, fixture.runtimePool)
 
-	panicValue := &struct{ operation string }{operation: "d05 panic rollback"}
+	panicValue := &struct{ operation string }{operation: "tenant boundary panic rollback"}
 	var recovered any
 	func() {
 		defer func() { recovered = recover() }()
@@ -143,7 +143,7 @@ func TestM02D05ExecutorFaultsRollbackAndLeavePoolReusable(t *testing.T) {
 	}()
 	assert.Same(t, panicValue, recovered)
 	assertTaskDescriptionAbsent(t, fixture, alpha, "panic rollback")
-	assertD05PoolClean(t, fixture.runtimePool)
+	assertRuntimePoolClean(t, fixture.runtimePool)
 
 	canceledContext, cancel := context.WithCancel(ctx)
 	err = fixture.executor.WithinTeam(canceledContext, alphaTeam, func(queries *tenantdb.Queries) error {
@@ -154,7 +154,7 @@ func TestM02D05ExecutorFaultsRollbackAndLeavePoolReusable(t *testing.T) {
 	})
 	require.True(t, errors.Is(err, context.Canceled), err)
 	assertTaskDescriptionAbsent(t, fixture, alpha, "cancellation rollback")
-	assertD05PoolClean(t, fixture.runtimePool)
+	assertRuntimePoolClean(t, fixture.runtimePool)
 
 	alphaTasks, err := fixture.taskService.GetTasks(ctx, alphaTeam)
 	require.NoError(t, err)
@@ -164,10 +164,10 @@ func TestM02D05ExecutorFaultsRollbackAndLeavePoolReusable(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, betaTasks, 1)
 	assert.Equal(t, beta.teams[1].taskID, betaTasks[0].PublicID)
-	assertD05PoolClean(t, fixture.runtimePool)
+	assertRuntimePoolClean(t, fixture.runtimePool)
 }
 
-func (fixture *d05Fixture) unsafeProbeWithSettings(
+func (fixture *tenantBoundaryFixture) unsafeProbeWithSettings(
 	ctx context.Context,
 	schema string,
 	userSetting *string,
@@ -197,8 +197,8 @@ func (fixture *d05Fixture) unsafeProbeWithSettings(
 
 func assertTaskDescriptionAbsent(
 	t *testing.T,
-	fixture *d05Fixture,
-	organization d05Organization,
+	fixture *tenantBoundaryFixture,
+	organization tenantBoundaryOrganization,
 	description string,
 ) {
 	t.Helper()

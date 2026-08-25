@@ -101,7 +101,7 @@ func TestTenantProvisioningBootstrapsAndIsIdempotent(t *testing.T) {
 	assert.Equal(t, firstApplied, secondApplied)
 }
 
-func TestTenantProvisioningAdoptsVerifiedM01LedgerWithoutDataLoss(t *testing.T) {
+func TestTenantProvisioningAdoptsVerifiedBaseCatalogLedgerWithoutDataLoss(t *testing.T) {
 	pool, reconciler, source := provisionerFixture(t)
 	id := insertOrganization(t, pool)
 	schema := tenancy.CanonicalSchema(id.String())
