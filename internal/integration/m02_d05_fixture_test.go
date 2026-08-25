@@ -13,7 +13,9 @@ import (
 	"github.com/CORTA-11/core-api/internal/testsupport"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,7 +57,17 @@ type d05Fixture struct {
 func newD05Fixture(t *testing.T) *d05Fixture {
 	t.Helper()
 	ctx := context.Background()
+	organizationIDs := [2]uuid.UUID{
+		uuid.MustParse("10000000-0000-4000-8000-000000000001"),
+		uuid.MustParse("10000000-0000-4000-8000-000000000002"),
+	}
 	adminPool := testsupport.OpenPostgres(t)
+	for _, organizationID := range organizationIDs {
+		_, err := adminPool.Exec(ctx, `DROP SCHEMA IF EXISTS `+pgx.Identifier{
+			tenancy.CanonicalSchema(organizationID.String()),
+		}.Sanitize()+` CASCADE`)
+		require.NoError(t, err)
+	}
 	testsupport.ResetPostgres(t, adminPool)
 	databaseURL := testsupport.RequiredEnv(t, "TEST_DATABASE_URL")
 	testsupport.ApplyMigrations(t, "db/migrations/public", databaseURL)
@@ -78,8 +90,8 @@ func newD05Fixture(t *testing.T) *d05Fixture {
 			outsider: uuid.MustParse("20000000-0000-4000-8000-000000000004"),
 		},
 		orgs: [2]d05Organization{
-			{publicID: uuid.MustParse("10000000-0000-4000-8000-000000000001")},
-			{publicID: uuid.MustParse("10000000-0000-4000-8000-000000000002")},
+			{publicID: organizationIDs[0]},
+			{publicID: organizationIDs[1]},
 		},
 	}
 	fixture.orgs[0].teams = [2]d05Team{
@@ -223,4 +235,26 @@ func (fixture *d05Fixture) resolveTeam(
 	resolvedTeam, err := fixture.resolver.ResolveTeam(context.Background(), resolvedOrganization, team.publicID)
 	require.NoError(t, err)
 	return resolvedTeam
+}
+
+func assertD05PoolClean(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	connections := pool.AcquireAllIdle(context.Background())
+	require.Len(t, connections, int(pool.Stat().TotalConns()))
+	defer func() {
+		for _, connection := range connections {
+			connection.Release()
+		}
+	}()
+	for _, connection := range connections {
+		var searchPath string
+		var userSetting, teamSetting pgtype.Text
+		require.NoError(t, connection.QueryRow(context.Background(), `
+			SELECT current_setting('search_path'),
+			       current_setting('app.user_id', true),
+			       current_setting('app.team_id', true)`).Scan(&searchPath, &userSetting, &teamSetting))
+		assert.Equal(t, `"$user", public`, searchPath)
+		assert.Empty(t, userSetting.String)
+		assert.Empty(t, teamSetting.String)
+	}
 }
