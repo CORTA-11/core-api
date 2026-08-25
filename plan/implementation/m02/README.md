@@ -74,10 +74,10 @@ from multiple deliverables in one branch.
 - `X-Org-ID` may remain through D04 only as an organization public-ID selector;
   it is never trusted as a schema or authorization assertion.
 
-D04 implementation is complete on `security/m02-d04-team-rls` through
-`62cd6e2` in [PR #26](https://github.com/CORTA-11/core-api/pull/26); its merge
-commit remains pending. The package and M02 milestone stay active because D05
-still owns the final adversarial and stress-suite evidence.
+D04 implementation is complete through `62cd6e2` and merged in
+[PR #26](https://github.com/CORTA-11/core-api/pull/26) at `ecb962c`. D05 is now
+active and owns the final adversarial and stress-suite evidence before this
+package and the M02 milestone can be completed.
 
 ## Documentation and completion discipline
 

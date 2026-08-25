@@ -2,10 +2,10 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `active` |
 | Branch | `test/m02-d05-isolation-suite` |
 | PR title | `test(isolation): prove the m02 tenant boundary` |
-| Predecessor | M02-D04 merged to refreshed `main` |
+| Predecessor | M02-D04 merged in PR #26 at `ecb962c` |
 | Dependencies | Runtime role topology, FORCE RLS, trusted production paths |
 | Merge gate | Full M02 completion gate and recorded implementation links |
 
