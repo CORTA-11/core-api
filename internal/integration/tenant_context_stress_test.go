@@ -17,45 +17,45 @@ import (
 )
 
 const (
-	d05StressOperations = 4_000
-	d05StressWorkers    = 2
-	d05StressTimeout    = 60 * time.Second
+	tenantContextStressOperations = 4_000
+	tenantContextStressWorkers    = 2
+	tenantContextStressTimeout    = 60 * time.Second
 )
 
-type d05StressScope struct {
+type tenantContextStressScope struct {
 	name   string
 	team   tenancy.TeamContext
 	taskID uuid.UUID
 }
 
-type d05StressResult struct {
+type tenantContextStressResult struct {
 	worker      int
 	completed   int
 	scopeCounts [4]int
 	err         error
 }
 
-func TestM02D05StressPooledTenantContextCleanup(t *testing.T) {
-	fixture := newD05Fixture(t)
-	scopes := []d05StressScope{
+func TestTenantContextStressCleansPooledConnections(t *testing.T) {
+	fixture := newTenantBoundaryFixture(t)
+	scopes := []tenantContextStressScope{
 		{name: "alpha-one", team: fixture.resolveTeam(t, fixture.users.shared, fixture.orgs[0], fixture.orgs[0].teams[0]), taskID: fixture.orgs[0].teams[0].taskID},
 		{name: "alpha-two", team: fixture.resolveTeam(t, fixture.users.shared, fixture.orgs[0], fixture.orgs[0].teams[1]), taskID: fixture.orgs[0].teams[1].taskID},
 		{name: "beta-one", team: fixture.resolveTeam(t, fixture.users.shared, fixture.orgs[1], fixture.orgs[1].teams[0]), taskID: fixture.orgs[1].teams[0].taskID},
 		{name: "beta-two", team: fixture.resolveTeam(t, fixture.users.shared, fixture.orgs[1], fixture.orgs[1].teams[1]), taskID: fixture.orgs[1].teams[1].taskID},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), d05StressTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), tenantContextStressTimeout)
 	defer cancel()
-	exerciseBothD05RuntimeConnections(t, ctx, fixture, scopes)
+	exerciseBothRuntimePoolConnections(t, ctx, fixture, scopes)
 
-	results := make(chan d05StressResult, d05StressWorkers)
+	results := make(chan tenantContextStressResult, tenantContextStressWorkers)
 	var workers sync.WaitGroup
-	workers.Add(d05StressWorkers)
-	for worker := 0; worker < d05StressWorkers; worker++ {
+	workers.Add(tenantContextStressWorkers)
+	for worker := 0; worker < tenantContextStressWorkers; worker++ {
 		go func(worker int) {
 			defer workers.Done()
-			result := d05StressResult{worker: worker}
-			for operation := worker; operation < d05StressOperations; operation += d05StressWorkers {
+			result := tenantContextStressResult{worker: worker}
+			for operation := worker; operation < tenantContextStressOperations; operation += tenantContextStressWorkers {
 				scopeIndex := operation % len(scopes)
 				scope := scopes[scopeIndex]
 				tasks, err := fixture.taskService.GetTasks(ctx, scope.team)
@@ -85,7 +85,7 @@ func TestM02D05StressPooledTenantContextCleanup(t *testing.T) {
 
 	completed := 0
 	scopeCounts := [4]int{}
-	workerErrors := make([]error, 0, d05StressWorkers)
+	workerErrors := make([]error, 0, tenantContextStressWorkers)
 	for result := range results {
 		completed += result.completed
 		for scopeIndex, count := range result.scopeCounts {
@@ -96,23 +96,23 @@ func TestM02D05StressPooledTenantContextCleanup(t *testing.T) {
 		}
 	}
 	require.Empty(t, workerErrors)
-	assert.Equal(t, d05StressOperations, completed)
+	assert.Equal(t, tenantContextStressOperations, completed)
 	assert.Equal(t, [4]int{1_000, 1_000, 1_000, 1_000}, scopeCounts)
 	assert.EqualValues(t, 2, fixture.runtimePool.Stat().TotalConns())
-	assertD05PoolClean(t, fixture.runtimePool)
+	assertRuntimePoolClean(t, fixture.runtimePool)
 }
 
-func exerciseBothD05RuntimeConnections(
+func exerciseBothRuntimePoolConnections(
 	t *testing.T,
 	ctx context.Context,
-	fixture *d05Fixture,
-	scopes []d05StressScope,
+	fixture *tenantBoundaryFixture,
+	scopes []tenantContextStressScope,
 ) {
 	t.Helper()
-	ready := make(chan int, d05StressWorkers)
+	ready := make(chan int, tenantContextStressWorkers)
 	release := make(chan struct{})
-	results := make(chan error, d05StressWorkers)
-	for worker := 0; worker < d05StressWorkers; worker++ {
+	results := make(chan error, tenantContextStressWorkers)
+	for worker := 0; worker < tenantContextStressWorkers; worker++ {
 		go func(worker int) {
 			results <- fixture.executor.WithinTeam(ctx, scopes[worker].team, func(queries *tenantdb.Queries) error {
 				ready <- worker
@@ -127,28 +127,28 @@ func exerciseBothD05RuntimeConnections(
 		}(worker)
 	}
 
-	readyWorkers := make(map[int]struct{}, d05StressWorkers)
-	for len(readyWorkers) < d05StressWorkers {
+	readyWorkers := make(map[int]struct{}, tenantContextStressWorkers)
+	for len(readyWorkers) < tenantContextStressWorkers {
 		select {
 		case worker := <-ready:
 			readyWorkers[worker] = struct{}{}
 		case err := <-results:
-			cancelD05ConnectionExercise(release)
+			cancelRuntimePoolConnectionExercise(release)
 			require.NoError(t, err)
 		case <-ctx.Done():
-			cancelD05ConnectionExercise(release)
+			cancelRuntimePoolConnectionExercise(release)
 			require.NoError(t, ctx.Err())
 		}
 	}
 	assert.EqualValues(t, 2, fixture.runtimePool.Stat().TotalConns())
 	assert.EqualValues(t, 2, fixture.runtimePool.Stat().AcquiredConns())
 	close(release)
-	for range d05StressWorkers {
+	for range tenantContextStressWorkers {
 		require.NoError(t, <-results)
 	}
 }
 
-func cancelD05ConnectionExercise(release chan struct{}) {
+func cancelRuntimePoolConnectionExercise(release chan struct{}) {
 	select {
 	case <-release:
 	default:
