@@ -4,7 +4,7 @@ FROM public.org_user
 WHERE org_id = $1;
 
 -- name: GetUsersInOrg :many
-SELECT u.id, u.user_id, u.email, u.password_hash, u.display_name, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.user_id, u.email, u.password_hash, u.display_name, u.created_at, u.updated_at, u.deleted_at, u.email_canonical
 FROM public.users AS u
 JOIN public.org_user AS ou ON u.id = ou.user_id
 WHERE ou.org_id = sqlc.arg('org_id')

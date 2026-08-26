@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 
+	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type pgxPool interface {
@@ -59,7 +61,11 @@ func (u *userService) GetUserByID(ctx context.Context, publicID string) (*User, 
 }
 
 func (u *userService) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	repoUser, err := u.queries.GetUserByEmail(ctx, email)
+	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
+	if err != nil {
+		return nil, err
+	}
+	repoUser, err := u.queries.GetUserByCanonicalEmail(ctx, canonical.Key)
 	if err != nil {
 		return nil, err
 	}
@@ -69,40 +75,26 @@ func (u *userService) GetUserByEmail(ctx context.Context, email string) (*User, 
 }
 
 func (u *userService) CreateUser(ctx context.Context, name string, email string, password string) (*User, error) {
+	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
+	if err != nil {
+		return nil, err
+	}
 	hashedPassword, err := u.passwordService.HashPassword(password)
 	if err != nil {
 		return nil, err
 	}
 
-	tx, err := u.pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	qtx := u.queries.WithTx(tx)
-
-	_, err = qtx.GetUserByEmail(ctx, email)
-	if err == nil {
-		return nil, ErrEmailAlreadyInUse
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
-	}
-
 	userParams := publicdb.CreateUserParams{
-		Email:        email,
+		Email:        canonical.Display,
 		PasswordHash: hashedPassword,
 		DisplayName:  name,
 	}
 
-	repoUser, err := qtx.CreateUser(ctx, userParams)
+	repoUser, err := u.queries.CreateUser(ctx, userParams)
 	if err != nil {
-		return nil, err
-	}
-
-	err = tx.Commit(ctx)
-	if err != nil {
+		if isCanonicalEmailConflict(err) {
+			return nil, ErrEmailAlreadyInUse
+		}
 		return nil, err
 	}
 
@@ -116,6 +108,11 @@ func (u *userService) UpdateUser(ctx context.Context, publicID string, name stri
 		return nil, err
 	}
 
+	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
+	if err != nil {
+		return nil, err
+	}
+
 	hashedPassword, err := u.passwordService.HashPassword(password)
 	if err != nil {
 		return nil, err
@@ -123,13 +120,16 @@ func (u *userService) UpdateUser(ctx context.Context, publicID string, name stri
 
 	params := publicdb.UpdateUserParams{
 		UserID:       parsedUUID,
-		Email:        email,
+		Email:        canonical.Display,
 		PasswordHash: hashedPassword,
 		DisplayName:  name,
 	}
 
 	repoUser, err := u.queries.UpdateUser(ctx, params)
 	if err != nil {
+		if isCanonicalEmailConflict(err) {
+			return nil, ErrEmailAlreadyInUse
+		}
 		return nil, err
 	}
 
@@ -153,7 +153,11 @@ func (u *userService) SoftDeleteUser(ctx context.Context, publicID string) (*Use
 }
 
 func (u *userService) Login(ctx context.Context, email string, password string) (string, *User, error) {
-	repoUser, err := u.queries.GetUserByEmail(ctx, email)
+	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
+	if err != nil {
+		return "", nil, ErrInvalidCredentials
+	}
+	repoUser, err := u.queries.GetUserByCanonicalEmail(ctx, canonical.Key)
 	if err != nil {
 		return "", nil, ErrInvalidCredentials
 	}
@@ -170,4 +174,10 @@ func (u *userService) Login(ctx context.Context, email string, password string) 
 
 	domainUser := mapDBUserToDomain(repoUser)
 	return token, &domainUser, nil
+}
+
+func isCanonicalEmailConflict(err error) bool {
+	var postgresError *pgconn.PgError
+	return errors.As(err, &postgresError) && postgresError.Code == "23505" &&
+		postgresError.ConstraintName == "users_email_canonical_unique"
 }

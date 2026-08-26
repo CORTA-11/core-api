@@ -96,7 +96,7 @@ func (q *Queries) GetOrgsForUser(ctx context.Context, arg GetOrgsForUserParams) 
 }
 
 const getUsersInOrg = `-- name: GetUsersInOrg :many
-SELECT u.id, u.user_id, u.email, u.password_hash, u.display_name, u.created_at, u.updated_at, u.deleted_at
+SELECT u.id, u.user_id, u.email, u.password_hash, u.display_name, u.created_at, u.updated_at, u.deleted_at, u.email_canonical
 FROM public.users AS u
 JOIN public.org_user AS ou ON u.id = ou.user_id
 WHERE ou.org_id = $1
@@ -128,6 +128,7 @@ func (q *Queries) GetUsersInOrg(ctx context.Context, arg GetUsersInOrgParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.EmailCanonical,
 		); err != nil {
 			return nil, err
 		}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pashagolub/pgxmock/v3"
 	"github.com/stretchr/testify/assert"
@@ -52,7 +52,7 @@ func TestUserServiceImpl(t *testing.T) {
 	displayName := "John Doe"
 	now := time.Now().UTC()
 
-	columns := []string{"id", "user_id", "email", "password_hash", "display_name", "created_at", "updated_at", "deleted_at"}
+	columns := []string{"id", "user_id", "email", "password_hash", "display_name", "created_at", "updated_at", "deleted_at", "email_canonical"}
 
 	t.Run("GetUsers returns all users successfully", func(t *testing.T) {
 		mockPool, err := pgxmock.NewPool()
@@ -62,7 +62,7 @@ func TestUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetAllUsers :many.*SELECT").
 			WithArgs(int32(100)).
 			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}, email))
 
 		tokenSvc := new(mockTokenService)
 		passwordSvc := new(mockPasswordService)
@@ -85,7 +85,7 @@ func TestUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetUserByID :one.*SELECT").
 			WithArgs(userPublicID).
 			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}, email))
 
 		tokenSvc := new(mockTokenService)
 		passwordSvc := new(mockPasswordService)
@@ -104,15 +104,10 @@ func TestUserServiceImpl(t *testing.T) {
 		require.NoError(t, err)
 		defer mockPool.Close()
 
-		mockPool.ExpectBegin()
-		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
-			WithArgs(email).
-			WillReturnError(pgx.ErrNoRows)
 		mockPool.ExpectQuery("(?s)CreateUser :one.*INSERT").
 			WithArgs(email, "hashed-password", displayName).
 			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
-		mockPool.ExpectCommit()
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}, email))
 
 		tokenSvc := new(mockTokenService)
 		passwordSvc := new(mockPasswordService)
@@ -135,12 +130,9 @@ func TestUserServiceImpl(t *testing.T) {
 		require.NoError(t, err)
 		defer mockPool.Close()
 
-		mockPool.ExpectBegin()
-		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
-			WithArgs(email).
-			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
-		mockPool.ExpectRollback()
+		mockPool.ExpectQuery("(?s)CreateUser :one.*INSERT").
+			WithArgs(email, "hashed-password", displayName).
+			WillReturnError(&pgconn.PgError{Code: "23505", ConstraintName: "users_email_canonical_unique"})
 
 		tokenSvc := new(mockTokenService)
 		passwordSvc := new(mockPasswordService)
@@ -159,10 +151,10 @@ func TestUserServiceImpl(t *testing.T) {
 		require.NoError(t, err)
 		defer mockPool.Close()
 
-		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
+		mockPool.ExpectQuery("(?s)GetUserByCanonicalEmail :one.*SELECT").
 			WithArgs(email).
 			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}, email))
 
 		tokenSvc := new(mockTokenService)
 		tokenSvc.On("GenerateToken", userPublicID, email).Return("valid-jwt-token", nil)
@@ -186,10 +178,10 @@ func TestUserServiceImpl(t *testing.T) {
 		require.NoError(t, err)
 		defer mockPool.Close()
 
-		mockPool.ExpectQuery("(?s)GetUserByEmail :one.*SELECT").
+		mockPool.ExpectQuery("(?s)GetUserByCanonicalEmail :one.*SELECT").
 			WithArgs(email).
 			WillReturnRows(pgxmock.NewRows(columns).
-				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(int64(1), userPublicID, email, "hashed-password", displayName, now, now, pgtype.Timestamptz{Valid: false}, email))
 
 		tokenSvc := new(mockTokenService)
 		passwordSvc := new(mockPasswordService)

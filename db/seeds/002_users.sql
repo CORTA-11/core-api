@@ -18,7 +18,7 @@ VALUES
         '$argon2id$v=19$m=65536,t=3,p=4$c3lub2R1cy1kZXYtc2VlZA$IcVOCmfhkOgf/e0KX7fXEv6s0LBKfSKvSUPEDZNuS9I',
         'Demo Member'
     )
-ON CONFLICT (email) DO UPDATE
+ON CONFLICT (email_canonical) DO UPDATE
 SET password_hash = EXCLUDED.password_hash,
     display_name = EXCLUDED.display_name,
     deleted_at = NULL,

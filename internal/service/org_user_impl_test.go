@@ -26,7 +26,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		"lifecycle_state", "tenant_version", "tenant_checksum", "reconcile_attempts", "next_attempt_at",
 		"last_error_code", "last_error_detail", "last_attempt_at", "provisioned_at",
 	}
-	userColumns := []string{"id", "user_id", "email", "password_hash", "display_name", "created_at", "updated_at", "deleted_at"}
+	userColumns := []string{"id", "user_id", "email", "password_hash", "display_name", "created_at", "updated_at", "deleted_at", "email_canonical"}
 
 	t.Run("AddUserToOrg successfully resolves IDs and calls repository", func(t *testing.T) {
 		mockPool, err := pgxmock.NewPool()
@@ -44,7 +44,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetUserByID :one.*SELECT").
 			WithArgs(userPublicID).
 			WillReturnRows(pgxmock.NewRows(userColumns).
-				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}, "test@example.com"))
 
 		// 3. AddUserToOrg insert
 		mockPool.ExpectQuery("(?s)AddUserToOrg :one.*INSERT").
@@ -77,7 +77,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetUserByID :one.*SELECT").
 			WithArgs(userPublicID).
 			WillReturnRows(pgxmock.NewRows(userColumns).
-				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}, "test@example.com"))
 
 		// 3. RemoveUserFromOrg delete
 		mockPool.ExpectQuery("(?s)RemoveUserFromOrg :one.*DELETE").
@@ -105,7 +105,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetUserByID :one.*SELECT").
 			WithArgs(userPublicID).
 			WillReturnRows(pgxmock.NewRows(userColumns).
-				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}, "test@example.com"))
 
 		// 2. GetOrgsForUser join query
 		mockPool.ExpectQuery("(?s)GetOrgsForUser :many.*SELECT").
@@ -144,7 +144,7 @@ func TestOrgUserServiceImpl(t *testing.T) {
 		mockPool.ExpectQuery("(?s)GetUsersInOrg :many.*SELECT").
 			WithArgs(orgID, int32(100)).
 			WillReturnRows(pgxmock.NewRows(userColumns).
-				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}))
+				AddRow(userID, userPublicID, "test@example.com", "hash", "John", now, now, pgtype.Timestamptz{Valid: false}, "test@example.com"))
 
 		mockPool.ExpectCommit()
 
