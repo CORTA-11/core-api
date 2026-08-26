@@ -19,6 +19,8 @@ in the linked milestone files.
 `M01` completed in [PR #21](https://github.com/CORTA-11/core-api/pull/21) at
 merge commit `f2ee418`. `M02` completed in
 [PR #27](https://github.com/CORTA-11/core-api/pull/27) at merge commit `56d0a6d`.
+M03's [test-driven implementation package](implementation/m03/README.md) is
+active from planning baseline `4c1145e`; implementation has not started.
 
 ## Dependency and release cuts
 
@@ -42,7 +44,8 @@ M06-M08 are additive release increments. The core release does not wait for AI.
    into a tenant schema.
 4. Prove RLS and pool cleanup with real PostgreSQL before replacing public
    routes.
-5. Land OIDC sessions and authorization before exposing `/api/v1` team data.
+5. Land bounded local password authentication, revocable sessions, and
+   authorization before exposing `/api/v1` team data.
 6. Use teams/tasks as the reference slice; later domains copy its transaction,
    authorization, contract, audit, idempotency, and test pattern.
 7. Ship managed files and durable events before research/collaboration breadth.
