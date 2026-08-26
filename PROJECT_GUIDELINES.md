@@ -169,7 +169,7 @@ These remain the foundation unless a later ADR explicitly changes them.
 
 Security verification SHOULD target **OWASP ASVS 5.0.0**, currently the stable ASVS release, using Level 2 as the general baseline with stronger selected requirements for authentication, cryptography, administration and tenant isolation.
 
-OAuth/OIDC integrations MUST follow current OAuth security guidance rather than old OAuth examples; RFC 9700 is the current OAuth 2.0 Security Best Current Practice.
+Any future OAuth/OIDC integration MUST follow current OAuth security guidance rather than old OAuth examples; RFC 9700 is the current OAuth 2.0 Security Best Current Practice. OAuth/OIDC is not a current runtime dependency.
 
 PostgreSQL RLS MUST be designed around the actual PostgreSQL semantics: superusers and `BYPASSRLS` roles bypass policies, table owners normally do so as well, while `FORCE ROW LEVEL SECURITY` can subject the owner to policies.
 
@@ -323,7 +323,6 @@ postgres
 redis
 minio
 centrifugo
-keycloak
 caddy
 
 otel-collector
@@ -457,7 +456,6 @@ Target direction:
 │       ├── postgres/
 │       ├── redis/
 │       ├── minio/
-│       ├── oidc/
 │       ├── telemetry/
 │       └── http/
 │
@@ -707,7 +705,7 @@ This prevents partial infrastructure operations from being represented as health
 Provisioning SHOULD be asynchronous.
 
 ```text
-POST /api/v1/organizations
+POST /api/v1/orgs
             │
             ▼
 validate
@@ -1216,9 +1214,9 @@ public_id UUID NOT NULL UNIQUE
 URLs:
 
 ```text
-/api/v1/organizations/{uuid}
-/api/v1/teams/{uuid}
-/api/v1/tasks/{uuid}
+/api/v1/orgs/{org_uuid}
+/api/v1/orgs/{org_uuid}/teams/{team_uuid}
+/api/v1/orgs/{org_uuid}/teams/{team_uuid}/tasks/{task_uuid}
 ```
 
 Never:
@@ -1247,11 +1245,26 @@ The majority of internal code should operate on numeric IDs.
 
 ## 40. Authentication Architecture
 
-Synodus SHOULD stop being responsible for implementing an entire identity provider.
+Synodus authenticates current browser users with local email/password credentials
+and then creates a revocable opaque application session. Email comparison is
+canonical and case-insensitive. Passwords use bounded Argon2id verification,
+common-password blocking, uniform invalid-credential behavior, and bounded hash
+concurrency.
 
-The reference self-hosted identity provider should be **Keycloak**.
+Accounts are created by an operator command using an interactive prompt or
+standard input. Public registration and email recovery are not current features.
+Passwords MUST NOT appear in process arguments, logs, errors, or audit metadata.
 
-Keycloak supports standards-based OpenID Connect and SAML integrations; Synodus should use standard OIDC libraries rather than tightly coupling business code to vendor-specific adapters.
+New and changed passwords MUST contain 15–128 Unicode code points after NFC
+normalization and at most 1024 UTF-8 bytes. Spaces and Unicode are permitted.
+Reject a vendored common-password blocklist; do not require character-class
+composition or periodic rotation. Encoded Argon2id parameters MUST be bounded
+before decoding or allocating attacker-controlled sizes.
+
+OIDC federation, MFA, passkeys, and non-browser API tokens are future extensions,
+not current deployment dependencies. A future OIDC integration MUST use standard
+libraries and current OAuth security guidance, link immutable issuer/subject
+identity, and terminate in the same Synodus session and authorization model.
 
 ---
 
@@ -1266,18 +1279,18 @@ Browser
     ▼
 Synodus Go Backend
     │
-    │ OIDC Authorization Code + PKCE
-    ▼
-Identity Provider
+    ├── bounded local credential verifier
+    └── PostgreSQL session authority
 ```
 
 Do not give browser JavaScript persistent bearer tokens.
 
-Do not store:
+Do not store authentication material such as:
 
 ```text
 access token
 refresh token
+session token
 ```
 
 in:
@@ -1291,31 +1304,22 @@ localStorage
 ## 42. Authentication Flow
 
 ```text
-GET /auth/login
+POST /api/v1/auth/login
       ↓
-generate state
-generate PKCE verifier
+canonicalize email
       ↓
-redirect to Keycloak
+perform one bounded Argon2id verification
       ↓
-authentication
+generate a fresh 256-bit session token
       ↓
-OIDC callback
+store only SHA-256(token) with expiry/revocation state
       ↓
-validate:
-    state
-    issuer
-    nonce where applicable
-    token signature/claims
-      ↓
-map OIDC subject → Synodus user
-      ↓
-create Synodus application session
-      ↓
-set secure cookie
+set secure cookie and return derived CSRF value
 ```
 
-OAuth security guidance MUST follow RFC 9700 rather than legacy insecure patterns.
+Unknown accounts use a dummy hash. Unknown email, wrong password, deleted account,
+and unusable stored hash return the same invalid-credentials result. Accepted
+outdated Argon2id parameters are upgraded after successful verification.
 
 ---
 
@@ -1329,16 +1333,20 @@ Browser:
 __Host-synodus_session=<random value>
 ```
 
-Cookie SHOULD be:
+The production cookie MUST be:
 
 ```text
 Secure
 HttpOnly
 Path=/
-SameSite=Lax or stricter where practical
+SameSite=Lax
+no Domain attribute
 ```
 
 Database stores a hash of the token rather than its plaintext value.
+Development uses a clearly separate non-secure cookie name that production
+configuration rejects. The session has a 30-minute idle and 12-hour absolute
+expiry.
 
 ---
 
@@ -1355,12 +1363,14 @@ user_id
 token_hash
 created_at
 last_seen_at
-expires_at
+absolute_expires_at
 revoked_at
 user_agent_metadata
 ```
 
-Never store the raw application session token.
+Never store the raw application session token. Bound user-agent metadata and
+session inspection/cleanup queries. Idle validity is computed from
+`last_seen_at`; absolute expiry is immutable.
 
 ---
 
@@ -1382,7 +1392,7 @@ A user should be able to inspect active sessions.
 
 ## 46. MFA and Passkeys
 
-Keycloak MAY provide:
+Future identity extensions MAY provide:
 
 ```text
 TOTP MFA
@@ -1390,7 +1400,7 @@ WebAuthn
 passkeys
 ```
 
-without requiring Synodus to implement authentication cryptography.
+through a reviewed standards-based provider or maintained library.
 
 WebAuthn provides origin/RP-scoped public-key credentials for strong web authentication.
 
@@ -1402,10 +1412,10 @@ Passkeys are an excellent stretch/demo authentication option, but the project do
 
 Because authentication uses cookies, unsafe requests require CSRF protection.
 
-Preferred:
+Required for unsafe cookie-authenticated requests:
 
 ```text
-server-side session CSRF secret
+raw session token + dedicated server HMAC secret
         ↓
 frontend receives CSRF token
         ↓
@@ -1414,7 +1424,7 @@ X-CSRF-Token header
 backend validates token
 ```
 
-Also validate `Origin` for browser state-changing requests where practical.
+Also require an exact approved `Origin`; a valid CSRF header alone is insufficient.
 
 ---
 
@@ -1424,7 +1434,8 @@ Serve the web frontend and API under the same site when possible.
 
 This largely eliminates production CORS complexity.
 
-Development CORS MUST use an explicit allowlist.
+Development and production CORS MUST use validated exact allowlists. Production
+MUST reject wildcard and insecure origins.
 
 Never combine credentialed authentication with unrestricted origins.
 
@@ -1446,9 +1457,8 @@ May you perform this operation?
 
 Do not conflate them.
 
-Keycloak authenticates identity.
-
-Synodus owns product authorization.
+The local verifier authenticates identity. Synodus owns application sessions and
+product authorization.
 
 ---
 
@@ -1457,81 +1467,73 @@ Synodus owns product authorization.
 Initial organization-level roles:
 
 ```text
-Owner
-Administrator
-Member
+owner
+administrator
+member
 ```
 
-Organization administrators SHOULD NOT automatically receive access to all team content unless that is an explicitly documented policy.
+Owners manage owners and organization lifecycle. Administrators update the
+organization and manage non-owner members. Members have read-only organization
+access. Only owners and administrators create teams. Legacy organizations with
+no explicitly assigned owner remain readable to current members but all
+administrative mutations fail closed.
 
-Administration and content access are distinct concepts.
+Organization administration MUST NOT grant team-content access.
 
 ---
 
 ## 51. Team Roles
 
-Recommended:
+Closed team roles:
 
 ```text
-Team Admin
-Research Lead
-Researcher
-Contributor
-Viewer
+team_admin
+research_lead
+researcher
+contributor
+viewer
 ```
 
-Roles map to permissions.
+`team_admin` has team/member management and all task, file, audit, and realtime
+permissions. `research_lead` has all task/file operations, audit read, and
+realtime. `researcher` has task read/create/update/move, file read/upload, and
+realtime. `contributor` omits task move. `viewer` has only team/task/file read
+and realtime.
 
 ---
 
 ## 52. Permissions
 
-Example permission vocabulary:
+The M03-M05 permission vocabulary begins with:
 
 ```text
-organization.read
-organization.manage
-organization.member.manage
-
+org.read
+org.update
+org.delete
+org.restore
+org.members.read
+org.members.manage
+org.owners.manage
+team.create
 team.read
-team.manage
-team.member.manage
-
+team.update
+team.delete
+team.members.read
+team.members.manage
 task.read
 task.create
 task.update
+task.move
 task.delete
-
-chat.read
-chat.write
-chat.moderate
-
-document.read
-document.edit
-
 file.read
 file.upload
 file.delete
-
-dataset.read
-dataset.publish
-
-experiment.read
-experiment.manage
-
-artifact.read
-artifact.publish
-
-resource.read
-resource.manage
-resource.book
-
 audit.read
-
-ai.invoke
+realtime.connect
 ```
 
-Do not spread role string comparisons throughout services.
+Later milestones extend typed permissions for their domains. Do not spread role
+string comparisons throughout services. Unknown roles and permissions deny.
 
 ---
 
@@ -1642,15 +1644,20 @@ Example:
 
 ```json
 {
-  "type": "https://synodus.dev/problems/version-conflict",
+  "type": "/problems/precondition-failed",
   "title": "Resource version conflict",
   "status": 412,
-  "code": "TASK_VERSION_CONFLICT",
-  "trace_id": "5d6..."
+  "detail": "The resource changed since it was read.",
+  "request_id": "5d6...",
+  "violations": []
 }
 ```
 
 Never send raw PostgreSQL errors to clients.
+Every error response, including middleware and router failures, uses
+`application/problem+json`. Session failures are `401`, known operation-level
+permission failures are `403`, and missing versus unauthorized protected IDs
+share an indistinguishable `404` representation.
 
 ---
 
@@ -1690,7 +1697,7 @@ artifacts
 experiments
 ```
 
-Example:
+The default page size is 50 and the maximum is 100. Example:
 
 ```text
 GET /messages?limit=50&cursor=...
@@ -1713,7 +1720,10 @@ id
 
 encoded and integrity-protected by the API.
 
-Do not use uncontrolled user-supplied SQL offsets for massive tables.
+Use a bounded HMAC-signed token scoped to its route, organization/team public
+IDs, sort tuple, direction, version, and expiry. Do not expose internal IDs or
+accept a cursor on a different route/scope. Do not use uncontrolled user-supplied
+SQL offsets for massive tables.
 
 ---
 
@@ -2130,6 +2140,11 @@ selected caches
 
 PostgreSQL remains authoritative.
 
+Login uses Redis-backed GCRA with both an HMAC-pseudonymous canonical-account
+bucket and a trusted-client-IP bucket. Defaults are five failures per account per
+15 minutes and 20 attempts per client IP per 15 minutes; successful login clears
+the account-failure bucket. Redis keys MUST NOT contain raw email or IP values.
+
 ---
 
 ## 83. Redis Is Not Durable Domain Storage
@@ -2183,6 +2198,10 @@ Redis realtime failure
 Redis presence failure
 → presence unavailable
 → collaboration state remains correct
+
+Redis rate-limit failure
+→ login and administrative mutations return a bounded 503
+→ ordinary authenticated requests continue through PostgreSQL authorization
 ```
 
 ---
@@ -2911,7 +2930,7 @@ Never put the following into audit metadata:
 ```text
 password
 session token
-OIDC token
+federated identity token if later enabled
 encryption key
 private key
 full chat body
@@ -2976,7 +2995,7 @@ Never log:
 passwords
 session cookies
 Authorization headers
-OIDC tokens
+federated identity tokens if later enabled
 CSRF secrets
 private keys
 file DEKs
@@ -3198,7 +3217,6 @@ Examples:
 PostgreSQL
 Redis
 MinIO
-OIDC
 AI
 SMTP
 Centrifugo
@@ -3233,11 +3251,18 @@ Configure:
 
 ```text
 ReadHeaderTimeout
+ReadTimeout
+WriteTimeout
 IdleTimeout
-appropriate request size limits
+MaxHeaderBytes = 32 KiB
+route-specific request size limits
 ```
 
 Use route-specific body limits.
+
+Trust forwarded client/protocol headers only from explicitly configured proxy
+CIDRs and bound the parsed hop count. Otherwise use the direct peer and ignore
+forwarded values.
 
 Do not permit a normal JSON endpoint to accept arbitrary gigabyte-sized bodies.
 
@@ -3312,7 +3337,7 @@ Document at least:
 ```text
 Browser ↔ API
 
-API ↔ Keycloak
+local credentials/session store ↔ API
 
 API ↔ PostgreSQL
 
@@ -3706,6 +3731,10 @@ blocking
 
 At least one measured optimization should appear in the final engineering report.
 
+pprof MUST NOT be mounted on the public API router. When explicitly enabled
+outside production, it binds through a separate loopback-only diagnostic server
+with bounded timeouts.
+
 ---
 
 ## 158. Query Performance
@@ -3826,7 +3855,7 @@ type Config struct {
 	Database      DatabaseConfig
 	Redis         RedisConfig
 	MinIO         MinIOConfig
-	OIDC          OIDCConfig
+	Auth          AuthConfig
 	Realtime      RealtimeConfig
 	AI            AIConfig
 	Telemetry     TelemetryConfig
@@ -3843,7 +3872,7 @@ Never commit:
 
 ```text
 database passwords
-OIDC client secret
+session, CSRF, cursor, and rate-limit HMAC secrets
 MinIO credentials
 SMTP credentials
 AI credentials
@@ -3904,8 +3933,6 @@ provisioner
 centrifugo-1
 centrifugo-2
 
-keycloak
-
 postgres
 redis
 minio
@@ -3947,10 +3974,12 @@ Synodus may permit compatible externally managed:
 PostgreSQL
 Redis
 S3-compatible storage
-OIDC provider
 ```
 
 through configuration.
+
+A future federation extension may separately support a compatible OIDC provider;
+it is not part of the current reference topology.
 
 But "bring your own database" is not equivalent to self-hostability.
 
@@ -4051,7 +4080,7 @@ Maintain operational documentation for:
 PostgreSQL unavailable
 Redis unavailable
 MinIO unavailable
-OIDC outage
+credential/session incident
 AI outage
 failed tenant migration
 stuck durable jobs
@@ -4078,7 +4107,7 @@ ADR-003 Team RLS
 
 ADR-004 BIGINT internal + UUID external IDs
 
-ADR-005 OIDC/BFF authentication
+ADR-005 Local password/BFF session authentication
 
 ADR-006 PostgreSQL durable jobs
 
@@ -4229,7 +4258,7 @@ Config
 PostgreSQL
 Redis
 MinIO
-OIDC
+local identity/session services
 Realtime client
 Telemetry
   ↓
@@ -4563,7 +4592,7 @@ Platform foundation must be excellent.
 ```text
 configuration
 structured logging
-OIDC/BFF auth
+bounded local password/BFF session auth
 sessions
 organization provisioning
 tenant executor
@@ -4945,7 +4974,7 @@ why RLS does not replace authorization
 
 why BIGINT and UUID both exist
 
-how OIDC/BFF authentication works
+how local password/BFF session authentication works
 
 why frontend JS does not hold bearer tokens
 
@@ -5122,13 +5151,13 @@ That is the engineering standard for the project.
                            ┌──────▼──────┐
                            │   Go API    │
                            │    / BFF    │
-                           └──┬──┬──┬──┬─┘
-                              │  │  │  │
-            ┌─────────────────┘  │  │  └──────────────────┐
-            │                    │  │                     │
-            ▼                    ▼  ▼                     ▼
-       PostgreSQL             Redis MinIO              Keycloak
-            │                    │                       OIDC
+                           └──┬──┬──┬────┘
+                              │  │  │
+            ┌─────────────────┘  │  └──────────────────┐
+            │                    │                     │
+            ▼                    ▼                     ▼
+       PostgreSQL             Redis                  MinIO
+      users/sessions             │
             │                    │
             │                    ▼
             │               Centrifugo
@@ -5222,7 +5251,7 @@ PostgreSQL/River
 Realtime transport:
 Centrifugo
 
-Authentication uses OIDC/Keycloak with a BFF session.
+Authentication uses bounded local passwords with a revocable opaque BFF session.
 
 Team authorization:
 Synodus permissions

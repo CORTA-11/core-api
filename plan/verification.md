@@ -15,8 +15,8 @@ not substitute for an executable check.
 | `go run ./cmd/provisioner status --all` | migrated public database | every non-deleting organization is active at the embedded tenant version and checksum |
 | `make test-isolation` | disposable PostgreSQL; runtime and migration roles | organization schema isolation, team RLS, missing context, unsafe query, and pool reuse |
 | `make test-contract` | API process plus disposable dependencies | OpenAPI conformance, problem responses, auth/CSRF, pagination, ETag, and idempotency behavior |
-| `make test-e2e-core` | API, worker, PostgreSQL, Redis, MinIO, identity provider, realtime adapter | organization → team → task → file flow, async event delivery, and reconnect/recovery |
-| `make test-failure` | disposable full stack | worker crash, duplicate job, Redis/MinIO/identity outage, shutdown, and retry bounds |
+| `make test-e2e-core` | API, worker, PostgreSQL, Redis, MinIO, realtime adapter | local login → organization → team → task → file flow, async event delivery, and reconnect/recovery |
+| `make test-failure` | disposable full stack | worker crash, duplicate job, Redis/MinIO/authentication dependency behavior, shutdown, and retry bounds |
 | `make test-restore` | isolated backup target only | destroy and restore durable PostgreSQL/MinIO state with hash and row-count comparison |
 
 ## Milestone demonstrations
@@ -25,7 +25,7 @@ not substitute for an executable check.
 | --- | --- |
 | M01 | On a fresh checkout without `.env`, `make check` and `make test-unit` pass and do not modify tracked files; integration dependencies start and are torn down by one documented command. |
 | M02 | Two organizations and two teams are alternated over a small pgx pool. Cross-organization access, a deliberately missing team predicate, missing context, and forged schema-like input all fail while same-team operations succeed. |
-| M03 | A browser-style OIDC login creates a server session; missing/expired session, bad CSRF, revoked membership, and insufficient permission return the documented problem types without tenant data leakage. |
+| M03 | A browser-style local email/password login creates an opaque server session; missing/expired/replayed session, bad origin/CSRF, revoked membership, insufficient permission, guessed IDs, and all legacy JWT/header routes return the documented outcomes without tenant data leakage. |
 | M04 | Two clients update and move the same task. One succeeds, one receives `412`; replaying a create request returns the original result; audit/outbox rows commit exactly once. |
 | M05 | A bounded multipart upload completes through opaque object keys; a worker crash safely retries; Redis loss degrades without losing committed state; graceful shutdown drains in-flight work; a backup restores into an empty environment. |
 | M06 | Published artifact versions remain immutable and attributable to exact experiment inputs/outputs; two overlapping booking transactions cannot both commit. |

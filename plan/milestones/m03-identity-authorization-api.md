@@ -3,113 +3,147 @@
 | Field | Value |
 | --- | --- |
 | Status | `not started` |
-| Outcome | Browser/API requests have a revocable identity, explicit permission, stable versioned contract, and default-deny tenant resolution. |
-| Depends on | M02 complete; TDR-02 and TDR-06 |
+| Outcome | Browser requests use local credentials and revocable sessions, explicit database-resolved permissions, a stable v1 contract, and a hardened default-deny HTTP boundary. |
+| Depends on | M02 complete; TDR-02 and closed TDR-06 |
 | Release | Security foundation |
+
+**Implementation package:** [M03 master handoff and ordered plan](../implementation/m03/README.md)
+
+## Architecture decision
+
+[ADR-005](../decisions/adr-005-local-password-bff-sessions.md) closes TDR-06.
+M03 uses local email/password verification followed by opaque BFF sessions.
+OIDC, MFA/passkeys, public registration, email recovery, and non-browser API
+tokens are future extensions, not M03 dependencies. Any future OIDC integration
+must end in the same server-session and database authorization model.
 
 ## Deliverables
 
-### M03-D01 — OIDC integration and account identity
+### M03-D01 — Local password authentication
 
-**Artifacts:** identity-provider service in local/test Compose,
-`internal/identity/`, next public migrations, auth integration tests.
+**Plan:** [decision-complete D01 handoff](../implementation/m03/d01-local-password-authentication.md)
 
-- [ ] Implement authorization-code flow with PKCE, issuer/audience/state/nonce
-  validation, bounded discovery/JWKS caching, and explicit timeouts.
-- [ ] Store external identities by immutable `(issuer, subject)` linked to a
-  local user public ID; do not use email as the stable key.
-- [ ] Implement the approved transition for existing password accounts and stop
-  exposing password login after the transition window.
-- [ ] Keep provider tokens out of logs and browser-readable storage.
+**Artifacts:** public email migration/query changes, `internal/identity/`,
+vendored password blocklist, operator user-creation command, seed update.
 
-**Acceptance:** test login succeeds; bad issuer/audience/state/nonce/signature,
-expired code, changed email, duplicate link, and provider outage fail safely.
+- [ ] Preserve accounts while enforcing canonical case-insensitive unique email;
+  abort ambiguous duplicate upgrades without merging.
+- [ ] Enforce 15–128 Unicode characters, at most 1024 bytes, common-password
+  blocking, and no composition or periodic-rotation rules.
+- [ ] Bound Argon2id parameters/concurrency before allocation, perform a dummy
+  hash for unknown accounts, return one invalid-credentials result, and rehash
+  outdated accepted parameters.
+- [ ] Create accounts only through an interactive or `--password-stdin` operator
+  path; never expose a password in argv, logs, or errors.
+
+**Acceptance:** canonical migration collisions, password-policy boundaries,
+hostile encoded hashes, unknown-account work, verifier concurrency/cancellation,
+rehash races, CLI redaction, and policy-compliant seeds pass.
 
 ### M03-D02 — Server sessions and CSRF
 
-**Artifacts:** session migration/query package, `internal/session/`, auth
-handlers under `/api/v1/auth`.
+**Plan:** [decision-complete D02 handoff](../implementation/m03/d02-server-sessions-csrf.md)
 
-- [ ] Store hashed opaque session tokens with user, created/last-seen/absolute
-  expiry, revocation, and bounded metadata.
-- [ ] Set `Secure`, `HttpOnly`, `SameSite` cookies with the approved name and
-  rotation behavior.
-- [ ] Enforce origin plus CSRF token checks on state-changing browser requests.
-- [ ] Implement `GET /api/v1/auth/session` and idempotent logout/revocation.
+**Artifacts:** `public.sessions`, generated queries, `internal/session/`, dark v1
+auth handlers, cleanup/operator behavior.
 
-**Acceptance:** stolen/expired/revoked/rotated session, missing or mismatched
-CSRF, disallowed origin, replayed callback, and concurrent logout tests pass.
+- [ ] Store only SHA-256 hashes of 256-bit opaque tokens with public UUID, user,
+  timestamps, 30-minute idle/12-hour absolute expiry, revocation, and bounded
+  user-agent metadata.
+- [ ] Use the production `__Host-synodus_session` cookie contract and a clearly
+  separate non-secure development cookie.
+- [ ] Derive CSRF from the raw session token with a dedicated HMAC secret; require
+  an approved origin plus `X-CSRF-Token` for unsafe cookie requests.
+- [ ] Add bounded inspection and current/all/specific revocation. Verify current
+  password and atomically rotate the current session/revoke others on change.
 
-### M03-D03 — Central authorization service
+**Acceptance:** expiry, fixation, replay, CSRF/origin, bounded inspection,
+concurrent logout, cleanup, password rotation, and database rollback tests pass.
 
-**Artifacts:** `internal/authorization/`, membership queries, matrix tests.
+### M03-D03 — Central authorization
 
-- [ ] Define closed organization/team roles and named permissions for all M03-M05
-  endpoints.
-- [ ] Resolve active organization/team membership before tenant execution and
-  return a trusted principal/context only after permission checks.
-- [ ] Default deny unknown roles, permissions, lifecycle states, and missing
-  context; organization administration does not imply research-content access.
-- [ ] Recheck permission inside the mutation transaction where membership or
-  object state could change concurrently.
+**Plan:** [decision-complete D03 handoff](../implementation/m03/d03-central-authorization.md)
 
-**Acceptance:** table-generated role × permission tests plus removed membership,
-disabled org, wrong team, guessed object, and unknown-role cases pass.
+**Artifacts:** organization membership migration, operator owner assignment,
+`internal/authorization/`, permission catalog, real-database matrix tests.
 
-### M03-D04 — Versioned public routes
+- [ ] Safely deduplicate legacy organization memberships, backfill closed
+  `member` roles, and never guess an owner.
+- [ ] Keep ownerless legacy organizations readable but fail administrative
+  mutations closed; atomically make new organization creators owners.
+- [ ] Define closed organization/team role-to-permission maps for organization,
+  team, task, file, audit, and realtime operations through M05.
+- [ ] Wrap M02's trusted resolver/executor and re-read membership/role in every
+  protected mutation transaction; organization admin grants no team-content access.
 
-**Artifacts:** `cmd/api/handlers/v1/` or equivalent router grouping, compatibility
-tests, deletion of unsafe routes after cutover.
+**Acceptance:** exhaustive role × permission, last-owner concurrency, ownerless
+upgrade, removed membership, lifecycle, wrong scope, guessed ID, unknown value,
+and RLS-backed mutation tests pass.
 
-- [ ] Mount all product endpoints beneath `/api/v1` and use public UUIDs/slugs,
-  never internal numeric IDs or schema names.
-- [ ] Replace `X-Org-ID` schema selection with authenticated route/context
-  resolution such as `/api/v1/orgs/{org_id}/teams/{team}`.
-- [ ] Protect organization/user administration, remove public pprof, and fix
-  current route-parameter mismatches.
-- [ ] Apply the TDR-02 compatibility decision and publish a removal point for any
-  temporary alias.
+### M03-D04 — OpenAPI and problem contract
 
-**Acceptance:** an endpoint inventory test proves no tenant route bypasses
-session, tenant resolution, and authorization middleware; legacy/header-based
-selection is absent or explicitly time-bounded.
+**Plan:** [decision-complete D04 handoff](../implementation/m03/d04-openapi-problem-contract.md)
 
-### M03-D05 — OpenAPI and problem responses
+**Artifacts:** `api/openapi.yaml`, pinned OpenAPI 3.1 validator, RFC 9457 writer,
+route inventory, signed cursor codec, `make test-contract`.
 
-**Artifacts:** `api/openapi.yaml`, generated validation/client artifacts if
-adopted, `internal/httpx/problem.go`, `.gitignore` update.
+- [ ] Unignore `/api`; make the hand-maintained 3.1 contract and examples the
+  source of truth with bidirectional route inventory checks.
+- [ ] Return stable relative problem types, safe details, request ID, and bounded
+  field violations as `application/problem+json` for every error.
+- [ ] Use `401` for session failure, `403` for known operation denial, and an
+  indistinguishable `404` for missing/unauthorized protected IDs.
+- [ ] Default pages to 50, cap at 100, and use bounded HMAC-signed keyset cursors
+  scoped to route, tenant public IDs, and sort tuple.
 
-- [ ] Unignore `/api`, define request/response/error/security schemas, and make
-  the contract the source for conformance tests.
-- [ ] Return `application/problem+json` with stable problem types, status, title,
-  detail safe for clients, request ID, and field violations.
-- [ ] Normalize not-found/forbidden behavior so identifier guessing reveals no
-  protected-resource existence.
-- [ ] Cap body/header/page sizes and use signed/opaque keyset cursors.
+**Acceptance:** validator, inventory, examples, live request/response,
+problem-disclosure, pagination-boundary, and adversarial cursor tests pass.
 
-**Acceptance:** contract tests cover success and every documented error for auth,
-organization, team, and task entry points; generated artifacts have zero drift.
+### M03-D05 — HTTP security envelope
 
-### M03-D06 — HTTP security envelope
+**Plan:** [decision-complete D05 handoff](../implementation/m03/d05-http-security-envelope.md)
 
-**Artifacts:** middleware/config tests and deployment headers.
+**Artifacts:** validated boundary configuration, middleware/server tests, Redis
+GCRA adapter, structured logging, loopback diagnostics listener.
 
-- [ ] Configure exact production origins and credentials behavior; preflight
-  never grants an unapproved origin.
-- [ ] Add security headers, request/body/header deadlines and limits, trusted
-  proxy handling, request IDs, and structured boundary logging.
-- [ ] Redact cookies, authorization values, tokens, object keys, and database
-  details from logs and problems.
-- [ ] Rate-limit sensitive auth and administrative endpoints with bounded local
-  or shared state and defined fallback behavior.
+- [ ] Enforce exact origins, credential rules, security headers, 32 KiB header
+  cap, server deadlines, and route-specific body limits.
+- [ ] Derive trusted client identity only through configured proxy CIDRs and log
+  bounded structured fields with complete secret redaction.
+- [ ] Rate-limit login by account failures and client-IP attempts using HMAC-keyed
+  Redis GCRA; deny login/admin on Redis outage while ordinary authorized traffic continues.
+- [ ] Remove pprof from the public router and permit only an explicit loopback
+  diagnostic listener outside production.
 
-**Acceptance:** security-header, CORS, redaction, slow-body, oversized-header,
-rate-limit, and timeout tests pass.
+**Acceptance:** CORS, header, body, timeout, forwarding spoof, redaction,
+multi-instance Redis limit/outage, security-header, and pprof topology tests pass.
 
-## Merge order
+### M03-D06 — Versioned route cutover
 
-D01 and D02 form the identity path; D03 follows the identity model. D04-D06 then
-replace the public surface as one reviewed cutover. No M04 mutation ships on an
-unversioned or header-selected route.
+**Plan:** [decision-complete D06 handoff](../implementation/m03/d06-versioned-route-cutover.md)
 
-**Implementation links:** _none yet_.
+**Artifacts:** `cmd/api/handlers/v1/`, exact route inventory, legacy deletion,
+live contract/isolation suite, browser-style M03 demonstration.
+
+- [ ] Mount the approved auth, organization, team, and task operations under
+  `/api/v1`; leave only live/ready health routes outside it.
+- [ ] Enforce request ID → trusted client → recovery → logs → envelope → rate
+  limit → session → unsafe CSRF → service authorization order.
+- [ ] Remove root/public user CRUD-registration, unversioned routes, `X-Org-ID`,
+  prototype files, JWT service/middleware/config/dependency, and bearer helpers.
+- [ ] Apply migrations, assign every active legacy organization an owner, verify
+  all configuration/check lanes, run the browser demonstration, and record links.
+
+**Acceptance:** exact route/order inventory, JWT/header/legacy rejection,
+browser login/session/password/revocation flow, authorization negative matrix,
+live contract conformance, real PostgreSQL/Redis failure paths, and upgrade
+rehearsal pass. File APIs remain unavailable until M05.
+
+## Merge order and cutover
+
+D01 → D02 → D03 → D04 → D05 → D06. Each implementation PR starts from refreshed
+`main` after its predecessor merges; none is stacked. D01–D05 are additive or
+dark infrastructure. D06 is the single compatibility cutover with no temporary
+JWT, unversioned, `X-Org-ID`, registration, or file aliases.
+
+**Implementation links:** planning baseline `4c1145e`; implementation PRs pending.

@@ -53,7 +53,7 @@ In scope:
 - Remove schema names/numeric IDs from responses, then delete service schema
   derivation and direct search-path code after the caller inventory is empty.
 
-Deferred: granular role-to-permission mapping, OIDC/session redesign, final
+Deferred: granular role-to-permission mapping, local authentication/session redesign, final
 organization selector contract, and unrelated domain tables introduced after M02.
 
 ## Interfaces, persistence, commands, and compatibility

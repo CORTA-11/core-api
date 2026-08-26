@@ -12,12 +12,12 @@
 ```text
 GET    /api/v1/orgs/{org_id}/teams
 POST   /api/v1/orgs/{org_id}/teams
-GET    /api/v1/orgs/{org_id}/teams/{team}/tasks
-POST   /api/v1/orgs/{org_id}/teams/{team}/tasks
-GET    /api/v1/orgs/{org_id}/teams/{team}/tasks/{task_id}
-PATCH  /api/v1/orgs/{org_id}/teams/{team}/tasks/{task_id}
-POST   /api/v1/orgs/{org_id}/teams/{team}/tasks/{task_id}/move
-DELETE /api/v1/orgs/{org_id}/teams/{team}/tasks/{task_id}
+GET    /api/v1/orgs/{org_id}/teams/{team_id}/tasks
+POST   /api/v1/orgs/{org_id}/teams/{team_id}/tasks
+GET    /api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}
+PATCH  /api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}
+POST   /api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}/move
+DELETE /api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}
 ```
 
 ## Deliverables
@@ -42,7 +42,9 @@ relationships.
 
 **Artifacts:** team domain/service/handler/query changes and OpenAPI paths.
 
-- [ ] Implement bounded, keyset-paginated list and idempotent create.
+- [ ] Reuse M03's signed, route/scope-bound cursor codec for a bounded,
+  keyset-paginated list; do not introduce a second cursor format. Add idempotent
+  create.
 - [ ] Generate collision-safe slugs and return public identifiers only.
 - [ ] Apply organization/team permission checks and transactional audit/outbox
   writes for creation and membership-sensitive changes.
@@ -56,8 +58,8 @@ Redis outage/stale entry, pagination boundary, and concurrent create tests pass.
 
 **Artifacts:** task domain/service/handler/query changes and OpenAPI paths.
 
-- [ ] Implement task list/get/create using only the tenant executor and bounded
-  keyset pagination.
+- [ ] Implement task list/get/create using only the tenant executor and M03's
+  bounded signed keyset pagination contract.
 - [ ] Accept an idempotency key for create; persist request fingerprint and
   response in the same transaction as the task.
 - [ ] Return `ETag` from the task version and stable problem responses.

@@ -106,16 +106,18 @@ dashboards/alerts as code where owned here.
 
 - [ ] Trace HTTP → tenant transaction → outbox/job → MinIO/realtime using request
   and event IDs without recording tokens, SQL text with values, or file content.
-- [ ] Emit bounded-cardinality latency/error/saturation metrics for HTTP, pgx,
-  jobs, Redis, MinIO, OIDC, and outbox lag.
+- [ ] Emit bounded-cardinality latency/error/saturation metrics for HTTP, local
+  credential verification, sessions, pgx, jobs, Redis, MinIO, and outbox lag.
 - [ ] Define and test dependency deadlines, pool/queue limits, circuit/open
   behavior, and readiness effects.
-- [ ] Make Redis/cache/telemetry failure degrade as documented while PostgreSQL,
-  authorization, or required storage failure fails closed.
+- [ ] Preserve M03's Redis split: cache/realtime/telemetry failure degrades,
+  while login and administrative mutations return a bounded `503` when their
+  Redis rate limiter is unavailable. PostgreSQL authorization/session or required
+  storage failure remains fail-closed.
 
 **Acceptance:** telemetry redaction/cardinality tests and PostgreSQL, Redis,
-MinIO, identity, realtime, and telemetry outage scenarios pass with bounded
-response/job times.
+MinIO, local-auth/session, realtime, and telemetry outage scenarios pass with
+bounded response/job times and the M03 Redis failure classifications intact.
 
 ### M05-D07 — Backup, restore, and core release runbook
 
@@ -127,7 +129,8 @@ deployment/runbook files, release Compose profile.
 - [ ] Restore into a validated empty target, apply/verify migration versions, and
   compare tenant counts plus representative object hashes.
 - [ ] Document start, migrate, rollback, shutdown, failed provisioning/job,
-  storage outage, identity outage, and restore commands with exact safety checks.
+  storage outage, credential/session incident, and restore commands with exact
+  safety checks.
 - [ ] Measure the first isolated restore and use it to close TDR-05; do not claim
   untested availability.
 

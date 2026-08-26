@@ -45,7 +45,7 @@ In scope:
   credentials for all behavioral assertions.
 - Record M02 evidence, implementation links, and completion status.
 
-Deferred: performance benchmarking, M03 permission semantics, browser/OIDC flows,
+Deferred: performance benchmarking, M03 permission semantics, browser session flows,
 new feature domains, and changing production architecture merely to ease tests.
 
 ## Interfaces, persistence, commands, and compatibility
@@ -135,8 +135,8 @@ deliverable and its rollout analysis.
 Hand off the trusted resolver/executor contract, public identifiers, lifecycle
 and role topology, closed stored team roles, production-path fixture builders,
 catalog inventory, and final isolation evidence. M03 owns permission mapping,
-final organization selection, sessions/OIDC, and default-deny API authorization;
-it must preserve this database boundary.
+final organization selection, local credential verification, revocable sessions,
+and default-deny API authorization; it must preserve this database boundary.
 
 ## Implementation record
 

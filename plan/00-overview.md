@@ -83,7 +83,7 @@ tenant and authorization boundary.
 | 7 | M02-D03 | One tenant executor owns transaction setup, trusted `search_path`, user/team settings, commit, and rollback. |
 | 8 | M02-D04 | Team membership and `FORCE ROW LEVEL SECURITY` protect team-owned rows. |
 | 9 | M02-D05 | Real PostgreSQL tests prove forged-tenant, broken-query, and pool-reuse isolation. |
-| 10 | M03-D01 | OIDC-backed sessions replace public use of the prototype bearer-JWT routes. |
+| 10 | M03-D01 | Bounded local password verification preserves accounts and replaces JWT-producing login behavior. |
 
 ## Scope control
 
@@ -93,6 +93,9 @@ tenant and authorization boundary.
   not the full product catalog.
 - Redis is an optimization and fan-out mechanism, never the authority for
   committed domain state.
+- Local password verification plus revocable opaque BFF sessions is the current
+  browser authentication architecture. OIDC is a future extension, not a core
+  release dependency.
 - Managed file storage ships before confidential storage. Confidential mode
   requires the key-custody decision in `TDR-03` and client work outside this
   repository.
