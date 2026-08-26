@@ -35,9 +35,9 @@ create/update endpoints accept unrestricted passwords. `userService.Login`
 distinguishes repository work internally and mints a 24-hour HS256 JWT. Unknown
 accounts skip Argon2. The decoder accepts hash-provided memory/time/parallelism
 without safe maxima before calling `argon2.IDKey`, so a hostile or corrupt hash
-can exhaust resources. There is no common-password blocklist, hash-concurrency
-limit, rehash path, or operator account command. Development seeds reuse an
-undocumented short password hash.
+can exhaust resources. There is no hash-concurrency limit, rehash path, or
+operator account command. Development seeds reuse an undocumented short
+password hash.
 
 ## Scope
 
@@ -53,8 +53,7 @@ In scope:
   constraint used by every lookup/create/change path.
 - Define password input as NFC-normalized Unicode, 15–128 code points inclusive
   and at most 1024 UTF-8 bytes. Permit spaces and Unicode; reject control/NUL
-  characters and a vendored, versioned common-password blocklist. Apply no
-  composition rule or periodic rotation.
+  characters. Apply no composition rule or periodic rotation.
 - Retain Argon2id. Centralize current target parameters and hard verification
   ceilings; validate encoded string/segment sizes and decimal fields before
   base64 decode or memory allocation.
@@ -97,7 +96,7 @@ deletes that adapter and all JWT code/configuration.
 | --- | --- | --- |
 | canonical-email migration test | `Alice@Example` and `alice@example` can coexist or migration guesses | upgrade aborts before mutation; a nonambiguous fleet backfills uniquely |
 | canonical lookup/create test | case/normalization variant misses or duplicates | all write/read paths use one canonical value and DB uniqueness wins races |
-| password-policy table | short, huge, or common values hash successfully | exact character/byte bounds and vendored blocklist reject; spaces/Unicode pass |
+| password-policy table | short, huge, or control-containing values hash successfully | exact character/byte bounds reject; spaces/Unicode pass |
 | hostile encoded-hash test/fuzz | oversized parameters reach decode/Argon2 | malformed and over-limit inputs fail before allocation/work and never panic |
 | verifier parity test | unknown email skips hash or exposes a distinct error | one bounded hash and one public error class on every invalid path |
 | concurrency/cancellation test | unbounded Argon2 goroutines or stuck wait | semaphore cap holds and canceled/deadline requests leave no permit leak |
@@ -113,15 +112,14 @@ and CLI branches use unit/fuzz tests without printing candidate secrets.
 1. Add failing canonicalization and real-upgrade collision tests.
 2. Add the public migration/query changes and regenerate; prove safe backfill,
    uniqueness, and rollback behavior.
-3. Add password-policy/blocklist tests and vendor the reviewed list with source,
-   version, checksum, and license metadata.
+3. Add password-policy tests for normalization and exact resource boundaries.
 4. Add hostile-hash/parser tests, then implement bounded Argon2id parsing,
    hashing, semaphore admission, dummy verification, and rehash detection.
 5. Add credential-verifier repository/error tests and remove JWT issuance from
    the new authentication path.
 6. Add CLI red tests, then implement interactive and stdin account creation.
 7. Update seed data, run upgrade/empty migrations and regressions, and record
-   red/green evidence plus blocklist provenance.
+   red/green evidence.
 
 ## Atomic green commits
 
@@ -147,7 +145,7 @@ git diff --check
 
 - [ ] Existing unique accounts survive upgrade with stable public IDs/hashes.
 - [ ] Ambiguous canonical duplicates abort without partial account changes.
-- [ ] Password length, Unicode, byte, control, and blocklist policy is exact.
+- [ ] Password length, Unicode, byte, and control policy is exact.
 - [ ] Unknown/wrong/deleted/malformed cases share one response and one hash-work class.
 - [ ] Argon2 parsing and concurrency remain inside declared bounds.
 - [ ] Successful verification rehashes outdated parameters safely.

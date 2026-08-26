@@ -1248,8 +1248,7 @@ The majority of internal code should operate on numeric IDs.
 Synodus authenticates current browser users with local email/password credentials
 and then creates a revocable opaque application session. Email comparison is
 canonical and case-insensitive. Passwords use bounded Argon2id verification,
-common-password blocking, uniform invalid-credential behavior, and bounded hash
-concurrency.
+uniform invalid-credential behavior, and bounded hash concurrency.
 
 Accounts are created by an operator command using an interactive prompt or
 standard input. Public registration and email recovery are not current features.
@@ -1257,9 +1256,9 @@ Passwords MUST NOT appear in process arguments, logs, errors, or audit metadata.
 
 New and changed passwords MUST contain 15–128 Unicode code points after NFC
 normalization and at most 1024 UTF-8 bytes. Spaces and Unicode are permitted.
-Reject a vendored common-password blocklist; do not require character-class
-composition or periodic rotation. Encoded Argon2id parameters MUST be bounded
-before decoding or allocating attacker-controlled sizes.
+Do not require character-class composition or periodic rotation. Encoded
+Argon2id parameters MUST be bounded before decoding or allocating
+attacker-controlled sizes.
 
 OIDC federation, MFA, passkeys, and non-browser API tokens are future extensions,
 not current deployment dependencies. A future OIDC integration MUST use standard

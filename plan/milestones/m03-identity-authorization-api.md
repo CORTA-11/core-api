@@ -24,12 +24,12 @@ must end in the same server-session and database authorization model.
 **Plan:** [decision-complete D01 handoff](../implementation/m03/d01-local-password-authentication.md)
 
 **Artifacts:** public email migration/query changes, `internal/identity/`,
-vendored password blocklist, operator user-creation command, seed update.
+operator user-creation command, seed update.
 
 - [ ] Preserve accounts while enforcing canonical case-insensitive unique email;
   abort ambiguous duplicate upgrades without merging.
-- [ ] Enforce 15–128 Unicode characters, at most 1024 bytes, common-password
-  blocking, and no composition or periodic-rotation rules.
+- [ ] Enforce 15–128 Unicode characters, at most 1024 bytes, and no composition
+  or periodic-rotation rules.
 - [ ] Bound Argon2id parameters/concurrency before allocation, perform a dummy
   hash for unknown accounts, return one invalid-credentials result, and rehash
   outdated accepted parameters.
