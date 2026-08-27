@@ -83,6 +83,7 @@ func (application *TeamTaskApplication) ListTeams(
 	var rows []tenantdb.Team
 	err = application.authorizer.WithinOrganization(ctx, principal, organizationID, authorization.PermissionOrgRead,
 		func(queries *tenantdb.Queries) error {
+			// #nosec G115 -- PageSize was validated at no more than 100 above.
 			limit := int32(parameters.PageSize + 1)
 			if cursor.Direction == pagination.DirectionPrevious {
 				var queryErr error
@@ -170,6 +171,7 @@ func (application *TeamTaskApplication) ListTasks(
 	var rows []tenantdb.Task
 	err = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTaskRead,
 		func(queries *tenantdb.Queries) error {
+			// #nosec G115 -- PageSize was validated at no more than 100 above.
 			limit := int32(parameters.PageSize + 1)
 			if cursor.Direction == pagination.DirectionPrevious {
 				var queryErr error

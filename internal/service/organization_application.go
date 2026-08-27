@@ -70,6 +70,7 @@ func (application *OrganizationApplication) List(
 		cursor = verified
 	}
 	queries := publicdb.New(application.pool)
+	// #nosec G115 -- PageSize was validated at no more than 100 above.
 	limit := int32(parameters.PageSize + 1)
 	var rows []publicdb.Org
 	var err error
