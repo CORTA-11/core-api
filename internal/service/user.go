@@ -5,12 +5,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid email or password")
+	ErrInvalidCredentials = identity.ErrInvalidCredentials
 	ErrUserNotFound       = errors.New("user not found")
 	ErrEmailAlreadyInUse  = errors.New("email already in use")
 )

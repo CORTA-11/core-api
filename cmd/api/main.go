@@ -14,6 +14,7 @@ import (
 
 	"github.com/CORTA-11/core-api/cmd/api/handlers"
 	"github.com/CORTA-11/core-api/internal/config"
+	"github.com/CORTA-11/core-api/internal/identity"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/CORTA-11/core-api/internal/service"
@@ -89,8 +90,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	teamService := service.NewTeamService(tenantExecutor)
 	taskService := service.NewTaskService(tenantExecutor)
 	tokenService := service.NewTokenService(cfg.JWTSecret)
-	passwordService := service.NewPasswordService()
-	userService := service.NewUserService(pool, publicQueries, tokenService, passwordService)
+	passwordHasher, err := identity.NewPasswordHasher(identity.HashConfig{})
+	if err != nil {
+		return fmt.Errorf("configure password hasher: %w", err)
+	}
+	credentialStore := identity.NewPostgresCredentialStore(publicQueries)
+	credentialVerifier, err := identity.NewCredentialVerifier(ctx, credentialStore, passwordHasher)
+	if err != nil {
+		return fmt.Errorf("initialize credential verifier: %w", err)
+	}
+	userService := service.NewUserService(publicQueries, tokenService, passwordHasher, credentialVerifier)
 	orgUserService := service.NewOrgUserService(pool, publicQueries)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
 	readiness := map[string]handlers.ReadinessCheck{

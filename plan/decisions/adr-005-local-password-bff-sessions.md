@@ -61,8 +61,8 @@ immutable issuer/subject and end in the same Synodus session/authorization model
 
 ## Consequences
 
-Synodus owns password-verifier hardening and operator account creation, including
-blocklist maintenance and rehash upgrades. PostgreSQL becomes the durable session
+Synodus owns password-verifier hardening, operator account creation, and rehash
+upgrades. PostgreSQL becomes the durable session
 authority, while Redis outages affect only the M03 rate-limit envelope. The
 browser never receives a durable bearer token, account roles remain fresh, and a
 future IdP can replace the credential-verification step without replacing

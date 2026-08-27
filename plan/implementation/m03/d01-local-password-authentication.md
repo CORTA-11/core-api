@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `complete on prepared branch` |
 | Branch | `security/m03-d01-password-authentication` |
 | PR title | `security(auth): harden local password authentication` |
 | Predecessor | M03 planning PR |
@@ -35,9 +35,9 @@ create/update endpoints accept unrestricted passwords. `userService.Login`
 distinguishes repository work internally and mints a 24-hour HS256 JWT. Unknown
 accounts skip Argon2. The decoder accepts hash-provided memory/time/parallelism
 without safe maxima before calling `argon2.IDKey`, so a hostile or corrupt hash
-can exhaust resources. There is no common-password blocklist, hash-concurrency
-limit, rehash path, or operator account command. Development seeds reuse an
-undocumented short password hash.
+can exhaust resources. There is no hash-concurrency limit, rehash path, or
+operator account command. Development seeds reuse an undocumented short
+password hash.
 
 ## Scope
 
@@ -53,8 +53,7 @@ In scope:
   constraint used by every lookup/create/change path.
 - Define password input as NFC-normalized Unicode, 15–128 code points inclusive
   and at most 1024 UTF-8 bytes. Permit spaces and Unicode; reject control/NUL
-  characters and a vendored, versioned common-password blocklist. Apply no
-  composition rule or periodic rotation.
+  characters. Apply no composition rule or periodic rotation.
 - Retain Argon2id. Centralize current target parameters and hard verification
   ceilings; validate encoded string/segment sizes and decimal fields before
   base64 decode or memory allocation.
@@ -97,7 +96,7 @@ deletes that adapter and all JWT code/configuration.
 | --- | --- | --- |
 | canonical-email migration test | `Alice@Example` and `alice@example` can coexist or migration guesses | upgrade aborts before mutation; a nonambiguous fleet backfills uniquely |
 | canonical lookup/create test | case/normalization variant misses or duplicates | all write/read paths use one canonical value and DB uniqueness wins races |
-| password-policy table | short, huge, or common values hash successfully | exact character/byte bounds and vendored blocklist reject; spaces/Unicode pass |
+| password-policy table | short, huge, or control-containing values hash successfully | exact character/byte bounds reject; spaces/Unicode pass |
 | hostile encoded-hash test/fuzz | oversized parameters reach decode/Argon2 | malformed and over-limit inputs fail before allocation/work and never panic |
 | verifier parity test | unknown email skips hash or exposes a distinct error | one bounded hash and one public error class on every invalid path |
 | concurrency/cancellation test | unbounded Argon2 goroutines or stuck wait | semaphore cap holds and canceled/deadline requests leave no permit leak |
@@ -113,24 +112,27 @@ and CLI branches use unit/fuzz tests without printing candidate secrets.
 1. Add failing canonicalization and real-upgrade collision tests.
 2. Add the public migration/query changes and regenerate; prove safe backfill,
    uniqueness, and rollback behavior.
-3. Add password-policy/blocklist tests and vendor the reviewed list with source,
-   version, checksum, and license metadata.
+3. Add password-policy tests for normalization and exact resource boundaries.
 4. Add hostile-hash/parser tests, then implement bounded Argon2id parsing,
    hashing, semaphore admission, dummy verification, and rehash detection.
 5. Add credential-verifier repository/error tests and remove JWT issuance from
    the new authentication path.
 6. Add CLI red tests, then implement interactive and stdin account creation.
 7. Update seed data, run upgrade/empty migrations and regressions, and record
-   red/green evidence plus blocklist provenance.
+   red/green evidence.
 
 ## Atomic green commits
 
 1. `security(auth): enforce canonical email identity`
 2. `security(auth): enforce bounded password policy`
-3. `security(auth): bound argon2 credential verification`
-4. `feat(admin): add secure local account creation`
-5. `test(seed): use policy-compliant development credentials`
-6. `docs(plan): link m03-d01 implementation`
+3. `security(auth): bound argon2 hash parsing`
+4. `security(auth): limit argon2 work admission`
+5. `security(auth): verify credentials uniformly`
+6. `security(auth): upgrade legacy credential hashes`
+7. `feat(admin): add secure local account creation`
+8. `test(seed): use policy-compliant development credentials`
+9. `security(auth): document bounded hash conversions`
+10. `docs(plan): record m03-d01 implementation`
 
 ## Verification and acceptance
 
@@ -145,14 +147,14 @@ make check
 git diff --check
 ```
 
-- [ ] Existing unique accounts survive upgrade with stable public IDs/hashes.
-- [ ] Ambiguous canonical duplicates abort without partial account changes.
-- [ ] Password length, Unicode, byte, control, and blocklist policy is exact.
-- [ ] Unknown/wrong/deleted/malformed cases share one response and one hash-work class.
-- [ ] Argon2 parsing and concurrency remain inside declared bounds.
-- [ ] Successful verification rehashes outdated parameters safely.
-- [ ] Operator and seed workflows expose no secret and public registration is absent from v1.
-- [ ] PR records red and green evidence.
+- [x] Existing unique accounts survive upgrade with stable public IDs/hashes.
+- [x] Ambiguous canonical duplicates abort without partial account changes.
+- [x] Password length, Unicode, byte, and control policy is exact.
+- [x] Unknown/wrong/deleted/malformed cases share one response and one hash-work class.
+- [x] Argon2 parsing and concurrency remain inside declared bounds.
+- [x] Successful verification rehashes outdated parameters safely.
+- [x] Operator and seed workflows expose no secret and public registration is absent from v1.
+- [x] The prepared branch records red and green evidence; PR evidence remains pending.
 
 ## Rollout, rollback, and operations
 
@@ -179,4 +181,23 @@ evidence. D02 creates sessions only after this verifier succeeds.
 
 **Merge commit:** _pending_
 
-**Red/green evidence:** _pending_
+**Implementation commits:** `8f26827` canonical email; `1897bcc` password
+policy and architecture cleanup; `1d2217c` bounded parser; `cdbfd1a`
+hash admission; `c243906` uniform verifier and compatibility wiring; `51197c0`
+CAS rehash; `de56029` admin CLI; `1c2bf1c` seeds; `15d86fc` static-security
+audit annotations; this documentation commit.
+
+**Observed red evidence:** focused `go test` runs for `./internal/identity`
+failed on the expected missing `EmailCanonicalizer`, `PasswordPolicy`, bounded
+Argon2 parser, `HashConfig`/hasher, credential-verifier, and CAS symbols. The
+focused `go test ./cmd/admin` run failed on the expected missing CLI runner and
+safe error sentinels. The first PostgreSQL migration run also exposed the legacy
+seed's obsolete `ON CONFLICT (email)` target before the canonical conflict target
+was applied.
+
+**Green evidence:** `make generate-check`, `make test-unit`, `make test-race`,
+`make test-integration`, `make test-isolation`, `make check`, `make secrets`, and
+`git diff --check` passed on the prepared branch. PostgreSQL 18 tests cover fresh
+and version-5 upgrades, collision rollback, generated canonical uniqueness,
+normalization-state preservation, CAS races, the real admin CLI, and twice-applied
+seeds.

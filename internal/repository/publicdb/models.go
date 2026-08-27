@@ -36,12 +36,14 @@ type OrgUser struct {
 }
 
 type User struct {
-	ID           int64              `json:"id"`
-	UserID       uuid.UUID          `json:"user_id"`
-	Email        string             `json:"email"`
-	PasswordHash string             `json:"password_hash"`
-	DisplayName  string             `json:"display_name"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
-	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
+	ID                    int64              `json:"id"`
+	UserID                uuid.UUID          `json:"user_id"`
+	Email                 string             `json:"email"`
+	PasswordHash          string             `json:"password_hash"`
+	DisplayName           string             `json:"display_name"`
+	CreatedAt             time.Time          `json:"created_at"`
+	UpdatedAt             time.Time          `json:"updated_at"`
+	DeletedAt             pgtype.Timestamptz `json:"deleted_at"`
+	EmailCanonical        string             `json:"email_canonical"`
+	PasswordNormalization string             `json:"password_normalization"`
 }

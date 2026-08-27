@@ -38,13 +38,17 @@ func TestDevelopmentSeedsCreateIdempotentOrganizationMembershipMatrix(t *testing
 		"leader@aratuwa.edu": {"University of Aratuwa", "MedSync"},
 		"member@aratuwa.edu": {"University of Aratuwa"},
 	}
+	passwordHashes := make(map[string]struct{}, len(expectedMemberships))
 	for email, organizations := range expectedMemberships {
-		var passwordHash string
+		var passwordHash, normalization string
 		require.NoError(t, pool.QueryRow(ctx,
-			`SELECT password_hash FROM public.users WHERE email = $1 AND deleted_at IS NULL`, email).Scan(&passwordHash))
-		valid, err := service.VerifyPassword("password123", passwordHash)
+			`SELECT password_hash, password_normalization FROM public.users WHERE email = $1 AND deleted_at IS NULL`, email).
+			Scan(&passwordHash, &normalization))
+		valid, err := service.VerifyPassword("synodus-demo-password", passwordHash)
 		require.NoError(t, err)
 		assert.True(t, valid, email)
+		assert.Equal(t, "nfc_v1", normalization, email)
+		passwordHashes[passwordHash] = struct{}{}
 
 		rows, err := pool.Query(ctx, `
 			SELECT organization.name
@@ -64,4 +68,5 @@ func TestDevelopmentSeedsCreateIdempotentOrganizationMembershipMatrix(t *testing
 		require.NoError(t, rows.Err())
 		assert.ElementsMatch(t, organizations, actual, email)
 	}
+	assert.Len(t, passwordHashes, len(expectedMemberships), "seed users must have distinct salts and hashes")
 }

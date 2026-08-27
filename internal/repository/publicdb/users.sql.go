@@ -9,22 +9,62 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const compareAndSwapCredential = `-- name: CompareAndSwapCredential :execrows
+UPDATE public.users
+SET password_hash = $1,
+    password_normalization = $2,
+    updated_at = NOW()
+WHERE user_id = $3
+  AND password_hash = $4
+  AND password_normalization = $5
+  AND deleted_at IS NULL
+`
+
+type CompareAndSwapCredentialParams struct {
+	NewHash               string    `json:"new_hash"`
+	NewNormalization      string    `json:"new_normalization"`
+	UserID                uuid.UUID `json:"user_id"`
+	ExpectedHash          string    `json:"expected_hash"`
+	ExpectedNormalization string    `json:"expected_normalization"`
+}
+
+func (q *Queries) CompareAndSwapCredential(ctx context.Context, arg CompareAndSwapCredentialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, compareAndSwapCredential,
+		arg.NewHash,
+		arg.NewNormalization,
+		arg.UserID,
+		arg.ExpectedHash,
+		arg.ExpectedNormalization,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createUser = `-- name: CreateUser :one
-INSERT INTO public.users (email, password_hash, display_name)
-VALUES ($1, $2, $3)
-RETURNING id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+INSERT INTO public.users (email, password_hash, display_name, password_normalization)
+VALUES ($1, $2, $3, $4)
+RETURNING id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at, email_canonical, password_normalization
 `
 
 type CreateUserParams struct {
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
-	DisplayName  string `json:"display_name"`
+	Email                 string `json:"email"`
+	PasswordHash          string `json:"password_hash"`
+	DisplayName           string `json:"display_name"`
+	PasswordNormalization string `json:"password_normalization"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.Email, arg.PasswordHash, arg.DisplayName)
+	row := q.db.QueryRow(ctx, createUser,
+		arg.Email,
+		arg.PasswordHash,
+		arg.DisplayName,
+		arg.PasswordNormalization,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -35,12 +75,14 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.EmailCanonical,
+		&i.PasswordNormalization,
 	)
 	return i, err
 }
 
 const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at, email_canonical, password_normalization
 FROM public.users
 WHERE deleted_at IS NULL
 ORDER BY created_at ASC, id ASC
@@ -65,6 +107,8 @@ func (q *Queries) GetAllUsers(ctx context.Context, limit int32) ([]User, error) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.EmailCanonical,
+			&i.PasswordNormalization,
 		); err != nil {
 			return nil, err
 		}
@@ -76,15 +120,65 @@ func (q *Queries) GetAllUsers(ctx context.Context, limit int32) ([]User, error) 
 	return items, nil
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+const getCredentialByCanonicalEmail = `-- name: GetCredentialByCanonicalEmail :one
+SELECT user_id, password_hash, password_normalization, deleted_at
 FROM public.users
-WHERE email = $1
+WHERE email_canonical = $1
+`
+
+type GetCredentialByCanonicalEmailRow struct {
+	UserID                uuid.UUID          `json:"user_id"`
+	PasswordHash          string             `json:"password_hash"`
+	PasswordNormalization string             `json:"password_normalization"`
+	DeletedAt             pgtype.Timestamptz `json:"deleted_at"`
+}
+
+func (q *Queries) GetCredentialByCanonicalEmail(ctx context.Context, emailCanonical string) (GetCredentialByCanonicalEmailRow, error) {
+	row := q.db.QueryRow(ctx, getCredentialByCanonicalEmail, emailCanonical)
+	var i GetCredentialByCanonicalEmailRow
+	err := row.Scan(
+		&i.UserID,
+		&i.PasswordHash,
+		&i.PasswordNormalization,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getCurrentCredentialByUserID = `-- name: GetCurrentCredentialByUserID :one
+SELECT user_id, password_hash, password_normalization, deleted_at
+FROM public.users
+WHERE user_id = $1
+`
+
+type GetCurrentCredentialByUserIDRow struct {
+	UserID                uuid.UUID          `json:"user_id"`
+	PasswordHash          string             `json:"password_hash"`
+	PasswordNormalization string             `json:"password_normalization"`
+	DeletedAt             pgtype.Timestamptz `json:"deleted_at"`
+}
+
+func (q *Queries) GetCurrentCredentialByUserID(ctx context.Context, userID uuid.UUID) (GetCurrentCredentialByUserIDRow, error) {
+	row := q.db.QueryRow(ctx, getCurrentCredentialByUserID, userID)
+	var i GetCurrentCredentialByUserIDRow
+	err := row.Scan(
+		&i.UserID,
+		&i.PasswordHash,
+		&i.PasswordNormalization,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getUserByCanonicalEmail = `-- name: GetUserByCanonicalEmail :one
+SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at, email_canonical, password_normalization
+FROM public.users
+WHERE email_canonical = $1
 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, email)
+func (q *Queries) GetUserByCanonicalEmail(ctx context.Context, emailCanonical string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByCanonicalEmail, emailCanonical)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -95,12 +189,14 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.EmailCanonical,
+		&i.PasswordNormalization,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+SELECT id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at, email_canonical, password_normalization
 FROM public.users
 WHERE user_id = $1
 AND deleted_at IS NULL
@@ -118,6 +214,8 @@ func (q *Queries) GetUserByID(ctx context.Context, userID uuid.UUID) (User, erro
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.EmailCanonical,
+		&i.PasswordNormalization,
 	)
 	return i, err
 }
@@ -127,7 +225,7 @@ UPDATE public.users
 SET deleted_at = NOW()
 WHERE user_id = $1
 AND deleted_at IS NULL
-RETURNING id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+RETURNING id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at, email_canonical, password_normalization
 `
 
 func (q *Queries) SoftDeleteUser(ctx context.Context, userID uuid.UUID) (User, error) {
@@ -142,23 +240,27 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, userID uuid.UUID) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.EmailCanonical,
+		&i.PasswordNormalization,
 	)
 	return i, err
 }
 
 const updateUser = `-- name: UpdateUser :one
 UPDATE public.users
-SET email = $2, password_hash = $3, display_name = $4, updated_at = NOW()
+SET email = $2, password_hash = $3, display_name = $4,
+    password_normalization = $5, updated_at = NOW()
 WHERE user_id = $1
 AND deleted_at IS NULL
-RETURNING id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at
+RETURNING id, user_id, email, password_hash, display_name, created_at, updated_at, deleted_at, email_canonical, password_normalization
 `
 
 type UpdateUserParams struct {
-	UserID       uuid.UUID `json:"user_id"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"password_hash"`
-	DisplayName  string    `json:"display_name"`
+	UserID                uuid.UUID `json:"user_id"`
+	Email                 string    `json:"email"`
+	PasswordHash          string    `json:"password_hash"`
+	DisplayName           string    `json:"display_name"`
+	PasswordNormalization string    `json:"password_normalization"`
 }
 
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
@@ -167,6 +269,7 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		arg.Email,
 		arg.PasswordHash,
 		arg.DisplayName,
+		arg.PasswordNormalization,
 	)
 	var i User
 	err := row.Scan(
@@ -178,6 +281,8 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.EmailCanonical,
+		&i.PasswordNormalization,
 	)
 	return i, err
 }
