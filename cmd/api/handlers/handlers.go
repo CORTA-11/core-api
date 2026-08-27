@@ -12,7 +12,6 @@ import (
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -27,7 +26,6 @@ type Router struct {
 	orgUserService   service.OrgUserService
 	readinessChecks  map[string]ReadinessCheck
 	readinessTimeout time.Duration
-	pprofEnabled     bool
 	orgAvailability  appMiddleware.OrgAvailabilityChecker
 	tenantResolver   TenantResolver
 	trustedProxies   httpx.TrustedProxies
@@ -48,7 +46,6 @@ type RouterConf struct {
 	OrgUserService   *service.OrgUserService
 	ReadinessChecks  map[string]ReadinessCheck
 	ReadinessTimeout time.Duration
-	PprofEnabled     bool
 	// OrgAvailability gates tenant-scoped routes; production wiring must provide
 	// it.
 	OrgAvailability appMiddleware.OrgAvailabilityChecker
@@ -68,7 +65,6 @@ func NewRouter(conf RouterConf) *Router {
 		orgUserService:   *conf.OrgUserService,
 		readinessChecks:  conf.ReadinessChecks,
 		readinessTimeout: conf.ReadinessTimeout,
-		pprofEnabled:     conf.PprofEnabled,
 		orgAvailability:  conf.OrgAvailability,
 		tenantResolver:   conf.TenantResolver,
 		trustedProxies:   conf.TrustedProxies,
@@ -82,10 +78,6 @@ func (router *Router) SetupRoutes() {
 	r.Use(func(next http.Handler) http.Handler { return httpx.BoundaryLog(slog.Default(), next) })
 	r.Use(httpx.Recover)
 	r.Use(appMiddleware.CorsMiddleware)
-
-	if router.pprofEnabled {
-		r.Mount("/debug", middleware.Profiler())
-	}
 
 	r.Get("/health/live", healthLive())
 	r.Get("/health/ready", healthReady(router.readinessChecks, router.readinessTimeout))

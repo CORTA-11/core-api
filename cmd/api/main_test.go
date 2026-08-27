@@ -5,10 +5,13 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/config"
+	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,4 +84,39 @@ func TestServeBoundsShutdown(t *testing.T) {
 	close(release)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestDiagnosticServerUsesIsolatedMuxAndAPIBounds(t *testing.T) {
+	cfg := config.Config{
+		HTTPAddr: "127.0.0.1:8080", PprofEnabled: true, PprofAddr: "127.0.0.1:6060",
+		HTTPReadHeaderTimeout: time.Second, HTTPReadTimeout: 2 * time.Second,
+		HTTPWriteTimeout: 3 * time.Second, HTTPIdleTimeout: 4 * time.Second,
+	}
+	server, err := newDiagnosticServer(cfg, nil)
+	require.NoError(t, err)
+	assert.Equal(t, cfg.PprofAddr, server.Addr)
+	assert.Equal(t, httpx.MaximumHeaderBytes, server.MaxHeaderBytes)
+	assert.NotEqual(t, http.DefaultServeMux, server.Handler)
+
+	for path, status := range map[string]int{"/debug/pprof/": http.StatusOK, "/health/live": http.StatusNotFound, "/": http.StatusNotFound} {
+		recorder := httptest.NewRecorder()
+		server.Handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, status, recorder.Code, path)
+	}
+}
+
+func TestServeAllStopsPeerWhenDiagnosticServerFails(t *testing.T) {
+	want := errors.New("diagnostic listener failed")
+	apiListener := newPipeListener()
+	err := serveAll(context.Background(), []serverBinding{
+		{name: "API", server: &http.Server{}, listener: apiListener},
+		{name: "diagnostics", server: &http.Server{}, listener: failingListener{err: want}},
+	}, time.Second)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, want)
+	select {
+	case <-apiListener.closed:
+	default:
+		t.Fatal("API listener remained open after diagnostic failure")
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -110,8 +111,8 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		OrgService: &orgService, TeamService: &teamService,
 		TaskService: &taskService, UserService: &userService, FileService: &fileService,
 		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
-		ReadinessTimeout: cfg.DependencyTimeout, PprofEnabled: cfg.PprofEnabled,
-		OrgAvailability: availability, TenantResolver: tenantResolver,
+		ReadinessTimeout: cfg.DependencyTimeout,
+		OrgAvailability:  availability, TenantResolver: tenantResolver,
 		TrustedProxies: cfg.TrustedProxies,
 	})
 	router.SetupRoutes()
@@ -124,7 +125,39 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("listen on %s: %w", cfg.HTTPAddr, err)
 	}
 	slog.Info("core-api listening", "addr", listener.Addr().String())
-	return serve(ctx, server, listener, cfg.ShutdownTimeout)
+	bindings := []serverBinding{{name: "API", server: server, listener: listener}}
+	if cfg.PprofEnabled {
+		diagnostic, diagnosticErr := newDiagnosticServer(cfg, logger)
+		if diagnosticErr != nil {
+			_ = listener.Close()
+			return diagnosticErr
+		}
+		diagnosticListener, listenErr := net.Listen("tcp", cfg.PprofAddr)
+		if listenErr != nil {
+			_ = listener.Close()
+			return fmt.Errorf("listen for diagnostics on %s: %w", cfg.PprofAddr, listenErr)
+		}
+		slog.Info("diagnostics listening", "addr", diagnosticListener.Addr().String())
+		bindings = append(bindings, serverBinding{name: "diagnostics", server: diagnostic, listener: diagnosticListener})
+	}
+	return serveAll(ctx, bindings, cfg.ShutdownTimeout)
+}
+
+func newDiagnosticServer(cfg config.Config, logger *slog.Logger) (*http.Server, error) {
+	if !cfg.PprofEnabled || cfg.Environment == "production" {
+		return nil, errors.New("diagnostics are not permitted")
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("POST /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+	return httpx.NewServer(cfg.PprofAddr, mux, httpx.ServerTimeouts{
+		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
+		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
+	}, logger), nil
 }
 
 func dependencyCheck(parent context.Context, timeout time.Duration, check func(context.Context) error) error {
@@ -134,24 +167,53 @@ func dependencyCheck(parent context.Context, timeout time.Duration, check func(c
 }
 
 func serve(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration) error {
-	serveResult := make(chan error, 1)
-	go func() { serveResult <- server.Serve(listener) }()
-	select {
-	case err := <-serveResult:
-		if errors.Is(err, http.ErrServerClosed) {
-			return nil
-		}
-		return fmt.Errorf("serve HTTP: %w", err)
-	case <-ctx.Done():
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			_ = server.Close()
-			return fmt.Errorf("shutdown HTTP server: %w", err)
-		}
-		if err := <-serveResult; err != nil && !errors.Is(err, http.ErrServerClosed) {
-			return fmt.Errorf("serve HTTP during shutdown: %w", err)
-		}
-		return nil
+	return serveAll(ctx, []serverBinding{{name: "HTTP", server: server, listener: listener}}, shutdownTimeout)
+}
+
+type serverBinding struct {
+	name     string
+	server   *http.Server
+	listener net.Listener
+}
+
+type serverResult struct {
+	name string
+	err  error
+}
+
+func serveAll(ctx context.Context, bindings []serverBinding, shutdownTimeout time.Duration) error {
+	serveResult := make(chan serverResult, len(bindings))
+	for _, binding := range bindings {
+		go func() { serveResult <- serverResult{binding.name, binding.server.Serve(binding.listener)} }()
 	}
+	var runtimeResult *serverResult
+	select {
+	case result := <-serveResult:
+		runtimeResult = &result
+	case <-ctx.Done():
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	for _, binding := range bindings {
+		if err := binding.server.Shutdown(shutdownCtx); err != nil {
+			for _, closing := range bindings {
+				_ = closing.server.Close()
+			}
+			return fmt.Errorf("shutdown %s server: %w", binding.name, err)
+		}
+	}
+	remaining := len(bindings)
+	if runtimeResult != nil {
+		remaining--
+	}
+	for range remaining {
+		result := <-serveResult
+		if !errors.Is(result.err, http.ErrServerClosed) && runtimeResult == nil {
+			runtimeResult = &result
+		}
+	}
+	if runtimeResult != nil && !errors.Is(runtimeResult.err, http.ErrServerClosed) {
+		return fmt.Errorf("serve %s HTTP: %w", runtimeResult.name, runtimeResult.err)
+	}
+	return nil
 }

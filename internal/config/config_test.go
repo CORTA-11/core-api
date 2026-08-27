@@ -46,6 +46,23 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, []string{"http://localhost:3000", "http://127.0.0.1:3000"}, config.HTTPOrigins.Values())
 	assert.Empty(t, config.TrustedProxies.CIDRs())
 	assert.False(t, config.PprofEnabled)
+	assert.Equal(t, "127.0.0.1:6060", config.PprofAddr)
+}
+
+func TestLoadAllowsPprofOnlyOnDistinctDevelopmentLoopback(t *testing.T) {
+	values := validEnvironment()
+	values["PPROF_ENABLED"] = "true"
+	values["PPROF_ADDR"] = "127.0.0.1:6061"
+	config, err := loadMap(values)
+	require.NoError(t, err)
+	assert.True(t, config.PprofEnabled)
+
+	for _, address := range []string{"localhost:6061", "0.0.0.0:6061", "192.0.2.1:6061", "127.0.0.1:0", ":6061", "127.0.0.1:8080"} {
+		values["PPROF_ADDR"] = address
+		_, err := loadMap(values)
+		require.Error(t, err, address)
+		assert.ErrorContains(t, err, "PPROF_ADDR")
+	}
 }
 
 func TestLoadValidatesRateLimitConfiguration(t *testing.T) {

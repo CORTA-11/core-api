@@ -18,7 +18,7 @@ func TestHealthLive(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
 }
 
-func TestPprofIsDisabledByDefault(t *testing.T) {
+func TestPprofIsNeverMountedOnPublicRouter(t *testing.T) {
 	router := &Router{mux: chi.NewRouter(), readinessTimeout: time.Second}
 	router.SetupRoutes()
 	recorder := httptest.NewRecorder()

@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -44,6 +46,7 @@ type Config struct {
 	RateLimitTimeout      time.Duration
 	RateLimits            ratelimit.Policies
 	PprofEnabled          bool
+	PprofAddr             string
 }
 
 type CursorKeys struct {
@@ -77,6 +80,7 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		RateLimitSecret:  valueOrDefault(lookup, "RATE_LIMIT_SECRET", DevelopmentRateLimitSecret),
 		RateLimitTimeout: 250 * time.Millisecond,
 		RateLimits:       ratelimit.DefaultPolicies(),
+		PprofAddr:        valueOrDefault(lookup, "PPROF_ADDR", "127.0.0.1:6060"),
 		Cursor: CursorKeys{
 			ActiveKeyID:    valueOrDefault(lookup, "CURSOR_KEY_ID", DevelopmentCursorKeyID),
 			ActiveSecret:   valueOrDefault(lookup, "CURSOR_SECRET", DevelopmentCursorSecret),
@@ -167,6 +171,9 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	if config.Environment != "development" && config.Environment != "test" && config.Environment != "production" {
 		problems = append(problems, errors.New("APP_ENV must be development, test, or production"))
 	}
+	if err := validatePprofAddress(config.HTTPAddr, config.PprofAddr); err != nil {
+		problems = append(problems, err)
+	}
 	if _, parseErr := redis.ParseURL(config.RedisURL); parseErr != nil {
 		problems = append(problems, errors.New("REDIS_URL must be a valid redis or rediss URL"))
 	}
@@ -221,6 +228,24 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		return Config{}, fmt.Errorf("invalid configuration: %w", errors.Join(problems...))
 	}
 	return config, nil
+}
+
+func validatePprofAddress(apiAddress, diagnosticAddress string) error {
+	host, portText, err := net.SplitHostPort(diagnosticAddress)
+	if err != nil {
+		return errors.New("PPROF_ADDR must contain a literal loopback IP and nonzero port")
+	}
+	address, err := netip.ParseAddr(host)
+	port, portErr := strconv.ParseUint(portText, 10, 16)
+	if err != nil || !address.IsLoopback() || portErr != nil || port == 0 {
+		return errors.New("PPROF_ADDR must contain a literal loopback IP and nonzero port")
+	}
+	apiHost, apiPort, apiErr := net.SplitHostPort(apiAddress)
+	if apiErr == nil && apiPort == portText &&
+		(apiHost == "" || apiHost == "0.0.0.0" || apiHost == "::" || apiHost == host) {
+		return errors.New("PPROF_ADDR must be distinct from HTTP_ADDR")
+	}
+	return nil
 }
 
 func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy, problems *[]error) {
