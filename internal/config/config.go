@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/pagination"
 )
 
@@ -22,6 +23,8 @@ const (
 type Config struct {
 	Environment       string
 	HTTPAddr          string
+	HTTPOrigins       httpx.OriginPolicy
+	TrustedProxies    httpx.TrustedProxies
 	HTTPReadTimeout   time.Duration
 	HTTPWriteTimeout  time.Duration
 	HTTPIdleTimeout   time.Duration
@@ -58,6 +61,7 @@ func Load() (Config, error) {
 }
 
 func LoadFrom(lookup lookupFunc) (Config, error) {
+	var problems []error
 	config := Config{
 		Environment: valueOrDefault(lookup, "APP_ENV", "development"),
 		HTTPAddr:    valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
@@ -84,7 +88,16 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		},
 	}
 
-	var problems []error
+	var err error
+	config.HTTPOrigins, err = httpx.ParseOriginPolicy(value(lookup, "HTTP_ALLOWED_ORIGINS"), config.Environment)
+	if err != nil {
+		problems = append(problems, fmt.Errorf("HTTP_ALLOWED_ORIGINS is invalid: %w", err))
+	}
+	config.TrustedProxies, err = httpx.ParseTrustedProxies(value(lookup, "HTTP_TRUSTED_PROXY_CIDRS"))
+	if err != nil {
+		problems = append(problems, fmt.Errorf("HTTP_TRUSTED_PROXY_CIDRS is invalid: %w", err))
+	}
+
 	for _, setting := range []struct {
 		name   string
 		target *time.Duration
