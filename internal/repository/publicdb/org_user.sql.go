@@ -162,6 +162,35 @@ func (q *Queries) GetOrganizationMembership(ctx context.Context, arg GetOrganiza
 	return i, err
 }
 
+const getOrganizationMembershipIncludingDeleted = `-- name: GetOrganizationMembershipIncludingDeleted :one
+SELECT membership.org_id, membership.user_id, membership.role,
+       membership.created_at, membership.updated_at
+FROM public.org_user AS membership
+JOIN public.orgs AS organization ON organization.id = membership.org_id
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE organization.public_id = $1
+  AND app_user.user_id = $2
+  AND app_user.deleted_at IS NULL
+`
+
+type GetOrganizationMembershipIncludingDeletedParams struct {
+	OrganizationPublicID uuid.UUID `json:"organization_public_id"`
+	UserPublicID         uuid.UUID `json:"user_public_id"`
+}
+
+func (q *Queries) GetOrganizationMembershipIncludingDeleted(ctx context.Context, arg GetOrganizationMembershipIncludingDeletedParams) (OrgUser, error) {
+	row := q.db.QueryRow(ctx, getOrganizationMembershipIncludingDeleted, arg.OrganizationPublicID, arg.UserPublicID)
+	var i OrgUser
+	err := row.Scan(
+		&i.OrgID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getOrgsForUser = `-- name: GetOrgsForUser :many
 SELECT o.id, o.public_id, o.name, o.schema_name, o.created_at, o.updated_at, o.deleted_at,
        o.lifecycle_state, o.tenant_version,

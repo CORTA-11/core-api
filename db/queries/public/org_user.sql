@@ -34,6 +34,16 @@ WHERE organization.public_id = sqlc.arg('organization_public_id')
   AND app_user.user_id = sqlc.arg('user_public_id')
   AND app_user.deleted_at IS NULL;
 
+-- name: GetOrganizationMembershipIncludingDeleted :one
+SELECT membership.org_id, membership.user_id, membership.role,
+       membership.created_at, membership.updated_at
+FROM public.org_user AS membership
+JOIN public.orgs AS organization ON organization.id = membership.org_id
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE organization.public_id = sqlc.arg('organization_public_id')
+  AND app_user.user_id = sqlc.arg('user_public_id')
+  AND app_user.deleted_at IS NULL;
+
 -- name: AssignOrganizationOwner :one
 WITH locked_organization AS (
     SELECT id, public_id
