@@ -18,5 +18,15 @@ func (buffer *responseBuffer) Header() http.Header {
 	return buffer.header
 }
 
-func (buffer *responseBuffer) WriteHeader(status int)         { buffer.status = status }
-func (buffer *responseBuffer) Write(body []byte) (int, error) { return buffer.body.Write(body) }
+func (buffer *responseBuffer) WriteHeader(status int) {
+	if buffer.status == 0 {
+		buffer.status = status
+	}
+}
+
+func (buffer *responseBuffer) Write(body []byte) (int, error) {
+	if buffer.status == 0 {
+		buffer.status = http.StatusOK
+	}
+	return buffer.body.Write(body)
+}

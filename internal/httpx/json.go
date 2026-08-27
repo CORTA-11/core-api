@@ -6,20 +6,27 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
 )
 
 var (
-	ErrBodyTooLarge  = errors.New("request body is too large")
-	ErrMalformedJSON = errors.New("request body contains malformed JSON")
-	ErrUnknownField  = errors.New("request body contains an unknown field")
-	ErrMultipleJSON  = errors.New("request body must contain a single JSON value")
+	ErrUnsupportedMediaType = errors.New("request content type must be application/json")
+	ErrEmptyBody            = errors.New("request body must contain one JSON value")
+	ErrBodyTooLarge         = errors.New("request body is too large")
+	ErrMalformedJSON        = errors.New("request body contains malformed JSON")
+	ErrUnknownField         = errors.New("request body contains an unknown field")
+	ErrMultipleJSON         = errors.New("request body must contain a single JSON value")
 )
 
 func DecodeJSON(request *http.Request, destination any, maxBytes int64) error {
 	if err := request.Context().Err(); err != nil {
 		return err
+	}
+	mediaType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type"))
+	if err != nil || !strings.EqualFold(mediaType, "application/json") {
+		return ErrUnsupportedMediaType
 	}
 	body, err := io.ReadAll(io.LimitReader(request.Body, maxBytes+1))
 	if err != nil {
@@ -28,24 +35,44 @@ func DecodeJSON(request *http.Request, destination any, maxBytes int64) error {
 	if int64(len(body)) > maxBytes {
 		return ErrBodyTooLarge
 	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return ErrEmptyBody
+	}
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {
 		if strings.HasPrefix(err.Error(), "json: unknown field ") {
-			return fmt.Errorf("%w: %s", ErrUnknownField, strings.TrimPrefix(err.Error(), "json: unknown field "))
+			return ErrUnknownField
 		}
-		return fmt.Errorf("%w: %v", ErrMalformedJSON, err)
+		return ErrMalformedJSON
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
 			return ErrMultipleJSON
 		}
-		return fmt.Errorf("%w: %v", ErrMultipleJSON, err)
+		return ErrMultipleJSON
 	}
 	if err := request.Context().Err(); err != nil {
 		return err
 	}
 	return nil
+}
+
+func DecodeProblem(err error) *AppError {
+	violation := Violation{Field: "body", Code: "invalid", Message: "The request body is invalid."}
+	switch {
+	case errors.Is(err, ErrUnsupportedMediaType):
+		violation = Violation{"body", "media_type", "The request Content-Type must be application/json."}
+	case errors.Is(err, ErrEmptyBody):
+		violation = Violation{"body", "required", "The request body must contain one JSON object."}
+	case errors.Is(err, ErrBodyTooLarge):
+		violation = Violation{"body", "too_large", "The request body exceeds the allowed size."}
+	case errors.Is(err, ErrUnknownField):
+		violation = Violation{"body", "unknown_field", "The request body contains an unknown field."}
+	case errors.Is(err, ErrMalformedJSON), errors.Is(err, ErrMultipleJSON):
+		violation = Violation{"body", "malformed", "The request body must contain one valid JSON object."}
+	}
+	return NewError(ProblemInvalidRequest, err, violation)
 }
 
 func WriteJSON(writer http.ResponseWriter, status int, value any) error {
