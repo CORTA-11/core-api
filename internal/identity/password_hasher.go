@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/argon2"
@@ -77,8 +78,23 @@ type argon2PasswordHasher struct {
 	derive    argon2Derive
 }
 
+var processAdmissions sync.Map
+
 func NewPasswordHasher(config HashConfig) (*argon2PasswordHasher, error) {
-	return newPasswordHasher(config, rand.Reader, deriveArgon2ID)
+	validated, err := config.withDefaults()
+	if err != nil {
+		return nil, err
+	}
+	admission, _ := processAdmissions.LoadOrStore(
+		validated.Concurrency,
+		semaphore.NewWeighted(int64(validated.Concurrency)),
+	)
+	return &argon2PasswordHasher{
+		config:    validated,
+		admission: admission.(*semaphore.Weighted),
+		random:    rand.Reader,
+		derive:    deriveArgon2ID,
+	}, nil
 }
 
 func newPasswordHasher(config HashConfig, random io.Reader, derive argon2Derive) (*argon2PasswordHasher, error) {

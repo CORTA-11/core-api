@@ -16,18 +16,24 @@ type pgxPool interface {
 }
 
 type userService struct {
-	pool            pgxPool
-	queries         *publicdb.Queries
-	tokenService    TokenService
-	passwordService PasswordService
+	queries      *publicdb.Queries
+	tokenService TokenService
+	hasher       identity.PasswordHasher
+	verifier     identity.CredentialVerifier
+	policy       identity.PasswordPolicy
 }
 
-func NewUserService(pool pgxPool, queries *publicdb.Queries, tokenService TokenService, passwordService PasswordService) UserService {
+func NewUserService(
+	queries *publicdb.Queries,
+	tokenService TokenService,
+	hasher identity.PasswordHasher,
+	verifier identity.CredentialVerifier,
+) UserService {
 	return &userService{
-		pool:            pool,
-		queries:         queries,
-		tokenService:    tokenService,
-		passwordService: passwordService,
+		queries:      queries,
+		tokenService: tokenService,
+		hasher:       hasher,
+		verifier:     verifier,
 	}
 }
 
@@ -79,15 +85,20 @@ func (u *userService) CreateUser(ctx context.Context, name string, email string,
 	if err != nil {
 		return nil, err
 	}
-	hashedPassword, err := u.passwordService.HashPassword(password)
+	normalizedPassword, err := u.policy.Normalize(password)
+	if err != nil {
+		return nil, err
+	}
+	hashedPassword, err := u.hasher.Hash(ctx, normalizedPassword)
 	if err != nil {
 		return nil, err
 	}
 
 	userParams := publicdb.CreateUserParams{
-		Email:        canonical.Display,
-		PasswordHash: hashedPassword,
-		DisplayName:  name,
+		Email:                 canonical.Display,
+		PasswordHash:          hashedPassword,
+		DisplayName:           name,
+		PasswordNormalization: identity.PasswordNormalizationNFCV1,
 	}
 
 	repoUser, err := u.queries.CreateUser(ctx, userParams)
@@ -113,16 +124,21 @@ func (u *userService) UpdateUser(ctx context.Context, publicID string, name stri
 		return nil, err
 	}
 
-	hashedPassword, err := u.passwordService.HashPassword(password)
+	normalizedPassword, err := u.policy.Normalize(password)
+	if err != nil {
+		return nil, err
+	}
+	hashedPassword, err := u.hasher.Hash(ctx, normalizedPassword)
 	if err != nil {
 		return nil, err
 	}
 
 	params := publicdb.UpdateUserParams{
-		UserID:       parsedUUID,
-		Email:        canonical.Display,
-		PasswordHash: hashedPassword,
-		DisplayName:  name,
+		UserID:                parsedUUID,
+		Email:                 canonical.Display,
+		PasswordHash:          hashedPassword,
+		DisplayName:           name,
+		PasswordNormalization: identity.PasswordNormalizationNFCV1,
 	}
 
 	repoUser, err := u.queries.UpdateUser(ctx, params)
@@ -153,17 +169,12 @@ func (u *userService) SoftDeleteUser(ctx context.Context, publicID string) (*Use
 }
 
 func (u *userService) Login(ctx context.Context, email string, password string) (string, *User, error) {
-	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
+	principal, err := u.verifier.Verify(ctx, email, password)
 	if err != nil {
-		return "", nil, ErrInvalidCredentials
+		return "", nil, err
 	}
-	repoUser, err := u.queries.GetUserByCanonicalEmail(ctx, canonical.Key)
+	repoUser, err := u.queries.GetUserByID(ctx, principal.UserPublicID)
 	if err != nil {
-		return "", nil, ErrInvalidCredentials
-	}
-
-	match, err := u.passwordService.VerifyPassword(password, repoUser.PasswordHash)
-	if err != nil || !match {
 		return "", nil, ErrInvalidCredentials
 	}
 

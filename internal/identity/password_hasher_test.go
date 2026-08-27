@@ -52,6 +52,16 @@ func TestPasswordHasherHashAndVerify(t *testing.T) {
 	assert.False(t, verification.NeedsRehash)
 }
 
+func TestPasswordHasherInstancesShareProcessAdmission(t *testing.T) {
+	t.Parallel()
+
+	first, err := NewPasswordHasher(HashConfig{Concurrency: 2, AdmissionTimeout: time.Second})
+	require.NoError(t, err)
+	second, err := NewPasswordHasher(HashConfig{Concurrency: 2, AdmissionTimeout: time.Second})
+	require.NoError(t, err)
+	assert.Same(t, first.admission, second.admission)
+}
+
 func TestPasswordHasherBoundsAdmissionAndDoesNotLeakPermits(t *testing.T) {
 	t.Parallel()
 

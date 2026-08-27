@@ -143,7 +143,7 @@ func (router *Router) loginUser() http.HandlerFunc {
 				http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 				return
 			}
-			slog.Error("failed to login user", "error", err, "email", req.Email)
+			slog.Error("failed to login user", "error", err)
 			http.Error(w, "Failed to login user", http.StatusInternalServerError)
 			return
 		}
