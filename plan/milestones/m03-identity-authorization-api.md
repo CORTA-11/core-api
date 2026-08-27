@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `not started` |
+| Status | `in progress` |
 | Outcome | Browser requests use local credentials and revocable sessions, explicit database-resolved permissions, a stable v1 contract, and a hardened default-deny HTTP boundary. |
 | Depends on | M02 complete; TDR-02 and closed TDR-06 |
 | Release | Security foundation |
@@ -26,14 +26,14 @@ must end in the same server-session and database authorization model.
 **Artifacts:** public email migration/query changes, `internal/identity/`,
 operator user-creation command, seed update.
 
-- [ ] Preserve accounts while enforcing canonical case-insensitive unique email;
+- [x] Preserve accounts while enforcing canonical case-insensitive unique email;
   abort ambiguous duplicate upgrades without merging.
-- [ ] Enforce 15–128 Unicode characters, at most 1024 bytes, and no composition
+- [x] Enforce 15–128 Unicode characters, at most 1024 bytes, and no composition
   or periodic-rotation rules.
-- [ ] Bound Argon2id parameters/concurrency before allocation, perform a dummy
+- [x] Bound Argon2id parameters/concurrency before allocation, perform a dummy
   hash for unknown accounts, return one invalid-credentials result, and rehash
   outdated accepted parameters.
-- [ ] Create accounts only through an interactive or `--password-stdin` operator
+- [x] Create accounts only through an interactive or `--password-stdin` operator
   path; never expose a password in argv, logs, or errors.
 
 **Acceptance:** canonical migration collisions, password-policy boundaries,
@@ -146,4 +146,7 @@ D01 → D02 → D03 → D04 → D05 → D06. Each implementation PR starts from 
 dark infrastructure. D06 is the single compatibility cutover with no temporary
 JWT, unversioned, `X-Org-ID`, registration, or file aliases.
 
-**Implementation links:** planning baseline `4c1145e`; implementation PRs pending.
+**Implementation links:** planning baseline `4c1145e`; D01 prepared on
+`security/m03-d01-password-authentication` in commits `8f26827`, `1897bcc`,
+`1d2217c`, `cdbfd1a`, `c243906`, `51197c0`, `de56029`, `1c2bf1c`, and
+`15d86fc`; D01 PR and merge commit pending. D02-D06 implementation pending.

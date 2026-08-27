@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `complete on prepared branch` |
 | Branch | `security/m03-d01-password-authentication` |
 | PR title | `security(auth): harden local password authentication` |
 | Predecessor | M03 planning PR |
@@ -125,10 +125,14 @@ and CLI branches use unit/fuzz tests without printing candidate secrets.
 
 1. `security(auth): enforce canonical email identity`
 2. `security(auth): enforce bounded password policy`
-3. `security(auth): bound argon2 credential verification`
-4. `feat(admin): add secure local account creation`
-5. `test(seed): use policy-compliant development credentials`
-6. `docs(plan): link m03-d01 implementation`
+3. `security(auth): bound argon2 hash parsing`
+4. `security(auth): limit argon2 work admission`
+5. `security(auth): verify credentials uniformly`
+6. `security(auth): upgrade legacy credential hashes`
+7. `feat(admin): add secure local account creation`
+8. `test(seed): use policy-compliant development credentials`
+9. `security(auth): document bounded hash conversions`
+10. `docs(plan): record m03-d01 implementation`
 
 ## Verification and acceptance
 
@@ -143,14 +147,14 @@ make check
 git diff --check
 ```
 
-- [ ] Existing unique accounts survive upgrade with stable public IDs/hashes.
-- [ ] Ambiguous canonical duplicates abort without partial account changes.
-- [ ] Password length, Unicode, byte, and control policy is exact.
-- [ ] Unknown/wrong/deleted/malformed cases share one response and one hash-work class.
-- [ ] Argon2 parsing and concurrency remain inside declared bounds.
-- [ ] Successful verification rehashes outdated parameters safely.
-- [ ] Operator and seed workflows expose no secret and public registration is absent from v1.
-- [ ] PR records red and green evidence.
+- [x] Existing unique accounts survive upgrade with stable public IDs/hashes.
+- [x] Ambiguous canonical duplicates abort without partial account changes.
+- [x] Password length, Unicode, byte, and control policy is exact.
+- [x] Unknown/wrong/deleted/malformed cases share one response and one hash-work class.
+- [x] Argon2 parsing and concurrency remain inside declared bounds.
+- [x] Successful verification rehashes outdated parameters safely.
+- [x] Operator and seed workflows expose no secret and public registration is absent from v1.
+- [x] The prepared branch records red and green evidence; PR evidence remains pending.
 
 ## Rollout, rollback, and operations
 
@@ -177,4 +181,23 @@ evidence. D02 creates sessions only after this verifier succeeds.
 
 **Merge commit:** _pending_
 
-**Red/green evidence:** _pending_
+**Implementation commits:** `8f26827` canonical email; `1897bcc` password
+policy and architecture cleanup; `1d2217c` bounded parser; `cdbfd1a`
+hash admission; `c243906` uniform verifier and compatibility wiring; `51197c0`
+CAS rehash; `de56029` admin CLI; `1c2bf1c` seeds; `15d86fc` static-security
+audit annotations; this documentation commit.
+
+**Observed red evidence:** focused `go test` runs for `./internal/identity`
+failed on the expected missing `EmailCanonicalizer`, `PasswordPolicy`, bounded
+Argon2 parser, `HashConfig`/hasher, credential-verifier, and CAS symbols. The
+focused `go test ./cmd/admin` run failed on the expected missing CLI runner and
+safe error sentinels. The first PostgreSQL migration run also exposed the legacy
+seed's obsolete `ON CONFLICT (email)` target before the canonical conflict target
+was applied.
+
+**Green evidence:** `make generate-check`, `make test-unit`, `make test-race`,
+`make test-integration`, `make test-isolation`, `make check`, `make secrets`, and
+`git diff --check` passed on the prepared branch. PostgreSQL 18 tests cover fresh
+and version-5 upgrades, collision rollback, generated canonical uniqueness,
+normalization-state preservation, CAS races, the real admin CLI, and twice-applied
+seeds.

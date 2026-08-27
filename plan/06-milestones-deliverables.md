@@ -9,7 +9,7 @@ in the linked milestone files.
 | --- | --- | ---: | --- |
 | [M01 — Reproducible baseline](milestones/m01-reproducible-baseline.md) | `complete` | 5 | Reliable local/CI development loop |
 | [M02 — Trusted tenant boundary](milestones/m02-trusted-tenant-boundary.md) | `complete` | 5 | Database-enforced organization/team isolation |
-| [M03 — Identity, authorization, and API](milestones/m03-identity-authorization-api.md) | `not started` | 6 | Authenticated, default-deny `/api/v1` contract |
+| [M03 — Identity, authorization, and API](milestones/m03-identity-authorization-api.md) | `in progress` | 6 | Authenticated, default-deny `/api/v1` contract |
 | [M04 — Team and task reference slice](milestones/m04-team-task-slice.md) | `not started` | 6 | Complete concurrent Kanban backend slice |
 | [M05 — Files, events, and operations](milestones/m05-files-events-operations.md) | `not started` | 7 | Core backend release |
 | [M06 — Research operations](milestones/m06-research-operations.md) | `not started` | 6 | Research registry and booking release |
@@ -20,7 +20,8 @@ in the linked milestone files.
 merge commit `f2ee418`. `M02` completed in
 [PR #27](https://github.com/CORTA-11/core-api/pull/27) at merge commit `56d0a6d`.
 M03's [test-driven implementation package](implementation/m03/README.md) is
-active from planning baseline `4c1145e`; implementation has not started.
+active from planning baseline `4c1145e`. D01 is complete on its prepared branch;
+its PR and merge identifiers remain pending.
 
 ## Dependency and release cuts
 
