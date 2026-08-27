@@ -31,8 +31,11 @@ type Org struct {
 }
 
 type OrgUser struct {
-	OrgID  int64 `json:"org_id"`
-	UserID int64 `json:"user_id"`
+	OrgID     int64     `json:"org_id"`
+	UserID    int64     `json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Session struct {

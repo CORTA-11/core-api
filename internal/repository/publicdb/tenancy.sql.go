@@ -20,6 +20,7 @@ SELECT organization.id AS organization_id,
        organization.tenant_checksum,
        app_user.id AS user_id,
        app_user.user_id AS user_public_id,
+       membership.role AS organization_role,
        (namespace.oid IS NOT NULL)::boolean AS schema_exists
 FROM public.users AS app_user
 JOIN public.org_user AS membership ON membership.user_id = app_user.id
@@ -45,6 +46,7 @@ type ResolveOrganizationContextRow struct {
 	TenantChecksum       string    `json:"tenant_checksum"`
 	UserID               int64     `json:"user_id"`
 	UserPublicID         uuid.UUID `json:"user_public_id"`
+	OrganizationRole     string    `json:"organization_role"`
 	SchemaExists         bool      `json:"schema_exists"`
 }
 
@@ -60,6 +62,7 @@ func (q *Queries) ResolveOrganizationContext(ctx context.Context, arg ResolveOrg
 		&i.TenantChecksum,
 		&i.UserID,
 		&i.UserPublicID,
+		&i.OrganizationRole,
 		&i.SchemaExists,
 	)
 	return i, err
