@@ -45,6 +45,54 @@ type createCapture struct {
 	err         error
 }
 
+func TestRunOwnerAssignUsesOnlyPublicIDsAndRedactsFailures(t *testing.T) {
+	t.Parallel()
+	organizationID := uuid.MustParse("16f71004-92bd-47dc-b083-203fbdd70f38")
+	userID := uuid.MustParse("aaa0dd02-ac71-4cc8-96dd-b9782c1f7c9b")
+	var calls int
+	output := new(bytes.Buffer)
+	err := runOwnerAssign(context.Background(), []string{
+		"--org", organizationID.String(), "--user", userID.String(),
+	}, func(string) string { return "database-url" }, output,
+		func(_ context.Context, databaseURL string, gotOrganizationID, gotUserID uuid.UUID) error {
+			calls++
+			assert.Equal(t, "database-url", databaseURL)
+			assert.Equal(t, organizationID, gotOrganizationID)
+			assert.Equal(t, userID, gotUserID)
+			return nil
+		})
+	require.NoError(t, err)
+	assert.Equal(t, 1, calls)
+	assert.Equal(t, "assigned organization "+organizationID.String()+" user "+userID.String()+" role owner\n", output.String())
+	assert.NotContains(t, output.String(), "org_id")
+
+	secret := "database-internal-secret"
+	err = runOwnerAssign(context.Background(), []string{
+		"--org", organizationID.String(), "--user", userID.String(),
+	}, func(string) string { return "database-url" }, new(bytes.Buffer),
+		func(context.Context, string, uuid.UUID, uuid.UUID) error { return errors.New(secret) })
+	assert.ErrorIs(t, err, errOwnerAssignFailed)
+	assert.NotContains(t, err.Error(), secret)
+}
+
+func TestRunOwnerAssignRejectsInvalidOrAmbiguousTargets(t *testing.T) {
+	t.Parallel()
+	valid := uuid.NewString()
+	for _, args := range [][]string{
+		{"--org", "1", "--user", valid},
+		{"--org", valid, "--user", "1"},
+		{"--org", valid, "--user", valid, "extra"},
+		{"--org", valid},
+		{"--org", uuid.Nil.String(), "--user", valid},
+	} {
+		called := false
+		err := runOwnerAssign(context.Background(), args, func(string) string { return "database-url" }, new(bytes.Buffer),
+			func(context.Context, string, uuid.UUID, uuid.UUID) error { called = true; return nil })
+		assert.ErrorIs(t, err, errOwnerUsage)
+		assert.False(t, called)
+	}
+}
+
 func (capture *createCapture) create(
 	_ context.Context,
 	_ string,
