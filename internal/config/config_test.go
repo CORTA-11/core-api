@@ -33,8 +33,106 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, DevelopmentCSRFSecret, config.CSRFSecret)
 	assert.Equal(t, DevelopmentCursorKeyID, config.Cursor.ActiveKeyID)
 	assert.Equal(t, DevelopmentCursorSecret, config.Cursor.ActiveSecret)
+	assert.Equal(t, 5*time.Second, config.HTTPReadHeaderTimeout)
 	assert.Equal(t, 15*time.Second, config.HTTPReadTimeout)
+	assert.Equal(t, 30*time.Second, config.HTTPWriteTimeout)
+	assert.Equal(t, DevelopmentRateLimitSecret, config.RateLimitSecret)
+	assert.Equal(t, 250*time.Millisecond, config.RateLimitTimeout)
+	assert.Equal(t, int64(20), config.RateLimits.LoginIP.Limit)
+	assert.Equal(t, 15*time.Minute, config.RateLimits.LoginIP.Period)
+	assert.Equal(t, int64(20), config.RateLimits.LoginIP.Burst)
+	assert.Equal(t, int64(5), config.RateLimits.AccountFailure.Limit)
+	assert.Equal(t, int64(60), config.RateLimits.Administrative.Limit)
+	assert.Equal(t, []string{"http://localhost:3000", "http://127.0.0.1:3000"}, config.HTTPOrigins.Values())
+	assert.Empty(t, config.TrustedProxies.CIDRs())
 	assert.False(t, config.PprofEnabled)
+	assert.Equal(t, "127.0.0.1:6060", config.PprofAddr)
+}
+
+func TestLoadAllowsPprofOnlyOnDistinctDevelopmentLoopback(t *testing.T) {
+	values := validEnvironment()
+	values["PPROF_ENABLED"] = "true"
+	values["PPROF_ADDR"] = "127.0.0.1:6061"
+	config, err := loadMap(values)
+	require.NoError(t, err)
+	assert.True(t, config.PprofEnabled)
+
+	for _, address := range []string{"localhost:6061", "0.0.0.0:6061", "192.0.2.1:6061", "127.0.0.1:0", ":6061", "127.0.0.1:8080"} {
+		values["PPROF_ADDR"] = address
+		_, err := loadMap(values)
+		require.Error(t, err, address)
+		assert.ErrorContains(t, err, "PPROF_ADDR")
+	}
+}
+
+func TestLoadValidatesRateLimitConfiguration(t *testing.T) {
+	values := validEnvironment()
+	values["RATE_LIMIT_TIMEOUT"] = "0s"
+	values["RATE_LIMIT_LOGIN_IP_LIMIT"] = "0"
+	values["RATE_LIMIT_LOGIN_IP_WINDOW"] = "24h"
+	values["RATE_LIMIT_LOGIN_IP_BURST"] = "1000000"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	for _, name := range []string{"RATE_LIMIT_TIMEOUT", "RATE_LIMIT_LOGIN_IP_LIMIT", "RATE_LIMIT_LOGIN_IP_WINDOW", "RATE_LIMIT_LOGIN_IP_BURST"} {
+		assert.ErrorContains(t, err, name)
+	}
+}
+
+func TestLoadRequiresDistinctProductionRateLimitSecretAndValidRedisURL(t *testing.T) {
+	values := validEnvironment()
+	values["APP_ENV"] = "production"
+	values["JWT_SECRET"] = strings.Repeat("j", 32)
+	values["CSRF_SECRET"] = strings.Repeat("c", 32)
+	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
+	values["RATE_LIMIT_SECRET"] = strings.Repeat("c", 32)
+	values["HTTP_ALLOWED_ORIGINS"] = "https://app.example.com"
+	values["REDIS_URL"] = "http://redis:6379"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "RATE_LIMIT_SECRET")
+	assert.ErrorContains(t, err, "REDIS_URL")
+}
+
+func TestLoadValidatesExactOrigins(t *testing.T) {
+	tests := []string{
+		"*", "null", "https://example.com,https://example.com", "https://user@example.com",
+		"https://example.com/path", "https://example.com?query=x", "https://example.com#fragment",
+		"http://example.com",
+	}
+	for _, origins := range tests {
+		t.Run(origins, func(t *testing.T) {
+			values := validEnvironment()
+			values["HTTP_ALLOWED_ORIGINS"] = origins
+			_, err := loadMap(values)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "HTTP_ALLOWED_ORIGINS")
+		})
+	}
+}
+
+func TestLoadRejectsNonHTTPSProductionOrigin(t *testing.T) {
+	values := validEnvironment()
+	values["APP_ENV"] = "production"
+	values["JWT_SECRET"] = strings.Repeat("j", 32)
+	values["CSRF_SECRET"] = strings.Repeat("c", 32)
+	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
+	values["HTTP_ALLOWED_ORIGINS"] = "http://localhost:3000"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "HTTP_ALLOWED_ORIGINS")
+}
+
+func TestLoadValidatesTrustedProxyCIDRs(t *testing.T) {
+	values := validEnvironment()
+	values["HTTP_TRUSTED_PROXY_CIDRS"] = "10.0.0.0/8,2001:db8::/32"
+	config, err := loadMap(values)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"10.0.0.0/8", "2001:db8::/32"}, config.TrustedProxies.CIDRs())
+
+	values["HTTP_TRUSTED_PROXY_CIDRS"] = "10.0.0.1,not-a-cidr"
+	_, err = loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "HTTP_TRUSTED_PROXY_CIDRS")
 }
 
 func TestLoadRequiresDependencies(t *testing.T) {
@@ -48,11 +146,13 @@ func TestLoadRequiresDependencies(t *testing.T) {
 func TestLoadValidatesTimeoutsAndBooleans(t *testing.T) {
 	values := validEnvironment()
 	values["HTTP_READ_TIMEOUT"] = "forever"
+	values["HTTP_READ_HEADER_TIMEOUT"] = "0s"
 	values["SHUTDOWN_TIMEOUT"] = "0s"
 	values["PPROF_ENABLED"] = "sometimes"
 	_, err := loadMap(values)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "HTTP_READ_TIMEOUT")
+	assert.ErrorContains(t, err, "HTTP_READ_HEADER_TIMEOUT")
 	assert.ErrorContains(t, err, "SHUTDOWN_TIMEOUT")
 	assert.ErrorContains(t, err, "PPROF_ENABLED")
 }

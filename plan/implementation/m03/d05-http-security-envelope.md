@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `complete on security/m03-d05-http-envelope` |
 | Branch | `security/m03-d05-http-envelope` |
 | PR title | `security(http): enforce the API security envelope` |
 | Predecessor | M03-D04 merged |
@@ -163,13 +163,13 @@ make check
 git diff --check
 ```
 
-- [ ] Exact-origin credentialed CORS and startup validation pass all negative cases.
-- [ ] Header, body, timeout, proxy-chain, and response headers are bounded/tested.
-- [ ] Boundary logs and every error path redact all declared secret classes.
-- [ ] Real Redis proves account/IP GCRA limits, success clearing, TTLs, and sharing.
-- [ ] Redis outage denies only login/admin mutations as designed.
-- [ ] Public router has no pprof path and diagnostic bind is loopback-only/dev-only.
-- [ ] PR records red and green evidence.
+- [x] Exact-origin credentialed CORS and startup validation pass all negative cases.
+- [x] Header, body, timeout, proxy-chain, and response headers are bounded/tested.
+- [x] Boundary logs and every error path redact all declared secret classes.
+- [x] Real Redis proves account/IP GCRA limits, success clearing, TTLs, and sharing.
+- [x] Redis outage denies only login/admin mutations as designed.
+- [x] Public router has no pprof path and diagnostic bind is loopback-only/dev-only.
+- [x] Branch record contains red and green evidence; the PR link remains pending.
 
 ## Rollout, rollback, and operations
 
@@ -196,4 +196,68 @@ wires these proven components and removes the old boundary.
 
 **Merge commit:** _pending_
 
-**Red/green evidence:** _pending_
+**Branch:** `security/m03-d05-http-envelope`, based on clean `main` at
+`726b7bc`.
+
+**Implementation commits:**
+
+1. `525571a` — `security(http): validate origins and trusted proxies`
+2. `8131797` — `security(http): bound server headers bodies and timeouts`
+3. `b1c0874` — `security(http): add headers and redacted boundary logs`
+4. `db1ea4a` — `security(http): rate limit sensitive routes with redis`
+5. `ff3097b` — `security(debug): isolate pprof on loopback`
+
+**Observed red evidence:**
+
+- `GOCACHE="$PWD/.cache/go-build" GOFLAGS=-buildvcs=false go test ./internal/config ./internal/httpx`
+  failed because the origin policy, trusted-proxy policy, typed client, and
+  configuration fields did not exist.
+- `GOCACHE="$PWD/.cache/go-build" GOFLAGS=-buildvcs=false go test ./internal/config ./internal/httpx`
+  failed because `HTTPReadHeaderTimeout`, `NewServer`, `ServerTimeouts`, and
+  `LimitBody` did not exist.
+- `GOCACHE="$PWD/.cache/go-build" GOFLAGS=-buildvcs=false go test ./internal/httpx -run 'Test(CORS|SecurityHeaders|BoundaryLog)'`
+  failed because the envelope middleware did not exist. The focused legacy
+  recovery test then failed by returning `text/plain` and logging the panic,
+  secret canaries, request path, and stack.
+- `GOCACHE="$PWD/.cache/go-build" GOFLAGS=-buildvcs=false go test ./internal/config ./internal/apicontract ./internal/ratelimit`
+  failed because the closed rate classes, rate configuration, policies, guard,
+  decisions, and middleware did not exist.
+- `GOCACHE="$PWD/.cache/go-build" GOFLAGS=-buildvcs=false go test ./internal/config ./cmd/api/handlers ./cmd/api`
+  failed because `PPROF_ADDR` and the diagnostic server did not exist, while
+  enabling the legacy router flag returned public pprof `200` instead of `404`.
+
+**Final green evidence:**
+
+```bash
+make test-unit
+make test-race
+make test-integration
+make test-contract
+make check
+git diff --check
+```
+
+The real-server test used an operating-system Unix socket and proved rejection
+of oversized headers, partial-header and partial-body deadlines, and continued
+server health. The real-Redis integration lane proved finite TTLs, HMAC-only
+keys, exact burst boundaries, two-client shared state, clearing, and concurrent
+atomic admission.
+
+**Operational defaults:** allowed origins are `http://localhost:3000` and
+`http://127.0.0.1:3000`; trusted proxy CIDRs default empty. Header/read/write/idle
+timeouts are `5s`, `15s`, `30s`, and `60s`; maximum headers are 32 KiB. Auth and
+password JSON is 4 KiB and resource JSON is 64 KiB. Rate-limit calls time out at
+`250ms`: login IP is 20 per 15 minutes with burst 20, account failures are 5 per
+15 minutes with burst 5, and administrative admission is 60 per 15 minutes with
+burst 20. Production requires a distinct non-development rate-limit secret of
+at least 32 bytes.
+
+**Degradation and topology:** Redis is URL-validated but is neither a fatal
+startup ping nor a primary-readiness dependency. Its outage returns the same
+bounded dependency-unavailable `503` before password work on login and before
+session authentication on administrative routes. Routes classified `none`
+remain Redis-independent. Pprof is absent from the public chi router. When
+explicitly enabled outside production, an isolated, explicitly populated
+`http.ServeMux` listens at the default `127.0.0.1:6060`, with the API's server
+bounds and coordinated fatal-error/shutdown lifecycle; it never uses
+`http.DefaultServeMux`.

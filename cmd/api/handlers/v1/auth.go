@@ -4,10 +4,12 @@ package v1
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
+	"github.com/CORTA-11/core-api/internal/ratelimit"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -21,6 +23,7 @@ type AuthHandler struct {
 	hasher        identity.PasswordHasher
 	cookie        http.Cookie
 	allowedOrigin map[string]struct{}
+	loginGuard    *ratelimit.LoginGuard
 }
 
 func NewAuthRouter(
@@ -30,10 +33,22 @@ func NewAuthRouter(
 	environment string,
 	allowedOrigins []string,
 ) http.Handler {
+	return NewRateLimitedAuthRouter(manager, verifier, hasher, environment, allowedOrigins, nil)
+}
+
+func NewRateLimitedAuthRouter(
+	manager *session.Manager,
+	verifier identity.CredentialVerifier,
+	hasher identity.PasswordHasher,
+	environment string,
+	allowedOrigins []string,
+	loginGuard *ratelimit.LoginGuard,
+) http.Handler {
 	handler := &AuthHandler{
 		manager: manager, verifier: verifier, hasher: hasher,
 		cookie:        session.CookiePolicy(environment),
 		allowedOrigin: make(map[string]struct{}, len(allowedOrigins)),
+		loginGuard:    loginGuard,
 	}
 	for _, origin := range allowedOrigins {
 		handler.allowedOrigin[origin] = struct{}{}
@@ -83,19 +98,54 @@ type authResponse struct {
 }
 
 func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Request) {
+	if handler.loginGuard != nil {
+		client, ok := httpx.ClientFromContext(request.Context())
+		if !ok {
+			handler.rateProblem(writer, request, ratelimit.Decision{}, errors.New("trusted client unavailable"))
+			return
+		}
+		decision, err := handler.loginGuard.AdmitIP(request.Context(), client.Address)
+		if err != nil || !decision.Allowed {
+			handler.rateProblem(writer, request, decision, err)
+			return
+		}
+	}
 	var input loginRequest
 	if err := httpx.DecodeJSON(request, &input, maximumAuthBodyBytes); err != nil {
 		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
 		return
 	}
+	var account ratelimit.AccountIdentity
+	var err error
+	if handler.loginGuard != nil {
+		var decision ratelimit.Decision
+		account, decision, err = handler.loginGuard.AdmitAccount(request.Context(), input.Email)
+		if err != nil || !decision.Allowed {
+			handler.rateProblem(writer, request, decision, err)
+			return
+		}
+	}
 	principal, err := handler.verifier.Verify(request.Context(), input.Email, input.Password)
 	if err != nil {
 		if errors.Is(err, identity.ErrInvalidCredentials) {
+			if handler.loginGuard != nil {
+				decision, limitErr := handler.loginGuard.RecordFailure(request.Context(), account)
+				if limitErr != nil || !decision.Allowed {
+					handler.rateProblem(writer, request, decision, limitErr)
+					return
+				}
+			}
 			handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
 			return
 		}
 		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
+	}
+	if handler.loginGuard != nil {
+		if err := handler.loginGuard.ClearSuccess(request.Context(), account); err != nil {
+			handler.rateProblem(writer, request, ratelimit.Decision{}, err)
+			return
+		}
 	}
 	oldToken := ""
 	if cookie, cookieErr := request.Cookie(handler.cookie.Name); cookieErr == nil {
@@ -108,6 +158,16 @@ func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Requ
 	}
 	handler.setCookie(writer, issued.RawToken)
 	_ = httpx.WriteJSON(writer, http.StatusOK, responseFor(issued.Authentication, issued.CSRFToken))
+}
+
+func (handler *AuthHandler) rateProblem(writer http.ResponseWriter, request *http.Request, decision ratelimit.Decision, err error) {
+	if err != nil {
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
+		return
+	}
+	retrySeconds := max(int64((decision.RetryAfter+time.Second-1)/time.Second), 1)
+	writer.Header().Set("Retry-After", strconv.FormatInt(retrySeconds, 10))
+	handler.problem(writer, request, httpx.ProblemRateLimited, nil)
 }
 
 type authenticatedHandler func(http.ResponseWriter, *http.Request, session.Authentication, string)

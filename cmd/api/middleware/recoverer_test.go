@@ -20,7 +20,7 @@ func TestRecoverer(t *testing.T) {
 	})
 
 	handler := Recoverer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		panic("boom")
+		panic("boom secret@example.com database-secret")
 	}))
 
 	recorder := httptest.NewRecorder()
@@ -28,15 +28,12 @@ func TestRecoverer(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Equal(t, "Internal Server Error\n", recorder.Body.String())
+	assert.Equal(t, "application/problem+json", recorder.Header().Get("Content-Type"))
+	assert.Contains(t, recorder.Body.String(), `"type":"/problems/internal-failure"`)
+	assert.NotContains(t, recorder.Body.String(), "secret")
 
 	logOutput := logs.String()
-	assert.Contains(t, logOutput, `msg="panic recovered"`)
-	assert.Contains(t, logOutput, "panic=boom")
-	assert.Contains(t, logOutput, "method=GET")
-	assert.Contains(t, logOutput, "path=/panic")
-	assert.Contains(t, logOutput, "stack=")
-	assert.Contains(t, logOutput, "TestRecoverer")
+	assert.Empty(t, logOutput)
 }
 
 func TestRecovererPassesThroughSuccessfulResponses(t *testing.T) {

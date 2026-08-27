@@ -111,7 +111,7 @@ func TestInventoryMetadataUsesClosedValues(t *testing.T) {
 		assert.Contains(t, []AuthenticationPolicy{AuthenticationPublic, AuthenticationRequired, AuthenticationLogout}, route.Authentication)
 		assert.Contains(t, []CSRFPolicy{CSRFNone, CSRFRequired}, route.CSRF)
 		assert.Contains(t, []BodyLimitClass{BodyNone, BodyAuthJSON, BodyJSON}, route.BodyLimit)
-		assert.Contains(t, []RateLimitClass{RateLogin, RateRead, RateWrite}, route.RateLimit)
+		assert.Contains(t, []RateLimitClass{RateNone, RateLogin, RateAdministrative}, route.RateLimit)
 		if route.Permission != "" {
 			assert.True(t, authorization.ValidPermission(route.Permission), "%s permission", route.OperationID)
 		}
