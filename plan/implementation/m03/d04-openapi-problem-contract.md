@@ -170,7 +170,7 @@ errors or routes.
 
 ## Implementation record
 
-**Pull request:** _pending; prepared on `feat/m03-d04-api-contract`_
+**Pull request:** [PR #33](https://github.com/CORTA-11/core-api/pull/33)
 
 **Merge commit:** _pending_
 
