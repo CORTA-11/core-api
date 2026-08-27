@@ -181,7 +181,11 @@ func (handler *AuthHandler) authenticated(unsafe bool, next authenticatedHandler
 		}
 		authentication, err := handler.manager.Authenticate(request.Context(), cookie.Value)
 		if err != nil {
-			handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
+			if errors.Is(err, session.ErrSessionDependency) {
+				handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
+			} else {
+				handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
+			}
 			return
 		}
 		if unsafe && !handler.validUnsafe(request, authentication) {
