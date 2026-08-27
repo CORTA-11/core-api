@@ -152,6 +152,7 @@ in [PR #31](https://github.com/CORTA-11/core-api/pull/31) at `b603fb1`; and D03
 merged in [PR #32](https://github.com/CORTA-11/core-api/pull/32) at `66a8406`.
 D04 was prepared in [PR #33](https://github.com/CORTA-11/core-api/pull/33)
 through `592b179`. D05 merged in
-[PR #34](https://github.com/CORTA-11/core-api/pull/34) at `f248ea3`. D06 is
-implemented on `refactor/m03-d06-api-v1-cutover` through `e91f602`; M03 remains
-in progress pending its PR, merge, deployment owner inventory, and merge evidence.
+[PR #34](https://github.com/CORTA-11/core-api/pull/34) at `f248ea3`. D06 is open
+in [PR #35](https://github.com/CORTA-11/core-api/pull/35), implemented through
+`a94ffdd`; M03 remains in progress pending merge, deployment owner inventory,
+and merge evidence.

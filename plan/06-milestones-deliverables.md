@@ -25,9 +25,10 @@ active from planning baseline `4c1145e`. D01 merged in
 [PR #31](https://github.com/CORTA-11/core-api/pull/31) at `b603fb1`, and D03 in
 [PR #32](https://github.com/CORTA-11/core-api/pull/32) at `66a8406`. D04 is
 prepared in [PR #33](https://github.com/CORTA-11/core-api/pull/33) through
-`592b179`; D05 merged in PR #34 at `f248ea3`; and D06 is implemented through
-`e91f602`. M03 remains in progress pending the D06 PR/merge and deployment
-owner-inventory evidence.
+`592b179`; D05 merged in PR #34 at `f248ea3`; and D06 is open in
+[PR #35](https://github.com/CORTA-11/core-api/pull/35), implemented through
+`a94ffdd`. M03 remains in progress pending merge and deployment owner-inventory
+evidence.
 
 ## Dependency and release cuts
 

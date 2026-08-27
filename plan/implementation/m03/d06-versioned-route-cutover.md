@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `implementation complete; merge pending` |
+| Status | `pull request open; merge pending` |
 | Branch | `refactor/m03-d06-api-v1-cutover` |
 | PR title | `refactor(api): cut over to authenticated v1 routes` |
 | Predecessor | M03-D05 merged and deployment prerequisites satisfied |
@@ -222,11 +222,11 @@ classification and telemetry/log redaction boundaries.
 
 ## Implementation record
 
-**Pull request:** _pending_
+**Pull request:** [PR #35](https://github.com/CORTA-11/core-api/pull/35)
 
 **Merge commit:** _pending_
 
-**Implementation:** `b095280` through `e91f602` on
+**Implementation:** `b095280` through `a94ffdd` on
 `refactor/m03-d06-api-v1-cutover`. This includes the owner preflight,
 authorized public-UUID application services, inventory-built v1 router, atomic
 runtime switch, prototype/JWT removal, and browser resource-flow proof.
