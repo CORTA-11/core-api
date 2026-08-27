@@ -39,6 +39,14 @@ func NewAuthRouter(
 		handler.allowedOrigin[origin] = struct{}{}
 	}
 	router := chi.NewRouter()
+	router.Use(httpx.RequestID)
+	router.Use(httpx.Recover)
+	router.NotFound(func(writer http.ResponseWriter, request *http.Request) {
+		_ = httpx.WriteProblem(writer, request, httpx.NewError(httpx.ProblemNotFound, nil))
+	})
+	router.MethodNotAllowed(func(writer http.ResponseWriter, request *http.Request) {
+		_ = httpx.WriteProblem(writer, request, httpx.NewError(httpx.ProblemNotFound, nil))
+	})
 	router.Post("/api/v1/auth/login", handler.login)
 	router.Get("/api/v1/auth/session", handler.authenticated(false, handler.current))
 	router.Delete("/api/v1/auth/session", handler.logout)
@@ -77,16 +85,16 @@ type authResponse struct {
 func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Request) {
 	var input loginRequest
 	if err := httpx.DecodeJSON(request, &input, maximumAuthBodyBytes); err != nil {
-		handler.problem(writer, request, http.StatusBadRequest, "Invalid request.")
+		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
 		return
 	}
 	principal, err := handler.verifier.Verify(request.Context(), input.Email, input.Password)
 	if err != nil {
 		if errors.Is(err, identity.ErrInvalidCredentials) {
-			handler.problem(writer, request, http.StatusUnauthorized, "Invalid credentials.")
+			handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
 			return
 		}
-		handler.problem(writer, request, http.StatusServiceUnavailable, "Authentication is unavailable.")
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
 	}
 	oldToken := ""
@@ -95,7 +103,7 @@ func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Requ
 	}
 	issued, err := handler.manager.Rotate(request.Context(), principal.UserPublicID, oldToken, request.UserAgent())
 	if err != nil {
-		handler.problem(writer, request, http.StatusServiceUnavailable, "Authentication is unavailable.")
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
 	}
 	handler.setCookie(writer, issued.RawToken)
@@ -108,16 +116,16 @@ func (handler *AuthHandler) authenticated(unsafe bool, next authenticatedHandler
 	return func(writer http.ResponseWriter, request *http.Request) {
 		cookie, err := request.Cookie(handler.cookie.Name)
 		if err != nil {
-			handler.problem(writer, request, http.StatusUnauthorized, "Authentication required.")
+			handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
 			return
 		}
 		authentication, err := handler.manager.Authenticate(request.Context(), cookie.Value)
 		if err != nil {
-			handler.problem(writer, request, http.StatusUnauthorized, "Authentication required.")
+			handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
 			return
 		}
 		if unsafe && !handler.validUnsafe(request, authentication) {
-			handler.problem(writer, request, http.StatusForbidden, "Request origin or CSRF token is invalid.")
+			handler.problem(writer, request, httpx.ProblemForbidden, nil)
 			return
 		}
 		ctx := session.ContextWithPrincipal(request.Context(), authentication.Principal)
@@ -144,11 +152,11 @@ func (handler *AuthHandler) logout(writer http.ResponseWriter, request *http.Req
 	}
 	if !handler.validOrigin(request) ||
 		!handler.manager.ValidTokenCSRF(cookie.Value, request.Header.Get("X-CSRF-Token")) {
-		handler.problem(writer, request, http.StatusForbidden, "Request origin or CSRF token is invalid.")
+		handler.problem(writer, request, httpx.ProblemForbidden, nil)
 		return
 	}
 	if err := handler.manager.RevokeCurrent(request.Context(), cookie.Value); err != nil {
-		handler.problem(writer, request, http.StatusServiceUnavailable, "Authentication is unavailable.")
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
 	}
 	handler.clearCookie(writer)
@@ -163,7 +171,7 @@ func (handler *AuthHandler) list(
 ) {
 	items, err := handler.manager.List(request.Context(), authentication.Principal)
 	if err != nil {
-		handler.problem(writer, request, http.StatusServiceUnavailable, "Session inspection is unavailable.")
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
 	}
 	_ = httpx.WriteJSON(writer, http.StatusOK, struct {
@@ -178,7 +186,7 @@ func (handler *AuthHandler) revokeAll(
 	_ string,
 ) {
 	if err := handler.manager.RevokeAll(request.Context(), authentication.Principal); err != nil {
-		handler.problem(writer, request, http.StatusServiceUnavailable, "Session revocation is unavailable.")
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
 	}
 	handler.clearCookie(writer)
@@ -193,15 +201,15 @@ func (handler *AuthHandler) revokeSpecific(
 ) {
 	sessionID, err := uuid.Parse(chi.URLParam(request, "session_id"))
 	if err != nil {
-		handler.problem(writer, request, http.StatusNotFound, "Session not found.")
+		handler.problem(writer, request, httpx.ProblemNotFound, err)
 		return
 	}
 	if err := handler.manager.Revoke(request.Context(), authentication.Principal, sessionID); err != nil {
 		if errors.Is(err, session.ErrSessionNotFound) {
-			handler.problem(writer, request, http.StatusNotFound, "Session not found.")
+			handler.problem(writer, request, httpx.ProblemNotFound, err)
 			return
 		}
-		handler.problem(writer, request, http.StatusServiceUnavailable, "Session revocation is unavailable.")
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
 	}
 	if sessionID == authentication.Principal.SessionID {
@@ -218,7 +226,7 @@ func (handler *AuthHandler) changePassword(
 ) {
 	var input passwordRequest
 	if err := httpx.DecodeJSON(request, &input, maximumAuthBodyBytes); err != nil {
-		handler.problem(writer, request, http.StatusBadRequest, "Invalid request.")
+		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
 		return
 	}
 	issued, err := handler.manager.ChangePassword(request.Context(), authentication,
@@ -226,13 +234,13 @@ func (handler *AuthHandler) changePassword(
 	if err != nil {
 		switch {
 		case errors.Is(err, identity.ErrInvalidCredentials):
-			handler.problem(writer, request, http.StatusUnauthorized, "Invalid credentials.")
+			handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
 		case errors.Is(err, identity.ErrPasswordPolicy):
-			handler.problem(writer, request, http.StatusBadRequest, "New password does not satisfy policy.")
+			handler.problem(writer, request, httpx.ProblemInvalidRequest, err)
 		case errors.Is(err, session.ErrCredentialChanged):
-			handler.problem(writer, request, http.StatusConflict, "Credentials changed concurrently.")
+			handler.problem(writer, request, httpx.ProblemConflict, err)
 		default:
-			handler.problem(writer, request, http.StatusServiceUnavailable, "Password change is unavailable.")
+			handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		}
 		return
 	}
@@ -266,10 +274,8 @@ func (handler *AuthHandler) clearCookie(writer http.ResponseWriter) {
 	http.SetCookie(writer, &cookie)
 }
 
-func (handler *AuthHandler) problem(writer http.ResponseWriter, request *http.Request, status int, detail string) {
-	_ = httpx.WriteProblem(writer, request, &httpx.AppError{
-		Status: status, Title: http.StatusText(status), Detail: detail,
-	})
+func (handler *AuthHandler) problem(writer http.ResponseWriter, request *http.Request, kind httpx.ProblemKind, cause error) {
+	_ = httpx.WriteProblem(writer, request, httpx.NewError(kind, cause))
 }
 
 func responseFor(authentication session.Authentication, csrfToken string) authResponse {

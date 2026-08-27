@@ -87,13 +87,13 @@ and RLS-backed mutation tests pass.
 **Artifacts:** `api/openapi.yaml`, pinned OpenAPI 3.1 validator, RFC 9457 writer,
 route inventory, signed cursor codec, `make test-contract`.
 
-- [ ] Unignore `/api`; make the hand-maintained 3.1 contract and examples the
+- [x] Unignore `/api`; make the hand-maintained 3.1 contract and examples the
   source of truth with bidirectional route inventory checks.
-- [ ] Return stable relative problem types, safe details, request ID, and bounded
+- [x] Return stable relative problem types, safe details, request ID, and bounded
   field violations as `application/problem+json` for every error.
-- [ ] Use `401` for session failure, `403` for known operation denial, and an
+- [x] Use `401` for session failure, `403` for known operation denial, and an
   indistinguishable `404` for missing/unauthorized protected IDs.
-- [ ] Default pages to 50, cap at 100, and use bounded HMAC-signed keyset cursors
+- [x] Default pages to 50, cap at 100, and use bounded HMAC-signed keyset cursors
   scoped to route, tenant public IDs, and sort tuple.
 
 **Acceptance:** validator, inventory, examples, live request/response,
@@ -147,7 +147,8 @@ dark infrastructure. D06 is the single compatibility cutover with no temporary
 JWT, unversioned, `X-Org-ID`, registration, or file aliases.
 
 **Implementation links:** planning baseline `4c1145e`; D01 merged in
-[PR #30](https://github.com/CORTA-11/core-api/pull/30) at `08bf473`. D02 is
-prepared on `feat/m03-d02-server-sessions` in commits `3e792f8`, `329055b`,
-`dfac2f7`, `dc4b9c4`, and `357c840`; its PR is pending. D03-D06 implementation
-is pending.
+[PR #30](https://github.com/CORTA-11/core-api/pull/30) at `08bf473`; D02 merged
+in [PR #31](https://github.com/CORTA-11/core-api/pull/31) at `b603fb1`; and D03
+merged in [PR #32](https://github.com/CORTA-11/core-api/pull/32) at `66a8406`.
+D04 is prepared in [PR #33](https://github.com/CORTA-11/core-api/pull/33)
+through `592b179`. M03 remains in progress pending D05 and D06.

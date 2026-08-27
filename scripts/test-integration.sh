@@ -3,8 +3,8 @@ set -euo pipefail
 
 suite="${1:-integration}"
 case "${suite}" in
-  integration|isolation) ;;
-  *) echo "usage: $0 [integration|isolation]" >&2; exit 2 ;;
+  integration|isolation|contract) ;;
+  *) echo "usage: $0 [integration|isolation|contract]" >&2; exit 2 ;;
 esac
 
 compose_file="docker-compose.test.yaml"
@@ -27,4 +27,8 @@ export TEST_MINIO_ENDPOINT="127.0.0.1:${minio_port}"
 export TEST_MINIO_ACCESS_KEY="integration"
 export TEST_MINIO_SECRET_KEY="integration-password"
 
-go test -count=1 -tags="${suite}" ./internal/integration/...
+if [[ "${suite}" == "contract" ]]; then
+  go test -count=1 -tags=integration -run '^TestDarkAuthRouter' ./internal/integration/...
+else
+  go test -count=1 -tags="${suite}" ./internal/integration/...
+fi

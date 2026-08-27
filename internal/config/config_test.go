@@ -31,6 +31,8 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, ":8080", config.HTTPAddr)
 	assert.Equal(t, DevelopmentJWTSecret, config.JWTSecret)
 	assert.Equal(t, DevelopmentCSRFSecret, config.CSRFSecret)
+	assert.Equal(t, DevelopmentCursorKeyID, config.Cursor.ActiveKeyID)
+	assert.Equal(t, DevelopmentCursorSecret, config.Cursor.ActiveSecret)
 	assert.Equal(t, 15*time.Second, config.HTTPReadTimeout)
 	assert.False(t, config.PprofEnabled)
 }
@@ -65,7 +67,42 @@ func TestLoadRejectsUnsafeProductionSettings(t *testing.T) {
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "JWT_SECRET")
 	assert.ErrorContains(t, err, "CSRF_SECRET")
+	assert.ErrorContains(t, err, "CURSOR_SECRET")
 	assert.ErrorContains(t, err, "PPROF_ENABLED")
+}
+
+func TestLoadRequiresPairedDistinctPreviousCursorKey(t *testing.T) {
+	values := validEnvironment()
+	values["CURSOR_PREVIOUS_KEY_ID"] = "previous"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "CURSOR_PREVIOUS_SECRET")
+
+	values["CURSOR_PREVIOUS_SECRET"] = strings.Repeat("p", 32)
+	values["CURSOR_KEY_ID"] = "previous"
+	_, err = loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "CURSOR_PREVIOUS_KEY_ID")
+}
+
+func TestLoadRejectsMalformedCursorKeyConfiguration(t *testing.T) {
+	values := validEnvironment()
+	values["CURSOR_KEY_ID"] = "contains.a.dot"
+	values["CURSOR_SECRET"] = "short"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "cursor key IDs and secrets")
+}
+
+func TestLoadRejectsReusedProductionCursorSecrets(t *testing.T) {
+	values := validEnvironment()
+	values["APP_ENV"] = "production"
+	values["JWT_SECRET"] = strings.Repeat("j", 32)
+	values["CSRF_SECRET"] = strings.Repeat("c", 32)
+	values["CURSOR_SECRET"] = strings.Repeat("c", 32)
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "CURSOR_SECRET")
 }
 
 func TestLoadRejectsReusedProductionCSRFSecret(t *testing.T) {
