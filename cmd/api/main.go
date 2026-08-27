@@ -62,9 +62,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	rdb := redis.NewClient(redisOptions)
 	defer func() { _ = rdb.Close() }()
-	if err := dependencyCheck(ctx, cfg.DependencyTimeout, func(checkCtx context.Context) error { return rdb.Ping(checkCtx).Err() }); err != nil {
-		return fmt.Errorf("ping Redis: %w", err)
-	}
 
 	minioClient, err := appMinio.NewClient(cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, cfg.MinIO.UseSSL)
 	if err != nil {
@@ -105,7 +102,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
 	readiness := map[string]handlers.ReadinessCheck{
 		"postgres": pool.Ping,
-		"redis":    func(checkCtx context.Context) error { return rdb.Ping(checkCtx).Err() },
 		"minio": func(checkCtx context.Context) error {
 			return appMinio.VerifyBucket(checkCtx, minioClient, cfg.MinIO.Bucket)
 		},

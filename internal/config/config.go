@@ -11,13 +11,16 @@ import (
 
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/pagination"
+	"github.com/CORTA-11/core-api/internal/ratelimit"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
-	DevelopmentJWTSecret    = "development-only-jwt-secret-change-me"
-	DevelopmentCSRFSecret   = "development-only-csrf-secret-change-me"
-	DevelopmentCursorKeyID  = "development-v1"
-	DevelopmentCursorSecret = "development-only-cursor-secret-change-me"
+	DevelopmentJWTSecret       = "development-only-jwt-secret-change-me"
+	DevelopmentCSRFSecret      = "development-only-csrf-secret-change-me"
+	DevelopmentCursorKeyID     = "development-v1"
+	DevelopmentCursorSecret    = "development-only-cursor-secret-change-me"
+	DevelopmentRateLimitSecret = "development-only-rate-limit-secret-change-me"
 )
 
 type Config struct {
@@ -37,6 +40,9 @@ type Config struct {
 	JWTSecret             string
 	CSRFSecret            string
 	Cursor                CursorKeys
+	RateLimitSecret       string
+	RateLimitTimeout      time.Duration
+	RateLimits            ratelimit.Policies
 	PprofEnabled          bool
 }
 
@@ -64,10 +70,13 @@ func Load() (Config, error) {
 func LoadFrom(lookup lookupFunc) (Config, error) {
 	var problems []error
 	config := Config{
-		Environment: valueOrDefault(lookup, "APP_ENV", "development"),
-		HTTPAddr:    valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
-		JWTSecret:   valueOrDefault(lookup, "JWT_SECRET", DevelopmentJWTSecret),
-		CSRFSecret:  valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
+		Environment:      valueOrDefault(lookup, "APP_ENV", "development"),
+		HTTPAddr:         valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
+		JWTSecret:        valueOrDefault(lookup, "JWT_SECRET", DevelopmentJWTSecret),
+		CSRFSecret:       valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
+		RateLimitSecret:  valueOrDefault(lookup, "RATE_LIMIT_SECRET", DevelopmentRateLimitSecret),
+		RateLimitTimeout: 250 * time.Millisecond,
+		RateLimits:       ratelimit.DefaultPolicies(),
 		Cursor: CursorKeys{
 			ActiveKeyID:    valueOrDefault(lookup, "CURSOR_KEY_ID", DevelopmentCursorKeyID),
 			ActiveSecret:   valueOrDefault(lookup, "CURSOR_SECRET", DevelopmentCursorSecret),
@@ -113,6 +122,17 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 			*setting.target = duration
 		}
 	}
+	if raw, ok := lookup("RATE_LIMIT_TIMEOUT"); ok && strings.TrimSpace(raw) != "" {
+		duration, parseErr := time.ParseDuration(raw)
+		if parseErr != nil || duration <= 0 || duration > 5*time.Second {
+			problems = append(problems, errors.New("RATE_LIMIT_TIMEOUT must be a duration between 0 and 5s"))
+		} else {
+			config.RateLimitTimeout = duration
+		}
+	}
+	parseRatePolicy(lookup, "RATE_LIMIT_LOGIN_IP", &config.RateLimits.LoginIP, &problems)
+	parseRatePolicy(lookup, "RATE_LIMIT_ACCOUNT_FAILURE", &config.RateLimits.AccountFailure, &problems)
+	parseRatePolicy(lookup, "RATE_LIMIT_ADMIN", &config.RateLimits.Administrative, &problems)
 
 	if raw, ok := lookup("MINIO_USE_SSL"); ok && strings.TrimSpace(raw) != "" {
 		parsed, err := strconv.ParseBool(raw)
@@ -146,6 +166,9 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 
 	if config.Environment != "development" && config.Environment != "test" && config.Environment != "production" {
 		problems = append(problems, errors.New("APP_ENV must be development, test, or production"))
+	}
+	if _, parseErr := redis.ParseURL(config.RedisURL); parseErr != nil {
+		problems = append(problems, errors.New("REDIS_URL must be a valid redis or rediss URL"))
 	}
 	if (config.Cursor.PreviousKeyID == "") != (config.Cursor.PreviousSecret == "") {
 		problems = append(problems, errors.New("CURSOR_PREVIOUS_KEY_ID and CURSOR_PREVIOUS_SECRET must be configured together"))
@@ -183,6 +206,12 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 			config.Cursor.PreviousSecret == databasePassword(config.DatabaseURL)) {
 			problems = append(problems, errors.New("CURSOR_PREVIOUS_SECRET must be a distinct non-development value of at least 32 bytes in production"))
 		}
+		if len([]byte(config.RateLimitSecret)) < 32 || isDevelopmentSecret(config.RateLimitSecret) ||
+			config.RateLimitSecret == config.JWTSecret || config.RateLimitSecret == config.CSRFSecret ||
+			config.RateLimitSecret == config.Cursor.ActiveSecret || config.RateLimitSecret == config.Cursor.PreviousSecret ||
+			config.RateLimitSecret == databasePassword(config.DatabaseURL) {
+			problems = append(problems, errors.New("RATE_LIMIT_SECRET must be a distinct non-development value of at least 32 bytes in production"))
+		}
 		if config.PprofEnabled {
 			problems = append(problems, errors.New("PPROF_ENABLED cannot be enabled in production"))
 		}
@@ -192,6 +221,36 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		return Config{}, fmt.Errorf("invalid configuration: %w", errors.Join(problems...))
 	}
 	return config, nil
+}
+
+func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy, problems *[]error) {
+	if raw, ok := lookup(prefix + "_LIMIT"); ok && strings.TrimSpace(raw) != "" {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+		if err != nil || parsed < 1 || parsed > 10_000 {
+			*problems = append(*problems, fmt.Errorf("%s_LIMIT must be between 1 and 10000", prefix))
+		} else {
+			policy.Limit = parsed
+		}
+	}
+	if raw, ok := lookup(prefix + "_WINDOW"); ok && strings.TrimSpace(raw) != "" {
+		parsed, err := time.ParseDuration(strings.TrimSpace(raw))
+		if err != nil || parsed < time.Second || parsed > time.Hour {
+			*problems = append(*problems, fmt.Errorf("%s_WINDOW must be between 1s and 1h", prefix))
+		} else {
+			policy.Period = parsed
+		}
+	}
+	if raw, ok := lookup(prefix + "_BURST"); ok && strings.TrimSpace(raw) != "" {
+		parsed, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+		if err != nil || parsed < 1 || parsed > 10_000 {
+			*problems = append(*problems, fmt.Errorf("%s_BURST must be between 1 and 10000", prefix))
+		} else {
+			policy.Burst = parsed
+		}
+	}
+	if err := policy.Validate(); err != nil {
+		*problems = append(*problems, fmt.Errorf("%s policy is invalid", prefix))
+	}
 }
 
 func databasePassword(databaseURL string) string {

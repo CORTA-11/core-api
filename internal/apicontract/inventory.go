@@ -35,9 +35,9 @@ const (
 type RateLimitClass string
 
 const (
-	RateLogin RateLimitClass = "login"
-	RateRead  RateLimitClass = "authenticated-read"
-	RateWrite RateLimitClass = "authenticated-write"
+	RateNone           RateLimitClass = "none"
+	RateLogin          RateLimitClass = "login"
+	RateAdministrative RateLimitClass = "administrative"
 )
 
 type Route struct {
@@ -53,22 +53,22 @@ type Route struct {
 
 var Routes = [...]Route{
 	{http.MethodPost, "/api/v1/auth/login", "login", AuthenticationPublic, CSRFNone, "", BodyAuthJSON, RateLogin},
-	{http.MethodGet, "/api/v1/auth/session", "getCurrentSession", AuthenticationRequired, CSRFNone, "", BodyNone, RateRead},
-	{http.MethodDelete, "/api/v1/auth/session", "logout", AuthenticationLogout, CSRFRequired, "", BodyNone, RateWrite},
-	{http.MethodGet, "/api/v1/auth/sessions", "listSessions", AuthenticationRequired, CSRFNone, "", BodyNone, RateRead},
-	{http.MethodDelete, "/api/v1/auth/sessions", "revokeAllSessions", AuthenticationRequired, CSRFRequired, "", BodyNone, RateWrite},
-	{http.MethodDelete, "/api/v1/auth/sessions/{session_id}", "revokeSession", AuthenticationRequired, CSRFRequired, "", BodyNone, RateWrite},
-	{http.MethodPut, "/api/v1/auth/password", "changePassword", AuthenticationRequired, CSRFRequired, "", BodyAuthJSON, RateWrite},
-	{http.MethodGet, "/api/v1/orgs", "listOrganizations", AuthenticationRequired, CSRFNone, "", BodyNone, RateRead},
-	{http.MethodPost, "/api/v1/orgs", "createOrganization", AuthenticationRequired, CSRFRequired, "", BodyJSON, RateWrite},
-	{http.MethodGet, "/api/v1/orgs/{org_id}", "getOrganization", AuthenticationRequired, CSRFNone, authorization.PermissionOrgRead, BodyNone, RateRead},
-	{http.MethodPatch, "/api/v1/orgs/{org_id}", "updateOrganization", AuthenticationRequired, CSRFRequired, authorization.PermissionOrgUpdate, BodyJSON, RateWrite},
-	{http.MethodDelete, "/api/v1/orgs/{org_id}", "deleteOrganization", AuthenticationRequired, CSRFRequired, authorization.PermissionOrgDelete, BodyNone, RateWrite},
-	{http.MethodPost, "/api/v1/orgs/{org_id}/restore", "restoreOrganization", AuthenticationRequired, CSRFRequired, authorization.PermissionOrgRestore, BodyNone, RateWrite},
-	{http.MethodGet, "/api/v1/orgs/{org_id}/teams", "listTeams", AuthenticationRequired, CSRFNone, authorization.PermissionOrgRead, BodyNone, RateRead},
-	{http.MethodPost, "/api/v1/orgs/{org_id}/teams", "createTeam", AuthenticationRequired, CSRFRequired, authorization.PermissionTeamCreate, BodyJSON, RateWrite},
-	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks", "listTasks", AuthenticationRequired, CSRFNone, authorization.PermissionTaskRead, BodyNone, RateRead},
-	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks", "createTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskCreate, BodyJSON, RateWrite},
-	{http.MethodPatch, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}", "updateTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskUpdate, BodyJSON, RateWrite},
-	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}", "deleteTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskDelete, BodyNone, RateWrite},
+	{http.MethodGet, "/api/v1/auth/session", "getCurrentSession", AuthenticationRequired, CSRFNone, "", BodyNone, RateNone},
+	{http.MethodDelete, "/api/v1/auth/session", "logout", AuthenticationLogout, CSRFRequired, "", BodyNone, RateNone},
+	{http.MethodGet, "/api/v1/auth/sessions", "listSessions", AuthenticationRequired, CSRFNone, "", BodyNone, RateNone},
+	{http.MethodDelete, "/api/v1/auth/sessions", "revokeAllSessions", AuthenticationRequired, CSRFRequired, "", BodyNone, RateNone},
+	{http.MethodDelete, "/api/v1/auth/sessions/{session_id}", "revokeSession", AuthenticationRequired, CSRFRequired, "", BodyNone, RateNone},
+	{http.MethodPut, "/api/v1/auth/password", "changePassword", AuthenticationRequired, CSRFRequired, "", BodyAuthJSON, RateNone},
+	{http.MethodGet, "/api/v1/orgs", "listOrganizations", AuthenticationRequired, CSRFNone, "", BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs", "createOrganization", AuthenticationRequired, CSRFRequired, "", BodyJSON, RateAdministrative},
+	{http.MethodGet, "/api/v1/orgs/{org_id}", "getOrganization", AuthenticationRequired, CSRFNone, authorization.PermissionOrgRead, BodyNone, RateNone},
+	{http.MethodPatch, "/api/v1/orgs/{org_id}", "updateOrganization", AuthenticationRequired, CSRFRequired, authorization.PermissionOrgUpdate, BodyJSON, RateAdministrative},
+	{http.MethodDelete, "/api/v1/orgs/{org_id}", "deleteOrganization", AuthenticationRequired, CSRFRequired, authorization.PermissionOrgDelete, BodyNone, RateAdministrative},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/restore", "restoreOrganization", AuthenticationRequired, CSRFRequired, authorization.PermissionOrgRestore, BodyNone, RateAdministrative},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams", "listTeams", AuthenticationRequired, CSRFNone, authorization.PermissionOrgRead, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams", "createTeam", AuthenticationRequired, CSRFRequired, authorization.PermissionTeamCreate, BodyJSON, RateAdministrative},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks", "listTasks", AuthenticationRequired, CSRFNone, authorization.PermissionTaskRead, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks", "createTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskCreate, BodyJSON, RateNone},
+	{http.MethodPatch, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}", "updateTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskUpdate, BodyJSON, RateNone},
+	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}", "deleteTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskDelete, BodyNone, RateNone},
 }

@@ -36,9 +36,44 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, 5*time.Second, config.HTTPReadHeaderTimeout)
 	assert.Equal(t, 15*time.Second, config.HTTPReadTimeout)
 	assert.Equal(t, 30*time.Second, config.HTTPWriteTimeout)
+	assert.Equal(t, DevelopmentRateLimitSecret, config.RateLimitSecret)
+	assert.Equal(t, 250*time.Millisecond, config.RateLimitTimeout)
+	assert.Equal(t, int64(20), config.RateLimits.LoginIP.Limit)
+	assert.Equal(t, 15*time.Minute, config.RateLimits.LoginIP.Period)
+	assert.Equal(t, int64(20), config.RateLimits.LoginIP.Burst)
+	assert.Equal(t, int64(5), config.RateLimits.AccountFailure.Limit)
+	assert.Equal(t, int64(60), config.RateLimits.Administrative.Limit)
 	assert.Equal(t, []string{"http://localhost:3000", "http://127.0.0.1:3000"}, config.HTTPOrigins.Values())
 	assert.Empty(t, config.TrustedProxies.CIDRs())
 	assert.False(t, config.PprofEnabled)
+}
+
+func TestLoadValidatesRateLimitConfiguration(t *testing.T) {
+	values := validEnvironment()
+	values["RATE_LIMIT_TIMEOUT"] = "0s"
+	values["RATE_LIMIT_LOGIN_IP_LIMIT"] = "0"
+	values["RATE_LIMIT_LOGIN_IP_WINDOW"] = "24h"
+	values["RATE_LIMIT_LOGIN_IP_BURST"] = "1000000"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	for _, name := range []string{"RATE_LIMIT_TIMEOUT", "RATE_LIMIT_LOGIN_IP_LIMIT", "RATE_LIMIT_LOGIN_IP_WINDOW", "RATE_LIMIT_LOGIN_IP_BURST"} {
+		assert.ErrorContains(t, err, name)
+	}
+}
+
+func TestLoadRequiresDistinctProductionRateLimitSecretAndValidRedisURL(t *testing.T) {
+	values := validEnvironment()
+	values["APP_ENV"] = "production"
+	values["JWT_SECRET"] = strings.Repeat("j", 32)
+	values["CSRF_SECRET"] = strings.Repeat("c", 32)
+	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
+	values["RATE_LIMIT_SECRET"] = strings.Repeat("c", 32)
+	values["HTTP_ALLOWED_ORIGINS"] = "https://app.example.com"
+	values["REDIS_URL"] = "http://redis:6379"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "RATE_LIMIT_SECRET")
+	assert.ErrorContains(t, err, "REDIS_URL")
 }
 
 func TestLoadValidatesExactOrigins(t *testing.T) {
