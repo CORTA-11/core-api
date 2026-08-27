@@ -106,13 +106,13 @@ problem-disclosure, pagination-boundary, and adversarial cursor tests pass.
 **Artifacts:** validated boundary configuration, middleware/server tests, Redis
 GCRA adapter, structured logging, loopback diagnostics listener.
 
-- [ ] Enforce exact origins, credential rules, security headers, 32 KiB header
+- [x] Enforce exact origins, credential rules, security headers, 32 KiB header
   cap, server deadlines, and route-specific body limits.
-- [ ] Derive trusted client identity only through configured proxy CIDRs and log
+- [x] Derive trusted client identity only through configured proxy CIDRs and log
   bounded structured fields with complete secret redaction.
-- [ ] Rate-limit login by account failures and client-IP attempts using HMAC-keyed
+- [x] Rate-limit login by account failures and client-IP attempts using HMAC-keyed
   Redis GCRA; deny login/admin on Redis outage while ordinary authorized traffic continues.
-- [ ] Remove pprof from the public router and permit only an explicit loopback
+- [x] Remove pprof from the public router and permit only an explicit loopback
   diagnostic listener outside production.
 
 **Acceptance:** CORS, header, body, timeout, forwarding spoof, redaction,
@@ -151,4 +151,6 @@ JWT, unversioned, `X-Org-ID`, registration, or file aliases.
 in [PR #31](https://github.com/CORTA-11/core-api/pull/31) at `b603fb1`; and D03
 merged in [PR #32](https://github.com/CORTA-11/core-api/pull/32) at `66a8406`.
 D04 is prepared in [PR #33](https://github.com/CORTA-11/core-api/pull/33)
-through `592b179`. M03 remains in progress pending D05 and D06.
+through `592b179`. D05 is complete on `security/m03-d05-http-envelope` through
+`ff3097b` (implementation record pending its PR). M03 remains in progress pending
+D06.
