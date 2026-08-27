@@ -1,0 +1,736 @@
+openapi: 3.1.2
+info:
+  title: Synodus Core API
+  version: 1.0.0
+  description: >-
+    The reviewed v1 browser API contract. Organization, team, and task
+    operations remain dark until the D06 route cutover.
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+tags:
+  - name: Authentication
+  - name: Organizations
+  - name: Teams
+  - name: Tasks
+paths:
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Create a browser session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/LoginRequest'}
+            example: {email: researcher@example.com, password: correct-horse-battery-staple}
+      responses:
+        '200':
+          description: Session created
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionCookie'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResponse'}
+              examples: {standard: {$ref: '#/components/examples/AuthResponse'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/auth/session:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentSession
+      summary: Inspect the current browser session
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Current session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResponse'}
+              examples: {standard: {$ref: '#/components/examples/AuthResponse'}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    delete:
+      tags: [Authentication]
+      operationId: logout
+      summary: Revoke or clear the current browser session
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '204': {description: Session revoked or absent cookie cleared}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/auth/sessions:
+    get:
+      tags: [Authentication]
+      operationId: listSessions
+      summary: List the user's bounded session collection
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Sessions
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SessionCollection'}
+              example:
+                sessions:
+                  - {id: 44444444-4444-4444-8444-444444444444, user_agent: Example Browser, created_at: '2026-08-27T09:00:00Z', last_seen_at: '2026-08-27T09:05:00Z', idle_expires_at: '2026-08-27T09:35:00Z', absolute_expires_at: '2026-08-27T21:00:00Z', current: true}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    delete:
+      tags: [Authentication]
+      operationId: revokeAllSessions
+      summary: Revoke all sessions for the user
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '204': {description: Sessions revoked}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/auth/sessions/{session_id}:
+    delete:
+      tags: [Authentication]
+      operationId: revokeSession
+      summary: Revoke one session belonging to the user
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/SessionID'}
+        - {$ref: '#/components/parameters/CSRFToken'}
+      responses:
+        '204': {description: Session revoked}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/auth/password:
+    put:
+      tags: [Authentication]
+      operationId: changePassword
+      summary: Change the current user's password and rotate the session
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PasswordRequest'}
+            example: {current_password: old-correct-password, new_password: new-correct-password}
+      responses:
+        '200':
+          description: Password changed and session rotated
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionCookie'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResponse'}
+              examples: {standard: {$ref: '#/components/examples/AuthResponse'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs:
+    get:
+      tags: [Organizations]
+      operationId: listOrganizations
+      summary: List organizations visible to the user
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Organization page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OrganizationPage'}
+              example:
+                items:
+                  - {id: 11111111-1111-4111-8111-111111111111, name: Applied Systems Lab, lifecycle_state: active, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z', deleted_at: null}
+                next_cursor: null
+                previous_cursor: null
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    post:
+      tags: [Organizations]
+      operationId: createOrganization
+      summary: Create an organization
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrganizationWrite'}
+            example: {name: Applied Systems Lab}
+      responses:
+        '201':
+          description: Organization created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Organization'}
+              examples: {standard: {$ref: '#/components/examples/Organization'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/{org_id}:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}]
+    get:
+      tags: [Organizations]
+      operationId: getOrganization
+      summary: Get an organization
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Organization
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Organization'}
+              examples: {standard: {$ref: '#/components/examples/Organization'}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    patch:
+      tags: [Organizations]
+      operationId: updateOrganization
+      summary: Rename an organization
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/OrganizationWrite'}
+            example: {name: Applied Systems Laboratory}
+      responses:
+        '200':
+          description: Organization updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Organization'}
+              examples: {standard: {$ref: '#/components/examples/Organization'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    delete:
+      tags: [Organizations]
+      operationId: deleteOrganization
+      summary: Soft-delete an organization
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '204': {description: Organization deleted}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/{org_id}/restore:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}]
+    post:
+      tags: [Organizations]
+      operationId: restoreOrganization
+      summary: Restore a soft-deleted organization
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '200':
+          description: Organization restored
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Organization'}
+              examples: {standard: {$ref: '#/components/examples/Organization'}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/{org_id}/teams:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}]
+    get:
+      tags: [Teams]
+      operationId: listTeams
+      summary: List teams in an organization
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Team page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TeamPage'}
+              example:
+                items:
+                  - {id: 22222222-2222-4222-8222-222222222222, name: Reproducibility Group, slug: reproducibility-group, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+                next_cursor: null
+                previous_cursor: null
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    post:
+      tags: [Teams]
+      operationId: createTeam
+      summary: Create a team
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TeamWrite'}
+            example: {name: Reproducibility Group}
+      responses:
+        '201':
+          description: Team created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Team'}
+              examples: {standard: {$ref: '#/components/examples/Team'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/tasks:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: List tasks in a team
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Task page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TaskPage'}
+              example:
+                items:
+                  - {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+                next_cursor: null
+                previous_cursor: null
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    post:
+      tags: [Tasks]
+      operationId: createTask
+      summary: Create a task
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TaskWrite'}
+            example: {description: Reproduce benchmark results, status: todo}
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Task'}
+              examples: {standard: {$ref: '#/components/examples/Task'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+      - {$ref: '#/components/parameters/TaskID'}
+    patch:
+      tags: [Tasks]
+      operationId: updateTask
+      summary: Update a task
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TaskWrite'}
+            example: {description: Reproduce benchmark results, status: in_progress}
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Task'}
+              examples: {standard: {$ref: '#/components/examples/Task'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    delete:
+      tags: [Tasks]
+      operationId: deleteTask
+      summary: Delete a task
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '204': {description: Task deleted}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-synodus_session
+      description: Production browser session cookie.
+  headers:
+    SessionCookie:
+      description: HttpOnly, Secure, SameSite=Strict production session cookie.
+      schema: {type: string}
+  parameters:
+    CSRFToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      schema: {type: string, minLength: 1, maxLength: 512}
+    PageSize:
+      name: page_size
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    Cursor:
+      name: cursor
+      in: query
+      schema: {type: string, minLength: 1, maxLength: 512}
+    OrganizationID:
+      name: org_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/PublicID'}
+    TeamID:
+      name: team_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/PublicID'}
+    TaskID:
+      name: task_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/PublicID'}
+    SessionID:
+      name: session_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/PublicID'}
+  responses:
+    InvalidRequest: {$ref: '#/components/responses/InvalidRequestResponse'}
+    Unauthenticated: {$ref: '#/components/responses/UnauthenticatedResponse'}
+    Forbidden: {$ref: '#/components/responses/ForbiddenResponse'}
+    NotFound: {$ref: '#/components/responses/NotFoundResponse'}
+    Conflict: {$ref: '#/components/responses/ConflictResponse'}
+    PreconditionFailed: {$ref: '#/components/responses/PreconditionFailedResponse'}
+    RateLimited: {$ref: '#/components/responses/RateLimitedResponse'}
+    InternalFailure: {$ref: '#/components/responses/InternalFailureResponse'}
+    DependencyUnavailable: {$ref: '#/components/responses/DependencyUnavailableResponse'}
+    InvalidRequestResponse:
+      description: The request is invalid
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/InvalidRequestProblem'}}
+    UnauthenticatedResponse:
+      description: Authentication is required
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/UnauthenticatedProblem'}}
+    ForbiddenResponse:
+      description: The authenticated user cannot perform the known operation
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/ForbiddenProblem'}}
+    NotFoundResponse:
+      description: The protected resource is absent or unavailable to the user
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/NotFoundProblem'}}
+    ConflictResponse:
+      description: The request conflicts with current state
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/ConflictProblem'}}
+    PreconditionFailedResponse:
+      description: A request precondition did not hold
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/PreconditionFailedProblem'}}
+    RateLimitedResponse:
+      description: The request rate limit was exceeded
+      headers:
+        Retry-After: {schema: {type: integer, minimum: 1}}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/RateLimitedProblem'}}
+    InternalFailureResponse:
+      description: An internal failure occurred
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/InternalProblem'}}
+    DependencyUnavailableResponse:
+      description: A required dependency is unavailable
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          examples: {standard: {$ref: '#/components/examples/DependencyProblem'}}
+  schemas:
+    PublicID: {type: string, format: uuid}
+    Timestamp: {type: string, format: date-time}
+    CursorValue: {type: [string, 'null'], minLength: 1, maxLength: 512}
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {type: string, format: email, maxLength: 254}
+        password: {type: string, minLength: 1, maxLength: 1024}
+    PasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [current_password, new_password]
+      properties:
+        current_password: {type: string, minLength: 1, maxLength: 1024}
+        new_password: {type: string, minLength: 1, maxLength: 1024}
+    User:
+      type: object
+      additionalProperties: false
+      required: [id, email, display_name]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        email: {type: string, format: email}
+        display_name: {type: string, minLength: 1, maxLength: 200}
+    Session:
+      type: object
+      additionalProperties: false
+      required: [id, created_at, last_seen_at, idle_expires_at, absolute_expires_at, current]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        user_agent: {type: string, maxLength: 512}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        last_seen_at: {$ref: '#/components/schemas/Timestamp'}
+        idle_expires_at: {$ref: '#/components/schemas/Timestamp'}
+        absolute_expires_at: {$ref: '#/components/schemas/Timestamp'}
+        revoked_at: {type: [string, 'null'], format: date-time}
+        current: {type: boolean}
+    AuthResponse:
+      type: object
+      additionalProperties: false
+      required: [user, session, csrf_token]
+      properties:
+        user: {$ref: '#/components/schemas/User'}
+        session: {$ref: '#/components/schemas/Session'}
+        csrf_token: {type: string, minLength: 1, maxLength: 512}
+    SessionCollection:
+      type: object
+      additionalProperties: false
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          maxItems: 100
+          items: {$ref: '#/components/schemas/Session'}
+    Organization:
+      type: object
+      additionalProperties: false
+      required: [id, name, lifecycle_state, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        name: {type: string, minLength: 1, maxLength: 200}
+        lifecycle_state: {type: string, enum: [provisioning, active, deleting, deleted, restoring, failed]}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+        deleted_at: {type: [string, 'null'], format: date-time}
+    OrganizationWrite:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+    Team:
+      type: object
+      additionalProperties: false
+      required: [id, name, slug, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        name: {type: string, minLength: 1, maxLength: 200}
+        slug: {type: string, minLength: 1, maxLength: 100, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    TeamWrite:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+    Task:
+      type: object
+      additionalProperties: false
+      required: [id, description, status, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        description: {type: string, minLength: 1, maxLength: 4096}
+        status: {type: string, enum: [todo, in_progress, done]}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    TaskWrite:
+      type: object
+      additionalProperties: false
+      required: [description, status]
+      properties:
+        description: {type: string, minLength: 1, maxLength: 4096}
+        status: {type: string, enum: [todo, in_progress, done]}
+    OrganizationPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageLinks'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Organization'}}
+    TeamPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageLinks'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Team'}}
+    TaskPage:
+      allOf:
+        - {$ref: '#/components/schemas/PageLinks'}
+        - type: object
+          required: [items]
+          properties:
+            items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Task'}}
+    PageLinks:
+      type: object
+      required: [next_cursor, previous_cursor]
+      properties:
+        next_cursor: {$ref: '#/components/schemas/CursorValue'}
+        previous_cursor: {$ref: '#/components/schemas/CursorValue'}
+    Violation:
+      type: object
+      additionalProperties: false
+      required: [field, code, message]
+      properties:
+        field: {type: string, minLength: 1, maxLength: 64}
+        code: {type: string, minLength: 1, maxLength: 64}
+        message: {type: string, minLength: 1, maxLength: 256}
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail, request_id]
+      properties:
+        type:
+          type: string
+          enum: [/problems/invalid-request, /problems/unauthenticated, /problems/forbidden, /problems/not-found, /problems/conflict, /problems/precondition-failed, /problems/rate-limited, /problems/internal-failure, /problems/dependency-unavailable]
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string, minLength: 1, maxLength: 512}
+        request_id: {type: string, format: uuid}
+        violations:
+          type: array
+          maxItems: 16
+          items: {$ref: '#/components/schemas/Violation'}
+  examples:
+    AuthResponse:
+      value:
+        user: {id: 11111111-1111-4111-8111-111111111111, email: researcher@example.com, display_name: Researcher}
+        session: {id: 44444444-4444-4444-8444-444444444444, created_at: '2026-08-27T09:00:00Z', last_seen_at: '2026-08-27T09:05:00Z', idle_expires_at: '2026-08-27T09:35:00Z', absolute_expires_at: '2026-08-27T21:00:00Z', current: true}
+        csrf_token: example-csrf-token
+    Organization:
+      value: {id: 11111111-1111-4111-8111-111111111111, name: Applied Systems Lab, lifecycle_state: active, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z', deleted_at: null}
+    Team:
+      value: {id: 22222222-2222-4222-8222-222222222222, name: Reproducibility Group, slug: reproducibility-group, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+    Task:
+      value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+    InvalidRequestProblem:
+      value: {type: /problems/invalid-request, title: Invalid request, status: 400, detail: The request is invalid., request_id: 55555555-5555-4555-8555-555555555555, violations: [{field: body, code: malformed, message: The request body must contain one valid JSON object.}]}
+    UnauthenticatedProblem:
+      value: {type: /problems/unauthenticated, title: Authentication required, status: 401, detail: Authentication is required., request_id: 55555555-5555-4555-8555-555555555555}
+    ForbiddenProblem:
+      value: {type: /problems/forbidden, title: Forbidden, status: 403, detail: The operation is not permitted., request_id: 55555555-5555-4555-8555-555555555555}
+    NotFoundProblem:
+      value: {type: /problems/not-found, title: Not found, status: 404, detail: The requested resource was not found., request_id: 55555555-5555-4555-8555-555555555555}
+    ConflictProblem:
+      value: {type: /problems/conflict, title: Conflict, status: 409, detail: The request conflicts with current state., request_id: 55555555-5555-4555-8555-555555555555}
+    PreconditionFailedProblem:
+      value: {type: /problems/precondition-failed, title: Precondition failed, status: 412, detail: A request precondition was not met., request_id: 55555555-5555-4555-8555-555555555555}
+    RateLimitedProblem:
+      value: {type: /problems/rate-limited, title: Too many requests, status: 429, detail: Too many requests were received., request_id: 55555555-5555-4555-8555-555555555555}
+    InternalProblem:
+      value: {type: /problems/internal-failure, title: Internal server error, status: 500, detail: An unexpected error occurred., request_id: 55555555-5555-4555-8555-555555555555}
+    DependencyProblem:
+      value: {type: /problems/dependency-unavailable, title: Dependency unavailable, status: 503, detail: A required dependency is unavailable., request_id: 55555555-5555-4555-8555-555555555555}
