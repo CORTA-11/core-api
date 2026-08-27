@@ -4,6 +4,22 @@ FROM teams
 ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('limit');
 
+-- name: GetTeamsAfter :many
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+FROM teams
+WHERE NOT is_quarantine
+  AND (created_at, public_id) > (sqlc.arg('after_created_at'), sqlc.arg('after_public_id')::uuid)
+ORDER BY created_at ASC, public_id ASC
+LIMIT sqlc.arg('limit');
+
+-- name: GetTeamsBefore :many
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+FROM teams
+WHERE NOT is_quarantine
+  AND (created_at, public_id) < (sqlc.arg('before_created_at'), sqlc.arg('before_public_id')::uuid)
+ORDER BY created_at DESC, public_id DESC
+LIMIT sqlc.arg('limit');
+
 -- name: CreateTeam :one
 INSERT INTO teams (name, slug)
 VALUES ($1, $2)

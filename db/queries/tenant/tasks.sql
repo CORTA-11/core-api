@@ -4,6 +4,20 @@ FROM tasks
 ORDER BY tasks.created_at ASC, tasks.id ASC
 LIMIT sqlc.arg('limit');
 
+-- name: GetTasksAfter :many
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
+FROM tasks
+WHERE (tasks.created_at, tasks.public_id) > (sqlc.arg('after_created_at'), sqlc.arg('after_public_id')::uuid)
+ORDER BY tasks.created_at ASC, tasks.public_id ASC
+LIMIT sqlc.arg('limit');
+
+-- name: GetTasksBefore :many
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
+FROM tasks
+WHERE (tasks.created_at, tasks.public_id) < (sqlc.arg('before_created_at'), sqlc.arg('before_public_id')::uuid)
+ORDER BY tasks.created_at DESC, tasks.public_id DESC
+LIMIT sqlc.arg('limit');
+
 -- name: CreateTask :one
 INSERT INTO tasks (team_id, description, status)
 VALUES (NULLIF(current_setting('app.team_id', true), '')::BIGINT, $1, $2)
