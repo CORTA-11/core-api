@@ -154,7 +154,7 @@ git diff --check
 - [x] Argon2 parsing and concurrency remain inside declared bounds.
 - [x] Successful verification rehashes outdated parameters safely.
 - [x] Operator and seed workflows expose no secret and public registration is absent from v1.
-- [x] The prepared branch records red and green evidence; PR evidence remains pending.
+- [x] The prepared branch records red and green evidence; merged PR evidence is recorded.
 
 ## Rollout, rollback, and operations
 
@@ -177,9 +177,9 @@ evidence. D02 creates sessions only after this verifier succeeds.
 
 ## Implementation record
 
-**Pull request:** _pending_
+**Pull request:** [#30](https://github.com/CORTA-11/core-api/pull/30)
 
-**Merge commit:** _pending_
+**Merge commit:** `08bf473`
 
 **Implementation commits:** `8f26827` canonical email; `1897bcc` password
 policy and architecture cleanup; `1d2217c` bounded parser; `cdbfd1a`

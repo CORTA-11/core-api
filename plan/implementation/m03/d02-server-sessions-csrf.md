@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `prepared` |
 | Branch | `feat/m03-d02-server-sessions` |
 | PR title | `feat(auth): add revocable browser sessions` |
 | Predecessor | M03-D01 merged |
@@ -147,14 +147,14 @@ make check
 git diff --check
 ```
 
-- [ ] Database contains no raw token/CSRF value and enforces declared bounds.
-- [ ] Cookie names/attributes cannot cross development and production.
-- [ ] Idle, absolute, revoked, rotated, fixed, and replayed sessions fail safely.
-- [ ] Unsafe browser mutations require approved origin plus current CSRF token.
-- [ ] Inspection and revocation are bounded, user-scoped, and concurrency-safe.
-- [ ] Password change and session rotation are one atomic state transition.
-- [ ] Database failures produce no partial session/password change.
-- [ ] PR records red and green evidence.
+- [x] Database contains no raw token/CSRF value and enforces declared bounds.
+- [x] Cookie names/attributes cannot cross development and production.
+- [x] Idle, absolute, revoked, rotated, fixed, and replayed sessions fail safely.
+- [x] Unsafe browser mutations require approved origin plus current CSRF token.
+- [x] Inspection and revocation are bounded, user-scoped, and concurrency-safe.
+- [x] Password change and session rotation are one atomic state transition.
+- [x] Database failures produce no partial session/password change.
+- [x] The prepared branch records red and green evidence; PR evidence remains pending.
 
 ## Rollout, rollback, and operations
 
@@ -167,6 +167,10 @@ Until D06, the session router remains unmounted. Rollback may leave the additive
 table unused. After D06, rollback is forward-only to a corrected session build;
 do not re-enable JWT or unauthenticated routes. Rotating the CSRF secret requires
 deliberate invalidation/relogin behavior documented in the runbook.
+
+Operators remove at most one bounded batch with
+`go run ./cmd/admin session cleanup` (default 500), or set `--batch-size` up to
+1000. The command reports only aggregate revoked/absolute/idle counts.
 
 ## Handoff to D03
 
@@ -181,4 +185,27 @@ roles or tenant identifiers in the session.
 
 **Merge commit:** _pending_
 
-**Red/green evidence:** _pending_
+**Implementation commits:** `3e792f8` durable persistence; `329055b` bounded
+opaque issuance and cookies; `dfac2f7` session-bound CSRF and dark handlers;
+`dc4b9c4` inspection, revocation, cleanup, and PostgreSQL proofs; `357c840`
+atomic password/session rotation and failure/concurrency proofs; this
+documentation commit.
+
+**Observed red evidence:**
+
+- `GOCACHE=$(pwd)/.cache/go-build go test ./internal/session` failed on the
+  expected missing strict token codec symbols.
+- `GOCACHE=$(pwd)/.cache/go-build go test ./internal/config` failed on the
+  expected missing `CSRFSecret` configuration contract.
+- The first `make test-integration` run exposed the new forward-only migration
+  message compatibility and deterministic token-source collision in the test;
+  both were corrected before the green run.
+
+**Green evidence:** focused `go test ./internal/session`, repository-wide
+`go test ./...`, `make generate-check`, `git diff --check`, and the Docker-backed
+`make test-integration` lane passed on the prepared branch. The integration lane
+uses PostgreSQL 18 and covers schema constraints/index ownership, exact idle and
+absolute expiry, coalesced touches, fixation/replay, exact origin plus token-bound
+CSRF, stale idempotent logout, owner-scoped revocation, cleanup limits, atomic
+password rotation, and CAS races. Focused transaction-failure tests cover
+rollback and commit-failure secret suppression.

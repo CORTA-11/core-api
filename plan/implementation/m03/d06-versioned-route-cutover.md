@@ -111,6 +111,12 @@ Login is public but still uses trusted client resolution, CORS, body limits,
 redaction, and both D05 rate-limit buckets; on success it creates D02 state.
 Authenticated safe requests require a current session. Authenticated unsafe
 requests additionally require D02 origin/CSRF before service authorization.
+Current-session logout is the deliberate exception to session-first ordering:
+an absent or malformed cookie is cleared with `204`, while any parseable cookie
+(including expired, revoked, or deleted state) is checked against exact Origin
+and token-derived CSRF before hash-based idempotent revocation and clearing. D06
+must preserve that route-specific composition instead of applying ordinary
+authentication middleware first.
 Organization/team/task decisions use D03, and database work uses the M02
 resolver/executor. D04 maps all failures to contract problems.
 

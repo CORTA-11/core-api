@@ -72,25 +72,27 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 		SELECT concat_ws(':', tablename, tableowner)
 		FROM pg_tables
 		WHERE schemaname = 'public' AND tablename = ANY($1)
-		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "schema_migrations"}}, []string{
+		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "schema_migrations", "sessions"}}, []string{
 		"org_user:synodus_owner",
 		"orgs:synodus_owner",
 		"schema_migrations:synodus_owner",
+		"sessions:synodus_owner",
 		"users:synodus_owner",
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{"public"}}, []string{
 		"public:org_user:DELETE", "public:org_user:INSERT", "public:org_user:SELECT", "public:org_user:UPDATE",
 		"public:orgs:DELETE", "public:orgs:INSERT", "public:orgs:SELECT", "public:orgs:UPDATE",
+		"public:sessions:DELETE", "public:sessions:INSERT", "public:sessions:SELECT", "public:sessions:UPDATE",
 		"public:users:DELETE", "public:users:INSERT", "public:users:SELECT", "public:users:UPDATE",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', sequencename, sequenceowner)
 		FROM pg_sequences
 		WHERE schemaname = 'public' AND sequencename = ANY($1)
-		ORDER BY sequencename`, []any{[]string{"orgs_id_seq", "users_id_seq"}}, []string{
-		"orgs_id_seq:synodus_owner", "users_id_seq:synodus_owner",
+		ORDER BY sequencename`, []any{[]string{"orgs_id_seq", "sessions_id_seq", "users_id_seq"}}, []string{
+		"orgs_id_seq:synodus_owner", "sessions_id_seq:synodus_owner", "users_id_seq:synodus_owner",
 	})
-	for _, sequence := range []string{"orgs_id_seq", "users_id_seq"} {
+	for _, sequence := range []string{"orgs_id_seq", "sessions_id_seq", "users_id_seq"} {
 		fixture.assertSequencePrivileges(t, "public", sequence, true, true, false)
 	}
 }

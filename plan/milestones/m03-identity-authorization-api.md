@@ -47,14 +47,14 @@ rehash races, CLI redaction, and policy-compliant seeds pass.
 **Artifacts:** `public.sessions`, generated queries, `internal/session/`, dark v1
 auth handlers, cleanup/operator behavior.
 
-- [ ] Store only SHA-256 hashes of 256-bit opaque tokens with public UUID, user,
+- [x] Store only SHA-256 hashes of 256-bit opaque tokens with public UUID, user,
   timestamps, 30-minute idle/12-hour absolute expiry, revocation, and bounded
   user-agent metadata.
-- [ ] Use the production `__Host-synodus_session` cookie contract and a clearly
+- [x] Use the production `__Host-synodus_session` cookie contract and a clearly
   separate non-secure development cookie.
-- [ ] Derive CSRF from the raw session token with a dedicated HMAC secret; require
+- [x] Derive CSRF from the raw session token with a dedicated HMAC secret; require
   an approved origin plus `X-CSRF-Token` for unsafe cookie requests.
-- [ ] Add bounded inspection and current/all/specific revocation. Verify current
+- [x] Add bounded inspection and current/all/specific revocation. Verify current
   password and atomically rotate the current session/revoke others on change.
 
 **Acceptance:** expiry, fixation, replay, CSRF/origin, bounded inspection,
@@ -146,7 +146,8 @@ D01 → D02 → D03 → D04 → D05 → D06. Each implementation PR starts from 
 dark infrastructure. D06 is the single compatibility cutover with no temporary
 JWT, unversioned, `X-Org-ID`, registration, or file aliases.
 
-**Implementation links:** planning baseline `4c1145e`; D01 prepared on
-`security/m03-d01-password-authentication` in commits `8f26827`, `1897bcc`,
-`1d2217c`, `cdbfd1a`, `c243906`, `51197c0`, `de56029`, `1c2bf1c`, and
-`15d86fc`; D01 PR and merge commit pending. D02-D06 implementation pending.
+**Implementation links:** planning baseline `4c1145e`; D01 merged in
+[PR #30](https://github.com/CORTA-11/core-api/pull/30) at `08bf473`. D02 is
+prepared on `feat/m03-d02-server-sessions` in commits `3e792f8`, `329055b`,
+`dfac2f7`, `dc4b9c4`, and `357c840`; its PR is pending. D03-D06 implementation
+is pending.
