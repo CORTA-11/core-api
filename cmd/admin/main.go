@@ -10,11 +10,13 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
+	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/term"
@@ -34,6 +36,8 @@ var (
 	errInvalidPassword  = errors.New("password does not satisfy policy")
 	errEmailExists      = errors.New("email already exists")
 	errCreateFailed     = errors.New("could not create user")
+	errSessionUsage     = errors.New("usage: admin session cleanup [--batch-size <1-1000>]")
+	errCleanupFailed    = errors.New("could not clean sessions")
 )
 
 type fileInput interface {
@@ -81,6 +85,9 @@ func run(
 	terminal terminalAccess,
 	create accountCreateFunc,
 ) error {
+	if len(args) >= 2 && args[0] == "session" && args[1] == "cleanup" {
+		return runSessionCleanup(ctx, args[2:], getenv, output)
+	}
 	if len(args) < 2 || args[0] != "user" || args[1] != "create" {
 		return errUsage
 	}
@@ -130,6 +137,39 @@ func run(
 		return errCreateFailed
 	}
 	_, _ = fmt.Fprintf(output, "created user %s\n", userID)
+	return nil
+}
+
+func runSessionCleanup(ctx context.Context, args []string, getenv func(string) string, output io.Writer) error {
+	flags := flag.NewFlagSet("session cleanup", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	batchValue := flags.String("batch-size", strconv.Itoa(session.DefaultBatchSize), "")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
+		return errSessionUsage
+	}
+	batchSize, err := strconv.Atoi(*batchValue)
+	if err != nil || batchSize < 1 || batchSize > session.MaximumBatchSize {
+		return errSessionUsage
+	}
+	databaseURL := getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return errDatabaseURL
+	}
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		return errCleanupFailed
+	}
+	defer pool.Close()
+	manager, err := session.NewManager(pool, make([]byte, 32))
+	if err != nil {
+		return errCleanupFailed
+	}
+	result, err := manager.Cleanup(ctx, batchSize)
+	if err != nil {
+		return errCleanupFailed
+	}
+	_, _ = fmt.Fprintf(output, "deleted %d sessions (revoked=%d absolute_expired=%d idle_expired=%d)\n",
+		result.Total(), result.RevokedDeleted, result.AbsoluteExpiredDeleted, result.IdleExpiredDeleted)
 	return nil
 }
 
