@@ -21,3 +21,12 @@ JOIN team_members
 WHERE teams.public_id = sqlc.arg('public_id')
   AND team_members.user_public_id = sqlc.arg('user_public_id')
   AND NOT teams.is_quarantine;
+
+-- name: RevalidateTeamAuthorization :one
+SELECT teams.public_id, team_members.role
+FROM teams
+JOIN team_members ON team_members.team_id = teams.id
+WHERE teams.id = nullif(current_setting('app.team_id', true), '')::bigint
+  AND teams.public_id = sqlc.arg('team_public_id')
+  AND team_members.user_public_id = sqlc.arg('user_public_id')
+  AND NOT teams.is_quarantine;
