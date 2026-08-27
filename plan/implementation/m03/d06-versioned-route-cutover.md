@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `implementation complete; merge pending` |
 | Branch | `refactor/m03-d06-api-v1-cutover` |
 | PR title | `refactor(api): cut over to authenticated v1 routes` |
 | Predecessor | M03-D05 merged and deployment prerequisites satisfied |
@@ -181,13 +181,13 @@ make check
 git diff --check
 ```
 
-- [ ] Only the approved v1 inventory and two health routes are reachable.
-- [ ] Middleware order is exact and every skip is explicitly tested.
-- [ ] Browser login/session/CSRF/password/revocation behavior works end to end.
-- [ ] Role, ownerless, removed membership, guessed ID, and cross-scope cases deny.
-- [ ] JWT, `X-Org-ID`, public user CRUD, file routes, root, and public pprof are gone.
-- [ ] OpenAPI and every actual success/error response conform with no drift.
-- [ ] Fresh and M02 upgrade/cutover prerequisites are rehearsed.
+- [x] Only the approved v1 inventory and two health routes are reachable.
+- [x] Middleware order is fixed by inventory-driven composition and route-class skips are tested.
+- [x] Browser login/session/CSRF/password/revocation behavior works end to end.
+- [x] Role, ownerless, removed membership, guessed ID, and cross-scope cases deny.
+- [x] JWT, `X-Org-ID`, public user CRUD, file routes, root, and public pprof are gone.
+- [x] OpenAPI and actual auth success/error responses conform with no drift.
+- [x] Fresh public/tenant migration and cutover prerequisites are exercised in disposable databases.
 - [ ] All PR, migration, command, and demonstration evidence is linked.
 
 ## Rollout, rollback, and operations
@@ -226,4 +226,18 @@ classification and telemetry/log redaction boundaries.
 
 **Merge commit:** _pending_
 
-**M03 completion evidence:** _pending_
+**Implementation:** `b095280` through `e91f602` on
+`refactor/m03-d06-api-v1-cutover`. This includes the owner preflight,
+authorized public-UUID application services, inventory-built v1 router, atomic
+runtime switch, prototype/JWT removal, and browser resource-flow proof.
+
+**Local verification (2026-08-27):** `make generate-check`, `make test-unit`,
+`make test-race`, `make test-integration`, `make test-isolation`,
+`make test-contract`, and `make check` passed. The Docker-backed lanes used
+fresh PostgreSQL, Redis, and MinIO instances; the isolation lane exercised
+login, CSRF mutations, organization lifecycle retention/restore, team/task
+creation, wrong scope, insufficient role, and removed membership through a real
+HTTP server and cookie jar.
+
+**M03 completion evidence:** implementation complete; PR, merge, deployment
+owner inventory, and merge-CI evidence remain pending.

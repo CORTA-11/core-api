@@ -68,8 +68,8 @@ fragile wall-clock equality.
 | 2 | `feat/m03-d02-server-sessions` | [PR #31](https://github.com/CORTA-11/core-api/pull/31), merged at `b603fb1` | [D02](d02-server-sessions-csrf.md) | Complete |
 | 3 | `security/m03-d03-authorization` | [PR #32](https://github.com/CORTA-11/core-api/pull/32), merged at `66a8406` | [D03](d03-central-authorization.md) | Complete |
 | 4 | `feat/m03-d04-api-contract` | [PR #33](https://github.com/CORTA-11/core-api/pull/33), prepared through `592b179` | [D04](d04-openapi-problem-contract.md) | Complete on branch |
-| 5 | `security/m03-d05-http-envelope` | `security(http): enforce the API security envelope`, prepared through `ff3097b` | [D05](d05-http-security-envelope.md) | Complete on branch |
-| 6 | `refactor/m03-d06-api-v1-cutover` | `refactor(api): cut over to authenticated v1 routes` | [D06](d06-versioned-route-cutover.md) | D05 merged and deployment gates pass |
+| 5 | `security/m03-d05-http-envelope` | [PR #34](https://github.com/CORTA-11/core-api/pull/34), merged at `f248ea3` | [D05](d05-http-security-envelope.md) | Complete |
+| 6 | `refactor/m03-d06-api-v1-cutover` | `refactor(api): cut over to authenticated v1 routes`, implemented through `e91f602` | [D06](d06-versioned-route-cutover.md) | Implementation complete; PR/merge pending |
 
 Implementation PRs are not stacked. After each predecessor merges, switch to
 `main`, pull with `--ff-only`, and create the next branch. Each PR owns one
