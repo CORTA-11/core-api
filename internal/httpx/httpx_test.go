@@ -113,6 +113,16 @@ func TestWriteProblemOmitsInvalidAndBoundsValidViolations(t *testing.T) {
 	assert.Len(t, problem.Violations, 16)
 }
 
+func TestProtectedResourceNotFoundProblemsDifferOnlyByRequestID(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	missing := ProblemFromError(request, NewError(ProblemNotFound, errors.New("row absent")))
+	unauthorized := ProblemFromError(request, NewError(ProblemNotFound, errors.New("membership absent")))
+	assert.NotEqual(t, missing.RequestID, unauthorized.RequestID)
+	missing.RequestID = ""
+	unauthorized.RequestID = ""
+	assert.Equal(t, missing, unauthorized)
+}
+
 func TestRecoverDiscardsPartialWrites(t *testing.T) {
 	handler := RequestID(Recover(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.Header().Set("Content-Type", "text/plain")

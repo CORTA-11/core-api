@@ -10,11 +10,11 @@ export GOCACHE GOLANGCI_LINT_CACHE GOFLAGS
 
 include tools.mk
 
-.PHONY: check build fmt fmt-check mod-check static vet lint diagnostics sec secrets migrations-check queries-check \
-	test test-unit test-race test-integration test-isolation generate generate-check \
+.PHONY: check build fmt fmt-check mod-check static vet lint diagnostics sec secrets migrations-check queries-check contract-check \
+	test test-unit test-race test-integration test-isolation test-contract generate generate-check \
 	bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status seed run provisioner bootstrap tools clean-tools
 
-check: fmt-check mod-check build generate-check migrations-check queries-check static sec
+check: fmt-check mod-check build generate-check migrations-check queries-check contract-check static sec
 
 build:
 	go build ./...
@@ -32,6 +32,12 @@ test-integration:
 
 test-isolation:
 	./scripts/test-integration.sh isolation
+
+contract-check:
+	go test ./internal/apicontract ./internal/httpx ./internal/pagination
+
+test-contract: contract-check
+	./scripts/test-integration.sh contract
 
 fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.cache/*')
@@ -120,7 +126,8 @@ export SHUTDOWN_TIMEOUT DEPENDENCY_TIMEOUT PPROF_ENABLED
 export PROVISIONER_POLL_INTERVAL PROVISIONER_RETRY_INITIAL PROVISIONER_RETRY_MAXIMUM
 export PROVISIONER_MAX_ATTEMPTS PROVISIONER_CONCURRENCY PROVISIONER_OPERATION_TIMEOUT
 export PROVISIONER_SHUTDOWN_TIMEOUT
-export REDIS_URL JWT_SECRET CSRF_SECRET
+export REDIS_URL JWT_SECRET CSRF_SECRET CURSOR_KEY_ID CURSOR_SECRET
+export CURSOR_PREVIOUS_KEY_ID CURSOR_PREVIOUS_SECRET
 export MINIO_ENDPOINT MINIO_ACCESS_KEY MINIO_SECRET_KEY MINIO_BUCKET_NAME MINIO_USE_SSL
 endif
 

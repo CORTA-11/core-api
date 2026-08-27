@@ -206,8 +206,10 @@ func validKeyID(keyID string) bool {
 		return false
 	}
 	for _, character := range keyID {
-		if !(character >= 'a' && character <= 'z') && !(character >= 'A' && character <= 'Z') &&
-			!(character >= '0' && character <= '9') && character != '_' && character != '-' {
+		allowed := character >= 'a' && character <= 'z' ||
+			character >= 'A' && character <= 'Z' ||
+			character >= '0' && character <= '9' || character == '_' || character == '-'
+		if !allowed {
 			return false
 		}
 	}
