@@ -30,6 +30,7 @@ type Router struct {
 	pprofEnabled     bool
 	orgAvailability  appMiddleware.OrgAvailabilityChecker
 	tenantResolver   TenantResolver
+	trustedProxies   httpx.TrustedProxies
 }
 
 type TenantResolver interface {
@@ -52,6 +53,7 @@ type RouterConf struct {
 	// it.
 	OrgAvailability appMiddleware.OrgAvailabilityChecker
 	TenantResolver  TenantResolver
+	TrustedProxies  httpx.TrustedProxies
 }
 
 func NewRouter(conf RouterConf) *Router {
@@ -69,14 +71,16 @@ func NewRouter(conf RouterConf) *Router {
 		pprofEnabled:     conf.PprofEnabled,
 		orgAvailability:  conf.OrgAvailability,
 		tenantResolver:   conf.TenantResolver,
+		trustedProxies:   conf.TrustedProxies,
 	}
 }
 
 func (router *Router) SetupRoutes() {
 	r := router.mux
 	r.Use(httpx.RequestID)
-	r.Use(middleware.Logger)
-	r.Use(appMiddleware.Recoverer)
+	r.Use(router.trustedProxies.Middleware)
+	r.Use(func(next http.Handler) http.Handler { return httpx.BoundaryLog(slog.Default(), next) })
+	r.Use(httpx.Recover)
 	r.Use(appMiddleware.CorsMiddleware)
 
 	if router.pprofEnabled {

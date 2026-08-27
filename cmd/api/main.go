@@ -116,6 +116,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
 		ReadinessTimeout: cfg.DependencyTimeout, PprofEnabled: cfg.PprofEnabled,
 		OrgAvailability: availability, TenantResolver: tenantResolver,
+		TrustedProxies: cfg.TrustedProxies,
 	})
 	router.SetupRoutes()
 	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{

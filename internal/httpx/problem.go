@@ -115,6 +115,7 @@ func WriteProblem(writer http.ResponseWriter, request *http.Request, err error) 
 		return err
 	}
 	writer.Header().Set("Content-Type", "application/problem+json")
+	writer.Header().Set("Cache-Control", "no-store")
 	if writer.Header().Get(RequestIDHeader) == "" {
 		writer.Header().Set(RequestIDHeader, problem.RequestID)
 	}
