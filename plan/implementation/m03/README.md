@@ -65,7 +65,7 @@ fragile wall-clock equality.
 | ---: | --- | --- | --- | --- |
 | 0 | `docs/m03-test-driven-handoff` | `docs: establish test-driven m03 handoff` | This package | M02 merged at `56d0a6d`; baseline `4c1145e` |
 | 1 | `security/m03-d01-password-authentication` | [PR #30](https://github.com/CORTA-11/core-api/pull/30), merged at `08bf473` | [D01](d01-local-password-authentication.md) | Complete |
-| 2 | `feat/m03-d02-server-sessions` | `prepared; PR pending` | [D02](d02-server-sessions-csrf.md) | D01 merged at `08bf473` |
+| 2 | `feat/m03-d02-server-sessions` | [PR #31](https://github.com/CORTA-11/core-api/pull/31), merged at `b603fb1` | [D02](d02-server-sessions-csrf.md) | Complete |
 | 3 | `security/m03-d03-authorization` | `security(authz): enforce role permissions` | [D03](d03-central-authorization.md) | D02 merged |
 | 4 | `feat/m03-d04-api-contract` | `feat(api): establish the v1 contract` | [D04](d04-openapi-problem-contract.md) | D03 merged |
 | 5 | `security/m03-d05-http-envelope` | `security(http): enforce the API security envelope` | [D05](d05-http-security-envelope.md) | D04 merged |
