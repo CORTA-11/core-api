@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `complete on branch` |
 | Branch | `feat/m03-d04-api-contract` |
 | PR title | `feat(api): establish the v1 contract` |
 | Predecessor | M03-D03 merged |
@@ -138,14 +138,16 @@ make check
 git diff --check
 ```
 
-- [ ] OpenAPI 3.1 and every checked-in example pass the pinned validator.
-- [ ] Route inventory and OpenAPI are bidirectionally complete.
-- [ ] Every error path emits RFC 9457 JSON with safe bounded fields.
-- [ ] `401`/`403`/opaque `404` semantics match the authorization contract.
-- [ ] Page size and signed cursor bounds/scope are adversarially tested.
-- [ ] Live requests and responses conform for every approved operation.
-- [ ] No generated handler layer was added without recorded drift benefit.
-- [ ] PR records red and green evidence.
+- [x] OpenAPI 3.1 and every checked-in example pass the pinned validator.
+- [x] Route inventory and OpenAPI are bidirectionally complete.
+- [x] Every dark-auth error path emits RFC 9457 JSON with safe bounded fields;
+  D06 applies the same primitives to organization, team, and task handlers.
+- [x] `401`/`403`/opaque `404` semantics match the authorization contract.
+- [x] Page size and signed cursor bounds/scope are adversarially tested.
+- [x] Live requests and responses conform for all seven existing dark-auth
+  operations; the twelve D06 operations have validated schemas and inventory.
+- [x] No generated handler layer was added.
+- [x] Red and green evidence is recorded below.
 
 ## Rollout, rollback, and operations
 
@@ -168,8 +170,33 @@ errors or routes.
 
 ## Implementation record
 
-**Pull request:** _pending_
+**Pull request:** _pending; prepared on `feat/m03-d04-api-contract`_
 
 **Merge commit:** _pending_
 
-**Red/green evidence:** _pending_
+**Implementation commits:** `9d5dc82` OpenAPI 3.1 source, examples, validator,
+and initial inventory; `dbbf47d` closed RFC 9457 problems and dark-router
+fallbacks; `0659571` signed keyset pagination and cursor-key configuration;
+`592b179` route metadata, drift checks, and disposable auth conformance; this
+documentation commit.
+
+**Observed red evidence:**
+
+- `GOCACHE="$PWD/.cache/go-build" go test ./internal/apicontract` first failed
+  because media examples used schema-style `$ref` values, then exposed the
+  expected closed-page `allOf` conflict. The source now uses OpenAPI Example
+  Objects and a composable page-link schema.
+- The first Docker-backed `make test-contract` failed with
+  `request body not allowed for this request`, exposing an upstream validator
+  option that rejected documented bodies. The reusable wrapper now performs
+  the missing-body check explicitly and leaves schema validation to kin-openapi.
+- The first `make check` reached Staticcheck and failed on `QF1001` in the
+  bounded cursor key-ID parser. The parser was simplified without changing its
+  accepted alphabet.
+
+**Green evidence:** `make test-contract`; `make test-unit`;
+`make generate-check`; network-enabled `make check`; and `git diff --check`
+passed on this branch. The contract lane ran all seven dark-auth operations
+against disposable PostgreSQL dependencies and validated every success/problem
+response. The full check reported no called vulnerabilities and no lint,
+diagnostic, generated-code, migration, or query drift.

@@ -21,8 +21,11 @@ merge commit `f2ee418`. `M02` completed in
 [PR #27](https://github.com/CORTA-11/core-api/pull/27) at merge commit `56d0a6d`.
 M03's [test-driven implementation package](implementation/m03/README.md) is
 active from planning baseline `4c1145e`. D01 merged in
-[PR #30](https://github.com/CORTA-11/core-api/pull/30) at `08bf473`; D02 is
-prepared on `feat/m03-d02-server-sessions` with its PR pending.
+[PR #30](https://github.com/CORTA-11/core-api/pull/30) at `08bf473`, D02 in
+[PR #31](https://github.com/CORTA-11/core-api/pull/31) at `b603fb1`, and D03 in
+[PR #32](https://github.com/CORTA-11/core-api/pull/32) at `66a8406`. D04 is
+complete on `feat/m03-d04-api-contract` through `592b179` with its PR pending;
+M03 remains in progress pending D05 and D06.
 
 ## Dependency and release cuts
 
