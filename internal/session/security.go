@@ -52,6 +52,8 @@ func (protector CSRFProtector) Valid(rawToken []byte, candidate string) bool {
 }
 
 func CookiePolicy(environment string) http.Cookie {
+	// #nosec G124 -- development/test intentionally use HTTP on loopback; the
+	// production branch below always enables Secure.
 	cookie := http.Cookie{
 		Name:     "synodus_dev_session",
 		Path:     "/",

@@ -20,8 +20,9 @@ in the linked milestone files.
 merge commit `f2ee418`. `M02` completed in
 [PR #27](https://github.com/CORTA-11/core-api/pull/27) at merge commit `56d0a6d`.
 M03's [test-driven implementation package](implementation/m03/README.md) is
-active from planning baseline `4c1145e`. D01 is complete on its prepared branch;
-its PR and merge identifiers remain pending.
+active from planning baseline `4c1145e`. D01 merged in
+[PR #30](https://github.com/CORTA-11/core-api/pull/30) at `08bf473`; D02 is
+prepared on `feat/m03-d02-server-sessions` with its PR pending.
 
 ## Dependency and release cuts
 

@@ -271,6 +271,7 @@ func (manager *Manager) Cleanup(ctx context.Context, batchSize int) (CleanupResu
 	remaining -= deleted
 	if remaining > 0 {
 		deleted, err = manager.queries.DeleteAbsoluteExpiredSessions(ctx, publicdb.DeleteAbsoluteExpiredSessionsParams{
+			// #nosec G115 -- batchSize is validated at no more than 1000 above.
 			Now: now, BatchLimit: int32(remaining),
 		})
 		if err != nil {
@@ -281,6 +282,7 @@ func (manager *Manager) Cleanup(ctx context.Context, batchSize int) (CleanupResu
 	}
 	if remaining > 0 {
 		deleted, err = manager.queries.DeleteIdleExpiredSessions(ctx, publicdb.DeleteIdleExpiredSessionsParams{
+			// #nosec G115 -- batchSize is validated at no more than 1000 above.
 			Now: now, IdleCutoff: now.Add(-IdleLifetime), BatchLimit: int32(remaining),
 		})
 		if err != nil {

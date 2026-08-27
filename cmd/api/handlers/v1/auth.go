@@ -251,12 +251,14 @@ func (handler *AuthHandler) validOrigin(request *http.Request) bool {
 }
 
 func (handler *AuthHandler) setCookie(writer http.ResponseWriter, token string) {
+	// #nosec G124 -- handler.cookie is the complete environment-derived policy.
 	cookie := handler.cookie
 	cookie.Value = token
 	http.SetCookie(writer, &cookie)
 }
 
 func (handler *AuthHandler) clearCookie(writer http.ResponseWriter) {
+	// #nosec G124 -- clearing reuses the exact complete issuance policy.
 	cookie := handler.cookie
 	cookie.Value = ""
 	cookie.MaxAge = -1
