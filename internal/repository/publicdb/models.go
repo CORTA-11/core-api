@@ -35,6 +35,18 @@ type OrgUser struct {
 	UserID int64 `json:"user_id"`
 }
 
+type Session struct {
+	ID                int64              `json:"id"`
+	SessionID         uuid.UUID          `json:"session_id"`
+	UserID            int64              `json:"user_id"`
+	TokenHash         []byte             `json:"token_hash"`
+	UserAgent         string             `json:"user_agent"`
+	CreatedAt         time.Time          `json:"created_at"`
+	LastSeenAt        time.Time          `json:"last_seen_at"`
+	AbsoluteExpiresAt time.Time          `json:"absolute_expires_at"`
+	RevokedAt         pgtype.Timestamptz `json:"revoked_at"`
+}
+
 type User struct {
 	ID                    int64              `json:"id"`
 	UserID                uuid.UUID          `json:"user_id"`
