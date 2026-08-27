@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/seeding"
-	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/testsupport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,14 +39,16 @@ func TestDevelopmentSeedsCreateIdempotentOrganizationMembershipMatrix(t *testing
 		"member@aratuwa.edu": {"University of Aratuwa"},
 	}
 	passwordHashes := make(map[string]struct{}, len(expectedMemberships))
+	hasher, err := identity.NewPasswordHasher(identity.HashConfig{})
+	require.NoError(t, err)
 	for email, organizations := range expectedMemberships {
 		var passwordHash, normalization string
 		require.NoError(t, pool.QueryRow(ctx,
 			`SELECT password_hash, password_normalization FROM public.users WHERE email = $1 AND deleted_at IS NULL`, email).
 			Scan(&passwordHash, &normalization))
-		valid, err := service.VerifyPassword("synodus-demo-password", passwordHash)
+		verification, err := hasher.Verify(ctx, "synodus-demo-password", passwordHash)
 		require.NoError(t, err)
-		assert.True(t, valid, email)
+		assert.True(t, verification.Match, email)
 		assert.Equal(t, "nfc_v1", normalization, email)
 		passwordHashes[passwordHash] = struct{}{}
 

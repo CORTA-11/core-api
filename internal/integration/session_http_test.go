@@ -13,6 +13,7 @@ import (
 
 	v1 "github.com/CORTA-11/core-api/cmd/api/handlers/v1"
 	"github.com/CORTA-11/core-api/internal/apicontract"
+	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/CORTA-11/core-api/internal/testsupport"
@@ -25,7 +26,7 @@ type fixedCredentialVerifier struct {
 	userID uuid.UUID
 }
 
-func TestDarkAuthRouterAllOperationsConformToOpenAPI(t *testing.T) {
+func TestCutoverRouterAuthOperationsConformToOpenAPI(t *testing.T) {
 	pool := testsupport.OpenPostgres(t)
 	testsupport.ResetPostgres(t, pool)
 	testsupport.ApplyMigrations(t, "db/migrations/public", testsupport.RequiredEnv(t, "TEST_DATABASE_URL"))
@@ -35,8 +36,7 @@ func TestDarkAuthRouterAllOperationsConformToOpenAPI(t *testing.T) {
 	userID := createPasswordSessionTestUser(t, pool, hasher, currentPassword)
 	manager, err := session.NewManager(pool, bytes.Repeat([]byte{0x6d}, 32))
 	require.NoError(t, err)
-	router := v1.NewAuthRouter(manager, fixedCredentialVerifier{userID: userID}, hasher,
-		"test", []string{"https://app.example"})
+	router := newCutoverAuthRouter(t, manager, fixedCredentialVerifier{userID: userID}, hasher)
 	document, err := apicontract.Load(context.Background(),
 		testsupport.RepositoryRoot()+"/api/openapi.yaml")
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func (verifier fixedCredentialVerifier) Verify(context.Context, string, string) 
 	return identity.CredentialPrincipal{UserPublicID: verifier.userID}, nil
 }
 
-func TestDarkAuthRouterCookieCSRFAndIdempotentLogout(t *testing.T) {
+func TestCutoverRouterCookieCSRFAndIdempotentLogout(t *testing.T) {
 	pool := testsupport.OpenPostgres(t)
 	testsupport.ResetPostgres(t, pool)
 	testsupport.ApplyMigrations(t, "db/migrations/public", testsupport.RequiredEnv(t, "TEST_DATABASE_URL"))
@@ -161,8 +161,7 @@ func TestDarkAuthRouterCookieCSRFAndIdempotentLogout(t *testing.T) {
 		session.WithClock(func() time.Time { return now }),
 		session.WithRandom(bytes.NewReader(bytes.Repeat([]byte{0x73}, 32))))
 	require.NoError(t, err)
-	router := v1.NewAuthRouter(manager, fixedCredentialVerifier{userID: userID}, nil,
-		"test", []string{"https://app.example"})
+	router := newCutoverAuthRouter(t, manager, fixedCredentialVerifier{userID: userID}, nil)
 
 	login := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login",
 		bytes.NewBufferString(`{"email":"browser-session@example.com","password":"password-value"}`))
@@ -214,6 +213,23 @@ func TestDarkAuthRouterCookieCSRFAndIdempotentLogout(t *testing.T) {
 	malformedResponse := httptest.NewRecorder()
 	router.ServeHTTP(malformedResponse, malformed)
 	assert.Equal(t, http.StatusNoContent, malformedResponse.Code)
+}
+
+func newCutoverAuthRouter(
+	t *testing.T,
+	manager *session.Manager,
+	verifier identity.CredentialVerifier,
+	hasher identity.PasswordHasher,
+) http.Handler {
+	t.Helper()
+	origins, err := httpx.ParseOriginPolicy("https://app.example", "test")
+	require.NoError(t, err)
+	trusted, err := httpx.ParseTrustedProxies("")
+	require.NoError(t, err)
+	return v1.NewRouter(v1.RouterConfig{
+		Manager: manager, Verifier: verifier, Hasher: hasher,
+		Environment: "test", Origins: origins, TrustedProxies: trusted,
+	}).Handler()
 }
 
 func mapKeys(values map[string]any) []string {
