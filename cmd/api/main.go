@@ -13,13 +13,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/CORTA-11/core-api/cmd/api/handlers"
+	v1 "github.com/CORTA-11/core-api/cmd/api/handlers/v1"
+	"github.com/CORTA-11/core-api/internal/authorization"
 	"github.com/CORTA-11/core-api/internal/config"
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
+	"github.com/CORTA-11/core-api/internal/pagination"
+	"github.com/CORTA-11/core-api/internal/ratelimit"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -75,20 +79,13 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 
 	publicQueries := publicdb.New(pool)
-	// The API derives availability from its own embedded migration set, so a
-	// rolling deployment fails tenant requests closed until schemas match the
-	// binary that will serve them.
 	migrationSource, err := tenancy.EmbeddedMigrations()
 	if err != nil {
 		return err
 	}
-	availability := tenancy.NewAvailabilityChecker(pool, migrationSource)
-	orgService := service.NewOrgService(pool, publicQueries)
 	tenantExecutor := tenancy.NewExecutor(pool)
 	tenantResolver := tenancy.NewResolver(pool, migrationSource)
-	teamService := service.NewTeamService(tenantExecutor)
-	taskService := service.NewTaskService(tenantExecutor)
-	tokenService := service.NewTokenService(cfg.JWTSecret)
+	authorizer := authorization.NewAuthorizer(tenantResolver, tenantExecutor)
 	passwordHasher, err := identity.NewPasswordHasher(identity.HashConfig{})
 	if err != nil {
 		return fmt.Errorf("configure password hasher: %w", err)
@@ -98,24 +95,49 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("initialize credential verifier: %w", err)
 	}
-	userService := service.NewUserService(publicQueries, tokenService, passwordHasher, credentialVerifier)
-	orgUserService := service.NewOrgUserService(pool, publicQueries)
-	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket)
-	readiness := map[string]handlers.ReadinessCheck{
+	sessionManager, err := session.NewManager(pool, []byte(cfg.CSRFSecret))
+	if err != nil {
+		return fmt.Errorf("configure session manager: %w", err)
+	}
+	cursorConfig := pagination.CodecConfig{Active: pagination.Key{
+		ID: cfg.Cursor.ActiveKeyID, Secret: []byte(cfg.Cursor.ActiveSecret),
+	}}
+	if cfg.Cursor.PreviousKeyID != "" {
+		cursorConfig.Previous = &pagination.Key{
+			ID: cfg.Cursor.PreviousKeyID, Secret: []byte(cfg.Cursor.PreviousSecret),
+		}
+	}
+	cursorCodec, err := pagination.NewCodec(cursorConfig)
+	if err != nil {
+		return fmt.Errorf("configure cursor codec: %w", err)
+	}
+	rateLimiter, err := ratelimit.NewRedis(rdb, []byte(cfg.RateLimitSecret), cfg.RateLimitTimeout)
+	if err != nil {
+		return fmt.Errorf("configure rate limiter: %w", err)
+	}
+	loginGuard, err := ratelimit.NewLoginGuard(rateLimiter, cfg.RateLimits)
+	if err != nil {
+		return fmt.Errorf("configure login rate limit: %w", err)
+	}
+	administrative, err := ratelimit.NewAdministrativeMiddleware(rateLimiter, cfg.RateLimits.Administrative)
+	if err != nil {
+		return fmt.Errorf("configure administrative rate limit: %w", err)
+	}
+	organizations := service.NewOrganizationApplication(pool, cursorCodec)
+	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
+	readiness := map[string]v1.ReadinessCheck{
 		"postgres": pool.Ping,
 		"minio": func(checkCtx context.Context) error {
 			return appMinio.VerifyBucket(checkCtx, minioClient, cfg.MinIO.Bucket)
 		},
 	}
-	router := handlers.NewRouter(handlers.RouterConf{
-		OrgService: &orgService, TeamService: &teamService,
-		TaskService: &taskService, UserService: &userService, FileService: &fileService,
-		TokenService: &tokenService, OrgUserService: &orgUserService, ReadinessChecks: readiness,
-		ReadinessTimeout: cfg.DependencyTimeout,
-		OrgAvailability:  availability, TenantResolver: tenantResolver,
-		TrustedProxies: cfg.TrustedProxies,
+	router := v1.NewRouter(v1.RouterConfig{
+		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
+		Organizations: organizations, TeamTasks: teamTasks,
+		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
+		Logger: logger, LoginGuard: loginGuard, Administrative: administrative,
+		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
 	})
-	router.SetupRoutes()
 	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
 		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
 		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,

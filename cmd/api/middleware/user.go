@@ -8,6 +8,8 @@ import (
 	"github.com/CORTA-11/core-api/internal/service"
 )
 
+type contextKey string
+
 const userIDKey contextKey = "userID"
 
 // JWTMiddleware validates the Authorization header containing a JWT bearer token.
