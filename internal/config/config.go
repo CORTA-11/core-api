@@ -3,13 +3,17 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const DevelopmentJWTSecret = "development-only-jwt-secret-change-me"
+const (
+	DevelopmentJWTSecret  = "development-only-jwt-secret-change-me"
+	DevelopmentCSRFSecret = "development-only-csrf-secret-change-me"
+)
 
 type Config struct {
 	Environment       string
@@ -23,6 +27,7 @@ type Config struct {
 	RedisURL          string
 	MinIO             MinIO
 	JWTSecret         string
+	CSRFSecret        string
 	PprofEnabled      bool
 }
 
@@ -45,6 +50,7 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		Environment:       valueOrDefault(lookup, "APP_ENV", "development"),
 		HTTPAddr:          valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
 		JWTSecret:         valueOrDefault(lookup, "JWT_SECRET", DevelopmentJWTSecret),
+		CSRFSecret:        valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
 		DatabaseURL:       value(lookup, "DATABASE_URL"),
 		RedisURL:          value(lookup, "REDIS_URL"),
 		HTTPReadTimeout:   15 * time.Second,
@@ -112,6 +118,10 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		if len(config.JWTSecret) < 32 || isDevelopmentSecret(config.JWTSecret) {
 			problems = append(problems, errors.New("JWT_SECRET must be a non-development value of at least 32 characters in production"))
 		}
+		if len([]byte(config.CSRFSecret)) < 32 || isDevelopmentSecret(config.CSRFSecret) ||
+			config.CSRFSecret == config.JWTSecret || config.CSRFSecret == databasePassword(config.DatabaseURL) {
+			problems = append(problems, errors.New("CSRF_SECRET must be a distinct non-development value of at least 32 bytes in production"))
+		}
 		if config.PprofEnabled {
 			problems = append(problems, errors.New("PPROF_ENABLED cannot be enabled in production"))
 		}
@@ -121,6 +131,15 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		return Config{}, fmt.Errorf("invalid configuration: %w", errors.Join(problems...))
 	}
 	return config, nil
+}
+
+func databasePassword(databaseURL string) string {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil || parsed.User == nil {
+		return ""
+	}
+	password, _ := parsed.User.Password()
+	return password
 }
 
 func isDevelopmentSecret(secret string) bool {

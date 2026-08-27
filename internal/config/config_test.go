@@ -30,6 +30,7 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, "development", config.Environment)
 	assert.Equal(t, ":8080", config.HTTPAddr)
 	assert.Equal(t, DevelopmentJWTSecret, config.JWTSecret)
+	assert.Equal(t, DevelopmentCSRFSecret, config.CSRFSecret)
 	assert.Equal(t, 15*time.Second, config.HTTPReadTimeout)
 	assert.False(t, config.PprofEnabled)
 }
@@ -58,11 +59,29 @@ func TestLoadRejectsUnsafeProductionSettings(t *testing.T) {
 	values := validEnvironment()
 	values["APP_ENV"] = "production"
 	values["JWT_SECRET"] = DevelopmentJWTSecret
+	values["CSRF_SECRET"] = DevelopmentCSRFSecret
 	values["PPROF_ENABLED"] = "true"
 	_, err := loadMap(values)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "JWT_SECRET")
+	assert.ErrorContains(t, err, "CSRF_SECRET")
 	assert.ErrorContains(t, err, "PPROF_ENABLED")
+}
+
+func TestLoadRejectsReusedProductionCSRFSecret(t *testing.T) {
+	values := validEnvironment()
+	values["APP_ENV"] = "production"
+	values["JWT_SECRET"] = strings.Repeat("j", 32)
+	values["CSRF_SECRET"] = strings.Repeat("j", 32)
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "CSRF_SECRET")
+
+	values["DATABASE_URL"] = "postgres://user:database-secret-database-secret-xx@db/app"
+	values["CSRF_SECRET"] = "database-secret-database-secret-xx"
+	_, err = loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "CSRF_SECRET")
 }
 
 func TestLoadRejectsLegacyDevelopmentCredentialInProduction(t *testing.T) {
