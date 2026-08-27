@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	DevelopmentJWTSecret       = "development-only-jwt-secret-change-me"
 	DevelopmentCSRFSecret      = "development-only-csrf-secret-change-me"
 	DevelopmentCursorKeyID     = "development-v1"
 	DevelopmentCursorSecret    = "development-only-cursor-secret-change-me"
@@ -39,7 +38,6 @@ type Config struct {
 	DatabaseURL           string
 	RedisURL              string
 	MinIO                 MinIO
-	JWTSecret             string
 	CSRFSecret            string
 	Cursor                CursorKeys
 	RateLimitSecret       string
@@ -75,7 +73,6 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	config := Config{
 		Environment:      valueOrDefault(lookup, "APP_ENV", "development"),
 		HTTPAddr:         valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
-		JWTSecret:        valueOrDefault(lookup, "JWT_SECRET", DevelopmentJWTSecret),
 		CSRFSecret:       valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
 		RateLimitSecret:  valueOrDefault(lookup, "RATE_LIMIT_SECRET", DevelopmentRateLimitSecret),
 		RateLimitTimeout: 250 * time.Millisecond,
@@ -195,26 +192,23 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		problems = append(problems, errors.New("cursor key IDs and secrets are invalid"))
 	}
 	if config.Environment == "production" {
-		if len(config.JWTSecret) < 32 || isDevelopmentSecret(config.JWTSecret) {
-			problems = append(problems, errors.New("JWT_SECRET must be a non-development value of at least 32 characters in production"))
-		}
 		if len([]byte(config.CSRFSecret)) < 32 || isDevelopmentSecret(config.CSRFSecret) ||
-			config.CSRFSecret == config.JWTSecret || config.CSRFSecret == databasePassword(config.DatabaseURL) {
+			config.CSRFSecret == databasePassword(config.DatabaseURL) {
 			problems = append(problems, errors.New("CSRF_SECRET must be a distinct non-development value of at least 32 bytes in production"))
 		}
 		if len([]byte(config.Cursor.ActiveSecret)) < 32 || isDevelopmentSecret(config.Cursor.ActiveSecret) ||
-			config.Cursor.ActiveSecret == config.JWTSecret || config.Cursor.ActiveSecret == config.CSRFSecret ||
+			config.Cursor.ActiveSecret == config.CSRFSecret ||
 			config.Cursor.ActiveSecret == databasePassword(config.DatabaseURL) {
 			problems = append(problems, errors.New("CURSOR_SECRET must be a distinct non-development value of at least 32 bytes in production"))
 		}
 		if config.Cursor.PreviousSecret != "" && (len([]byte(config.Cursor.PreviousSecret)) < 32 ||
 			isDevelopmentSecret(config.Cursor.PreviousSecret) || config.Cursor.PreviousSecret == config.Cursor.ActiveSecret ||
-			config.Cursor.PreviousSecret == config.JWTSecret || config.Cursor.PreviousSecret == config.CSRFSecret ||
+			config.Cursor.PreviousSecret == config.CSRFSecret ||
 			config.Cursor.PreviousSecret == databasePassword(config.DatabaseURL)) {
 			problems = append(problems, errors.New("CURSOR_PREVIOUS_SECRET must be a distinct non-development value of at least 32 bytes in production"))
 		}
 		if len([]byte(config.RateLimitSecret)) < 32 || isDevelopmentSecret(config.RateLimitSecret) ||
-			config.RateLimitSecret == config.JWTSecret || config.RateLimitSecret == config.CSRFSecret ||
+			config.RateLimitSecret == config.CSRFSecret ||
 			config.RateLimitSecret == config.Cursor.ActiveSecret || config.RateLimitSecret == config.Cursor.PreviousSecret ||
 			config.RateLimitSecret == databasePassword(config.DatabaseURL) {
 			problems = append(problems, errors.New("RATE_LIMIT_SECRET must be a distinct non-development value of at least 32 bytes in production"))
@@ -289,8 +283,7 @@ func databasePassword(databaseURL string) string {
 
 func isDevelopmentSecret(secret string) bool {
 	normalized := strings.ToLower(secret)
-	return secret == DevelopmentJWTSecret ||
-		secret == "your-super-secret-key-change-in-production" ||
+	return secret == "your-super-secret-key-change-in-production" ||
 		strings.Contains(normalized, "change-me")
 }
 

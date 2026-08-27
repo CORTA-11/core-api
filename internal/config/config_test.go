@@ -29,7 +29,6 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "development", config.Environment)
 	assert.Equal(t, ":8080", config.HTTPAddr)
-	assert.Equal(t, DevelopmentJWTSecret, config.JWTSecret)
 	assert.Equal(t, DevelopmentCSRFSecret, config.CSRFSecret)
 	assert.Equal(t, DevelopmentCursorKeyID, config.Cursor.ActiveKeyID)
 	assert.Equal(t, DevelopmentCursorSecret, config.Cursor.ActiveSecret)
@@ -81,7 +80,6 @@ func TestLoadValidatesRateLimitConfiguration(t *testing.T) {
 func TestLoadRequiresDistinctProductionRateLimitSecretAndValidRedisURL(t *testing.T) {
 	values := validEnvironment()
 	values["APP_ENV"] = "production"
-	values["JWT_SECRET"] = strings.Repeat("j", 32)
 	values["CSRF_SECRET"] = strings.Repeat("c", 32)
 	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
 	values["RATE_LIMIT_SECRET"] = strings.Repeat("c", 32)
@@ -113,7 +111,6 @@ func TestLoadValidatesExactOrigins(t *testing.T) {
 func TestLoadRejectsNonHTTPSProductionOrigin(t *testing.T) {
 	values := validEnvironment()
 	values["APP_ENV"] = "production"
-	values["JWT_SECRET"] = strings.Repeat("j", 32)
 	values["CSRF_SECRET"] = strings.Repeat("c", 32)
 	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
 	values["HTTP_ALLOWED_ORIGINS"] = "http://localhost:3000"
@@ -160,12 +157,10 @@ func TestLoadValidatesTimeoutsAndBooleans(t *testing.T) {
 func TestLoadRejectsUnsafeProductionSettings(t *testing.T) {
 	values := validEnvironment()
 	values["APP_ENV"] = "production"
-	values["JWT_SECRET"] = DevelopmentJWTSecret
 	values["CSRF_SECRET"] = DevelopmentCSRFSecret
 	values["PPROF_ENABLED"] = "true"
 	_, err := loadMap(values)
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "JWT_SECRET")
 	assert.ErrorContains(t, err, "CSRF_SECRET")
 	assert.ErrorContains(t, err, "CURSOR_SECRET")
 	assert.ErrorContains(t, err, "PPROF_ENABLED")
@@ -197,7 +192,6 @@ func TestLoadRejectsMalformedCursorKeyConfiguration(t *testing.T) {
 func TestLoadRejectsReusedProductionCursorSecrets(t *testing.T) {
 	values := validEnvironment()
 	values["APP_ENV"] = "production"
-	values["JWT_SECRET"] = strings.Repeat("j", 32)
 	values["CSRF_SECRET"] = strings.Repeat("c", 32)
 	values["CURSOR_SECRET"] = strings.Repeat("c", 32)
 	_, err := loadMap(values)
@@ -208,15 +202,9 @@ func TestLoadRejectsReusedProductionCursorSecrets(t *testing.T) {
 func TestLoadRejectsReusedProductionCSRFSecret(t *testing.T) {
 	values := validEnvironment()
 	values["APP_ENV"] = "production"
-	values["JWT_SECRET"] = strings.Repeat("j", 32)
-	values["CSRF_SECRET"] = strings.Repeat("j", 32)
-	_, err := loadMap(values)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "CSRF_SECRET")
-
 	values["DATABASE_URL"] = "postgres://user:database-secret-database-secret-xx@db/app"
 	values["CSRF_SECRET"] = "database-secret-database-secret-xx"
-	_, err = loadMap(values)
+	_, err := loadMap(values)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "CSRF_SECRET")
 }
@@ -224,17 +212,17 @@ func TestLoadRejectsReusedProductionCSRFSecret(t *testing.T) {
 func TestLoadRejectsLegacyDevelopmentCredentialInProduction(t *testing.T) {
 	values := validEnvironment()
 	values["APP_ENV"] = "production"
-	values["JWT_SECRET"] = "your-super-secret-key-change-in-production"
+	values["CSRF_SECRET"] = "your-super-secret-key-change-in-production"
 	_, err := loadMap(values)
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "JWT_SECRET")
+	assert.ErrorContains(t, err, "CSRF_SECRET")
 }
 
 func TestLoadErrorsDoNotExposeSecrets(t *testing.T) {
 	values := validEnvironment()
 	secret := "do-not-print-this-secret"
 	values["APP_ENV"] = "production"
-	values["JWT_SECRET"] = secret
+	values["CSRF_SECRET"] = secret
 	values["MINIO_USE_SSL"] = secret
 	_, err := loadMap(values)
 	require.Error(t, err)
