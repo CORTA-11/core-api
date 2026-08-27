@@ -8,11 +8,15 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/CORTA-11/core-api/internal/pagination"
 )
 
 const (
-	DevelopmentJWTSecret  = "development-only-jwt-secret-change-me"
-	DevelopmentCSRFSecret = "development-only-csrf-secret-change-me"
+	DevelopmentJWTSecret    = "development-only-jwt-secret-change-me"
+	DevelopmentCSRFSecret   = "development-only-csrf-secret-change-me"
+	DevelopmentCursorKeyID  = "development-v1"
+	DevelopmentCursorSecret = "development-only-cursor-secret-change-me"
 )
 
 type Config struct {
@@ -28,7 +32,15 @@ type Config struct {
 	MinIO             MinIO
 	JWTSecret         string
 	CSRFSecret        string
+	Cursor            CursorKeys
 	PprofEnabled      bool
+}
+
+type CursorKeys struct {
+	ActiveKeyID    string
+	ActiveSecret   string
+	PreviousKeyID  string
+	PreviousSecret string
 }
 
 type MinIO struct {
@@ -47,10 +59,16 @@ func Load() (Config, error) {
 
 func LoadFrom(lookup lookupFunc) (Config, error) {
 	config := Config{
-		Environment:       valueOrDefault(lookup, "APP_ENV", "development"),
-		HTTPAddr:          valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
-		JWTSecret:         valueOrDefault(lookup, "JWT_SECRET", DevelopmentJWTSecret),
-		CSRFSecret:        valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
+		Environment: valueOrDefault(lookup, "APP_ENV", "development"),
+		HTTPAddr:    valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
+		JWTSecret:   valueOrDefault(lookup, "JWT_SECRET", DevelopmentJWTSecret),
+		CSRFSecret:  valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
+		Cursor: CursorKeys{
+			ActiveKeyID:    valueOrDefault(lookup, "CURSOR_KEY_ID", DevelopmentCursorKeyID),
+			ActiveSecret:   valueOrDefault(lookup, "CURSOR_SECRET", DevelopmentCursorSecret),
+			PreviousKeyID:  value(lookup, "CURSOR_PREVIOUS_KEY_ID"),
+			PreviousSecret: value(lookup, "CURSOR_PREVIOUS_SECRET"),
+		},
 		DatabaseURL:       value(lookup, "DATABASE_URL"),
 		RedisURL:          value(lookup, "REDIS_URL"),
 		HTTPReadTimeout:   15 * time.Second,
@@ -114,6 +132,23 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	if config.Environment != "development" && config.Environment != "test" && config.Environment != "production" {
 		problems = append(problems, errors.New("APP_ENV must be development, test, or production"))
 	}
+	if (config.Cursor.PreviousKeyID == "") != (config.Cursor.PreviousSecret == "") {
+		problems = append(problems, errors.New("CURSOR_PREVIOUS_KEY_ID and CURSOR_PREVIOUS_SECRET must be configured together"))
+	}
+	if config.Cursor.PreviousKeyID != "" && config.Cursor.PreviousKeyID == config.Cursor.ActiveKeyID {
+		problems = append(problems, errors.New("CURSOR_PREVIOUS_KEY_ID must differ from CURSOR_KEY_ID"))
+	}
+	cursorCodecConfig := pagination.CodecConfig{Active: pagination.Key{
+		ID: config.Cursor.ActiveKeyID, Secret: []byte(config.Cursor.ActiveSecret),
+	}}
+	if config.Cursor.PreviousKeyID != "" && config.Cursor.PreviousSecret != "" {
+		cursorCodecConfig.Previous = &pagination.Key{
+			ID: config.Cursor.PreviousKeyID, Secret: []byte(config.Cursor.PreviousSecret),
+		}
+	}
+	if _, err := pagination.NewCodec(cursorCodecConfig); err != nil {
+		problems = append(problems, errors.New("cursor key IDs and secrets are invalid"))
+	}
 	if config.Environment == "production" {
 		if len(config.JWTSecret) < 32 || isDevelopmentSecret(config.JWTSecret) {
 			problems = append(problems, errors.New("JWT_SECRET must be a non-development value of at least 32 characters in production"))
@@ -121,6 +156,17 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		if len([]byte(config.CSRFSecret)) < 32 || isDevelopmentSecret(config.CSRFSecret) ||
 			config.CSRFSecret == config.JWTSecret || config.CSRFSecret == databasePassword(config.DatabaseURL) {
 			problems = append(problems, errors.New("CSRF_SECRET must be a distinct non-development value of at least 32 bytes in production"))
+		}
+		if len([]byte(config.Cursor.ActiveSecret)) < 32 || isDevelopmentSecret(config.Cursor.ActiveSecret) ||
+			config.Cursor.ActiveSecret == config.JWTSecret || config.Cursor.ActiveSecret == config.CSRFSecret ||
+			config.Cursor.ActiveSecret == databasePassword(config.DatabaseURL) {
+			problems = append(problems, errors.New("CURSOR_SECRET must be a distinct non-development value of at least 32 bytes in production"))
+		}
+		if config.Cursor.PreviousSecret != "" && (len([]byte(config.Cursor.PreviousSecret)) < 32 ||
+			isDevelopmentSecret(config.Cursor.PreviousSecret) || config.Cursor.PreviousSecret == config.Cursor.ActiveSecret ||
+			config.Cursor.PreviousSecret == config.JWTSecret || config.Cursor.PreviousSecret == config.CSRFSecret ||
+			config.Cursor.PreviousSecret == databasePassword(config.DatabaseURL)) {
+			problems = append(problems, errors.New("CURSOR_PREVIOUS_SECRET must be a distinct non-development value of at least 32 bytes in production"))
 		}
 		if config.PprofEnabled {
 			problems = append(problems, errors.New("PPROF_ENABLED cannot be enabled in production"))
