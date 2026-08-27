@@ -29,7 +29,7 @@ type BodyLimitClass string
 const (
 	BodyNone     BodyLimitClass = "none"
 	BodyAuthJSON BodyLimitClass = "auth-json-4k"
-	BodyJSON     BodyLimitClass = "resource-json-16k"
+	BodyJSON     BodyLimitClass = "resource-json-64k"
 )
 
 type RateLimitClass string

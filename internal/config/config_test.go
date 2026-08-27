@@ -33,7 +33,9 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, DevelopmentCSRFSecret, config.CSRFSecret)
 	assert.Equal(t, DevelopmentCursorKeyID, config.Cursor.ActiveKeyID)
 	assert.Equal(t, DevelopmentCursorSecret, config.Cursor.ActiveSecret)
+	assert.Equal(t, 5*time.Second, config.HTTPReadHeaderTimeout)
 	assert.Equal(t, 15*time.Second, config.HTTPReadTimeout)
+	assert.Equal(t, 30*time.Second, config.HTTPWriteTimeout)
 	assert.Equal(t, []string{"http://localhost:3000", "http://127.0.0.1:3000"}, config.HTTPOrigins.Values())
 	assert.Empty(t, config.TrustedProxies.CIDRs())
 	assert.False(t, config.PprofEnabled)
@@ -92,11 +94,13 @@ func TestLoadRequiresDependencies(t *testing.T) {
 func TestLoadValidatesTimeoutsAndBooleans(t *testing.T) {
 	values := validEnvironment()
 	values["HTTP_READ_TIMEOUT"] = "forever"
+	values["HTTP_READ_HEADER_TIMEOUT"] = "0s"
 	values["SHUTDOWN_TIMEOUT"] = "0s"
 	values["PPROF_ENABLED"] = "sometimes"
 	_, err := loadMap(values)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "HTTP_READ_TIMEOUT")
+	assert.ErrorContains(t, err, "HTTP_READ_HEADER_TIMEOUT")
 	assert.ErrorContains(t, err, "SHUTDOWN_TIMEOUT")
 	assert.ErrorContains(t, err, "PPROF_ENABLED")
 }

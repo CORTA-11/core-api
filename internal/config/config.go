@@ -21,22 +21,23 @@ const (
 )
 
 type Config struct {
-	Environment       string
-	HTTPAddr          string
-	HTTPOrigins       httpx.OriginPolicy
-	TrustedProxies    httpx.TrustedProxies
-	HTTPReadTimeout   time.Duration
-	HTTPWriteTimeout  time.Duration
-	HTTPIdleTimeout   time.Duration
-	ShutdownTimeout   time.Duration
-	DependencyTimeout time.Duration
-	DatabaseURL       string
-	RedisURL          string
-	MinIO             MinIO
-	JWTSecret         string
-	CSRFSecret        string
-	Cursor            CursorKeys
-	PprofEnabled      bool
+	Environment           string
+	HTTPAddr              string
+	HTTPOrigins           httpx.OriginPolicy
+	TrustedProxies        httpx.TrustedProxies
+	HTTPReadHeaderTimeout time.Duration
+	HTTPReadTimeout       time.Duration
+	HTTPWriteTimeout      time.Duration
+	HTTPIdleTimeout       time.Duration
+	ShutdownTimeout       time.Duration
+	DependencyTimeout     time.Duration
+	DatabaseURL           string
+	RedisURL              string
+	MinIO                 MinIO
+	JWTSecret             string
+	CSRFSecret            string
+	Cursor                CursorKeys
+	PprofEnabled          bool
 }
 
 type CursorKeys struct {
@@ -73,13 +74,14 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 			PreviousKeyID:  value(lookup, "CURSOR_PREVIOUS_KEY_ID"),
 			PreviousSecret: value(lookup, "CURSOR_PREVIOUS_SECRET"),
 		},
-		DatabaseURL:       value(lookup, "DATABASE_URL"),
-		RedisURL:          value(lookup, "REDIS_URL"),
-		HTTPReadTimeout:   15 * time.Second,
-		HTTPWriteTimeout:  15 * time.Second,
-		HTTPIdleTimeout:   60 * time.Second,
-		ShutdownTimeout:   10 * time.Second,
-		DependencyTimeout: 3 * time.Second,
+		DatabaseURL:           value(lookup, "DATABASE_URL"),
+		RedisURL:              value(lookup, "REDIS_URL"),
+		HTTPReadHeaderTimeout: 5 * time.Second,
+		HTTPReadTimeout:       15 * time.Second,
+		HTTPWriteTimeout:      30 * time.Second,
+		HTTPIdleTimeout:       60 * time.Second,
+		ShutdownTimeout:       10 * time.Second,
+		DependencyTimeout:     3 * time.Second,
 		MinIO: MinIO{
 			Endpoint:  value(lookup, "MINIO_ENDPOINT"),
 			AccessKey: value(lookup, "MINIO_ACCESS_KEY"),
@@ -101,7 +103,7 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	for _, setting := range []struct {
 		name   string
 		target *time.Duration
-	}{{"HTTP_READ_TIMEOUT", &config.HTTPReadTimeout}, {"HTTP_WRITE_TIMEOUT", &config.HTTPWriteTimeout}, {"HTTP_IDLE_TIMEOUT", &config.HTTPIdleTimeout}, {"SHUTDOWN_TIMEOUT", &config.ShutdownTimeout}, {"DEPENDENCY_TIMEOUT", &config.DependencyTimeout}} {
+	}{{"HTTP_READ_HEADER_TIMEOUT", &config.HTTPReadHeaderTimeout}, {"HTTP_READ_TIMEOUT", &config.HTTPReadTimeout}, {"HTTP_WRITE_TIMEOUT", &config.HTTPWriteTimeout}, {"HTTP_IDLE_TIMEOUT", &config.HTTPIdleTimeout}, {"SHUTDOWN_TIMEOUT", &config.ShutdownTimeout}, {"DEPENDENCY_TIMEOUT", &config.DependencyTimeout}} {
 		if raw, ok := lookup(setting.name); ok && strings.TrimSpace(raw) != "" {
 			duration, err := time.ParseDuration(raw)
 			if err != nil || duration <= 0 || duration > 5*time.Minute {

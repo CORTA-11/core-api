@@ -18,6 +18,7 @@ var (
 	ErrMalformedJSON        = errors.New("request body contains malformed JSON")
 	ErrUnknownField         = errors.New("request body contains an unknown field")
 	ErrMultipleJSON         = errors.New("request body must contain a single JSON value")
+	ErrBodyNotAllowed       = errors.New("request body is not allowed")
 )
 
 func DecodeJSON(request *http.Request, destination any, maxBytes int64) error {
@@ -30,6 +31,9 @@ func DecodeJSON(request *http.Request, destination any, maxBytes int64) error {
 	}
 	body, err := io.ReadAll(io.LimitReader(request.Body, maxBytes+1))
 	if err != nil {
+		if isMaxBytesError(err) {
+			return ErrBodyTooLarge
+		}
 		return fmt.Errorf("read request body: %w", err)
 	}
 	if int64(len(body)) > maxBytes {
@@ -67,6 +71,8 @@ func DecodeProblem(err error) *AppError {
 		violation = Violation{"body", "required", "The request body must contain one JSON object."}
 	case errors.Is(err, ErrBodyTooLarge):
 		violation = Violation{"body", "too_large", "The request body exceeds the allowed size."}
+	case errors.Is(err, ErrBodyNotAllowed):
+		violation = Violation{"body", "not_allowed", "A request body is not allowed for this operation."}
 	case errors.Is(err, ErrUnknownField):
 		violation = Violation{"body", "unknown_field", "The request body contains an unknown field."}
 	case errors.Is(err, ErrMalformedJSON), errors.Is(err, ErrMultipleJSON):

@@ -14,6 +14,7 @@ import (
 
 	"github.com/CORTA-11/core-api/cmd/api/handlers"
 	"github.com/CORTA-11/core-api/internal/config"
+	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
@@ -117,11 +118,10 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		OrgAvailability: availability, TenantResolver: tenantResolver,
 	})
 	router.SetupRoutes()
-	server := &http.Server{
-		Addr: cfg.HTTPAddr, Handler: router.Handler(), ReadTimeout: cfg.HTTPReadTimeout,
-		WriteTimeout: cfg.HTTPWriteTimeout, IdleTimeout: cfg.HTTPIdleTimeout,
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
-	}
+	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
+		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
+		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
+	}, logger)
 	listener, err := net.Listen("tcp", cfg.HTTPAddr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.HTTPAddr, err)
