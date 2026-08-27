@@ -72,7 +72,8 @@ explicitly instead of relying on the component-derived development URLs.
 
 ### Development seed data
 
-All seeded users use the password `password123`.
+All seeded users use the development-only password `synodus-demo-password`.
+Each account stores a distinct target-parameter hash.
 
 | User | Public user ID | Organization memberships |
 | --- | --- | --- |
@@ -93,7 +94,7 @@ Log in to obtain a bearer token:
 ```bash
 curl -X POST http://localhost:8080/users/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@aratuwa.edu","password":"password123"}'
+  -d '{"email":"admin@aratuwa.edu","password":"synodus-demo-password"}'
 ```
 
 The seeds do not create teams. After assigning the response token to the
