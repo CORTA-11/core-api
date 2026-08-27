@@ -10,7 +10,7 @@ import (
 
 func storageTeam(organizationPublicID uuid.UUID, teamID int64) TeamContext {
 	userPublicID := uuid.New()
-	organization := newOrganizationContext(1, organizationPublicID, userPublicID, CanonicalSchema(organizationPublicID.String()))
+	organization := newOrganizationContext(1, organizationPublicID, userPublicID, CanonicalSchema(organizationPublicID.String()), 1, "checksum")
 	return newTeamContext(organization, teamID, uuid.New())
 }
 

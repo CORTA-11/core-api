@@ -123,3 +123,30 @@ func (q *Queries) ResolveTeamContext(ctx context.Context, arg ResolveTeamContext
 	err := row.Scan(&i.ID, &i.PublicID)
 	return i, err
 }
+
+const revalidateTeamAuthorization = `-- name: RevalidateTeamAuthorization :one
+SELECT teams.public_id, team_members.role
+FROM teams
+JOIN team_members ON team_members.team_id = teams.id
+WHERE teams.id = nullif(current_setting('app.team_id', true), '')::bigint
+  AND teams.public_id = $1
+  AND team_members.user_public_id = $2
+  AND NOT teams.is_quarantine
+`
+
+type RevalidateTeamAuthorizationParams struct {
+	TeamPublicID uuid.UUID `json:"team_public_id"`
+	UserPublicID uuid.UUID `json:"user_public_id"`
+}
+
+type RevalidateTeamAuthorizationRow struct {
+	PublicID uuid.UUID `json:"public_id"`
+	Role     string    `json:"role"`
+}
+
+func (q *Queries) RevalidateTeamAuthorization(ctx context.Context, arg RevalidateTeamAuthorizationParams) (RevalidateTeamAuthorizationRow, error) {
+	row := q.db.QueryRow(ctx, revalidateTeamAuthorization, arg.TeamPublicID, arg.UserPublicID)
+	var i RevalidateTeamAuthorizationRow
+	err := row.Scan(&i.PublicID, &i.Role)
+	return i, err
+}

@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,6 +24,8 @@ type Executor struct {
 	pool *pgxpool.Pool
 }
 
+type GeneratedQueriesCallback func(*publicdb.Queries, *tenantdb.Queries) error
+
 // NewExecutor constructs a tenant executor over pool.
 func NewExecutor(pool *pgxpool.Pool) *Executor {
 	return &Executor{pool: pool}
@@ -33,6 +37,25 @@ func (e *Executor) WithinOrganization(
 	ctx context.Context,
 	organization OrganizationContext,
 	callback func(*tenantdb.Queries) error,
+) error {
+	if err := organization.validate(); err != nil || e == nil || e.pool == nil {
+		return ErrInvalidContext
+	}
+	if callback == nil {
+		return ErrInvalidCallback
+	}
+	return e.within(ctx, organization, 0, false, func(_ *publicdb.Queries, tenantQueries *tenantdb.Queries) error {
+		return callback(tenantQueries)
+	})
+}
+
+// WithinOrganizationQueries exposes only generated public and tenant queries
+// in one organization-scoped transaction. Raw transactions, internal IDs, and
+// schema names remain executor-owned.
+func (e *Executor) WithinOrganizationQueries(
+	ctx context.Context,
+	organization OrganizationContext,
+	callback GeneratedQueriesCallback,
 ) error {
 	if err := organization.validate(); err != nil || e == nil || e.pool == nil {
 		return ErrInvalidContext
@@ -56,6 +79,24 @@ func (e *Executor) WithinTeam(
 	if callback == nil {
 		return ErrInvalidCallback
 	}
+	return e.within(ctx, team.organization, team.teamID, true, func(_ *publicdb.Queries, tenantQueries *tenantdb.Queries) error {
+		return callback(tenantQueries)
+	})
+}
+
+// WithinTeamQueries is the team-scoped generated-query variant used when an
+// authorization decision must be re-read in the mutating transaction.
+func (e *Executor) WithinTeamQueries(
+	ctx context.Context,
+	team TeamContext,
+	callback GeneratedQueriesCallback,
+) error {
+	if err := team.validate(); err != nil || e == nil || e.pool == nil {
+		return ErrInvalidContext
+	}
+	if callback == nil {
+		return ErrInvalidCallback
+	}
 	return e.within(ctx, team.organization, team.teamID, true, callback)
 }
 
@@ -64,7 +105,7 @@ func (e *Executor) within(
 	organization OrganizationContext,
 	teamID int64,
 	teamScoped bool,
-	callback func(*tenantdb.Queries) error,
+	callback GeneratedQueriesCallback,
 ) error {
 	tx, err := e.pool.Begin(ctx)
 	if err != nil {
@@ -82,14 +123,33 @@ func (e *Executor) within(
 	if err := installTenantScope(ctx, tx, organization, teamID, teamScoped); err != nil {
 		return err
 	}
-	queries := tenantdb.New(tx)
-	if err := callback(queries); err != nil {
+	publicQueries := publicdb.New(tx)
+	if err := revalidateOrganization(ctx, publicQueries, organization); err != nil {
+		return err
+	}
+	if err := callback(publicQueries, tenantdb.New(tx)); err != nil {
 		return err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit tenant transaction: %w", err)
 	}
 	finished = true
+	return nil
+}
+
+func revalidateOrganization(ctx context.Context, queries *publicdb.Queries, organization OrganizationContext) error {
+	row, err := queries.ResolveOrganizationContext(ctx, publicdb.ResolveOrganizationContextParams{
+		UserPublicID:         organization.userPublicID,
+		OrganizationPublicID: organization.organizationPublicID,
+	})
+	if err != nil {
+		return ErrOrganizationUnavailable
+	}
+	if row.OrganizationID != organization.organizationID || row.SchemaName != organization.schemaName ||
+		row.LifecycleState != string(StateActive) || row.TenantVersion != organization.tenantVersion ||
+		strings.TrimSpace(row.TenantChecksum) != organization.tenantChecksum || !row.SchemaExists {
+		return ErrOrganizationUnavailable
+	}
 	return nil
 }
 

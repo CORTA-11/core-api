@@ -181,9 +181,9 @@ roles or tenant identifiers in the session.
 
 ## Implementation record
 
-**Pull request:** _pending_
+**Pull request:** [#31](https://github.com/CORTA-11/core-api/pull/31)
 
-**Merge commit:** _pending_
+**Merge commit:** `b603fb1`
 
 **Implementation commits:** `3e792f8` durable persistence; `329055b` bounded
 opaque issuance and cookies; `dfac2f7` session-bound CSRF and dark handlers;

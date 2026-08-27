@@ -36,6 +36,8 @@ type OrganizationContext struct {
 	organizationPublicID uuid.UUID
 	userPublicID         uuid.UUID
 	schemaName           string
+	tenantVersion        int64
+	tenantChecksum       string
 	resolved             bool
 }
 
@@ -53,12 +55,16 @@ func newOrganizationContext(
 	organizationPublicID uuid.UUID,
 	userPublicID uuid.UUID,
 	schemaName string,
+	tenantVersion int64,
+	tenantChecksum string,
 ) OrganizationContext {
 	return OrganizationContext{
 		organizationID:       organizationID,
 		organizationPublicID: organizationPublicID,
 		userPublicID:         userPublicID,
 		schemaName:           schemaName,
+		tenantVersion:        tenantVersion,
+		tenantChecksum:       tenantChecksum,
 		resolved:             true,
 	}
 }
@@ -67,6 +73,7 @@ func (organization OrganizationContext) validate() error {
 	if !organization.resolved || organization.organizationID <= 0 ||
 		organization.organizationPublicID == uuid.Nil || organization.userPublicID == uuid.Nil ||
 		organization.schemaName == "" ||
+		organization.tenantVersion <= 0 || strings.TrimSpace(organization.tenantChecksum) == "" ||
 		organization.schemaName != CanonicalSchema(organization.organizationPublicID.String()) {
 		return ErrInvalidContext
 	}
@@ -131,6 +138,8 @@ func (r *Resolver) ResolveOrganization(
 		row.OrganizationPublicID,
 		row.UserPublicID,
 		row.SchemaName,
+		row.TenantVersion,
+		row.TenantChecksum,
 	)
 	if err := organization.validate(); err != nil {
 		return OrganizationContext{}, ErrRegistryIntegrity

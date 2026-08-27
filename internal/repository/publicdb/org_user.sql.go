@@ -7,12 +7,38 @@ package publicdb
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
+
+const addOrganizationOwnerMembership = `-- name: AddOrganizationOwnerMembership :one
+INSERT INTO public.org_user (org_id, user_id, role)
+VALUES ($1, $2, 'owner')
+RETURNING org_id, user_id, role, created_at, updated_at
+`
+
+type AddOrganizationOwnerMembershipParams struct {
+	OrgID  int64 `json:"org_id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) AddOrganizationOwnerMembership(ctx context.Context, arg AddOrganizationOwnerMembershipParams) (OrgUser, error) {
+	row := q.db.QueryRow(ctx, addOrganizationOwnerMembership, arg.OrgID, arg.UserID)
+	var i OrgUser
+	err := row.Scan(
+		&i.OrgID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const addUserToOrg = `-- name: AddUserToOrg :one
 INSERT INTO public.org_user (org_id, user_id)
 VALUES ($1, $2)
-RETURNING org_id, user_id
+RETURNING org_id, user_id, role, created_at, updated_at
 `
 
 type AddUserToOrgParams struct {
@@ -23,8 +49,74 @@ type AddUserToOrgParams struct {
 func (q *Queries) AddUserToOrg(ctx context.Context, arg AddUserToOrgParams) (OrgUser, error) {
 	row := q.db.QueryRow(ctx, addUserToOrg, arg.OrgID, arg.UserID)
 	var i OrgUser
-	err := row.Scan(&i.OrgID, &i.UserID)
+	err := row.Scan(
+		&i.OrgID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
+}
+
+const assignOrganizationOwner = `-- name: AssignOrganizationOwner :one
+WITH locked_organization AS (
+    SELECT id, public_id
+    FROM public.orgs
+    WHERE public_id = $1
+      AND deleted_at IS NULL
+      AND lifecycle_state = 'active'
+    FOR UPDATE
+), active_user AS (
+    SELECT app_user.id, app_user.user_id
+    FROM public.users AS app_user
+    WHERE app_user.user_id = $2
+      AND app_user.deleted_at IS NULL
+), assigned AS (
+    INSERT INTO public.org_user AS membership (org_id, user_id, role)
+    SELECT locked_organization.id, active_user.id, 'owner'
+    FROM locked_organization CROSS JOIN active_user
+    ON CONFLICT (org_id, user_id) DO UPDATE
+    SET role = 'owner', updated_at = now()
+    RETURNING membership.org_id, membership.user_id, membership.role
+)
+SELECT locked_organization.public_id AS organization_public_id,
+       active_user.user_id AS user_public_id,
+       assigned.role
+FROM assigned
+JOIN locked_organization ON locked_organization.id = assigned.org_id
+JOIN active_user ON active_user.id = assigned.user_id
+`
+
+type AssignOrganizationOwnerParams struct {
+	OrganizationPublicID uuid.UUID `json:"organization_public_id"`
+	UserPublicID         uuid.UUID `json:"user_public_id"`
+}
+
+type AssignOrganizationOwnerRow struct {
+	OrganizationPublicID uuid.UUID `json:"organization_public_id"`
+	UserPublicID         uuid.UUID `json:"user_public_id"`
+	Role                 string    `json:"role"`
+}
+
+func (q *Queries) AssignOrganizationOwner(ctx context.Context, arg AssignOrganizationOwnerParams) (AssignOrganizationOwnerRow, error) {
+	row := q.db.QueryRow(ctx, assignOrganizationOwner, arg.OrganizationPublicID, arg.UserPublicID)
+	var i AssignOrganizationOwnerRow
+	err := row.Scan(&i.OrganizationPublicID, &i.UserPublicID, &i.Role)
+	return i, err
+}
+
+const countOrganizationOwners = `-- name: CountOrganizationOwners :one
+SELECT count(*)
+FROM public.org_user
+WHERE org_id = $1 AND role = 'owner'
+`
+
+func (q *Queries) CountOrganizationOwners(ctx context.Context, orgID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countOrganizationOwners, orgID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const getNumberOfUsersInOrg = `-- name: GetNumberOfUsersInOrg :one
@@ -38,6 +130,36 @@ func (q *Queries) GetNumberOfUsersInOrg(ctx context.Context, orgID int64) (int64
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getOrganizationMembership = `-- name: GetOrganizationMembership :one
+SELECT membership.org_id, membership.user_id, membership.role,
+       membership.created_at, membership.updated_at
+FROM public.org_user AS membership
+JOIN public.orgs AS organization ON organization.id = membership.org_id
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE organization.public_id = $1
+  AND organization.deleted_at IS NULL
+  AND app_user.user_id = $2
+  AND app_user.deleted_at IS NULL
+`
+
+type GetOrganizationMembershipParams struct {
+	OrganizationPublicID uuid.UUID `json:"organization_public_id"`
+	UserPublicID         uuid.UUID `json:"user_public_id"`
+}
+
+func (q *Queries) GetOrganizationMembership(ctx context.Context, arg GetOrganizationMembershipParams) (OrgUser, error) {
+	row := q.db.QueryRow(ctx, getOrganizationMembership, arg.OrganizationPublicID, arg.UserPublicID)
+	var i OrgUser
+	err := row.Scan(
+		&i.OrgID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getOrgsForUser = `-- name: GetOrgsForUser :many
@@ -141,11 +263,53 @@ func (q *Queries) GetUsersInOrg(ctx context.Context, arg GetUsersInOrgParams) ([
 	return items, nil
 }
 
+const lockOrganizationMemberships = `-- name: LockOrganizationMemberships :many
+SELECT membership.org_id, membership.user_id, membership.role,
+       membership.created_at, membership.updated_at
+FROM public.orgs AS organization
+JOIN public.org_user AS membership ON membership.org_id = organization.id
+WHERE organization.public_id = $1
+ORDER BY membership.user_id
+LIMIT $2
+FOR UPDATE OF organization, membership
+`
+
+type LockOrganizationMembershipsParams struct {
+	OrganizationPublicID uuid.UUID `json:"organization_public_id"`
+	Limit                int32     `json:"limit"`
+}
+
+func (q *Queries) LockOrganizationMemberships(ctx context.Context, arg LockOrganizationMembershipsParams) ([]OrgUser, error) {
+	rows, err := q.db.Query(ctx, lockOrganizationMemberships, arg.OrganizationPublicID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OrgUser
+	for rows.Next() {
+		var i OrgUser
+		if err := rows.Scan(
+			&i.OrgID,
+			&i.UserID,
+			&i.Role,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeUserFromOrg = `-- name: RemoveUserFromOrg :one
 DELETE FROM public.org_user
 WHERE org_id = $1
 AND user_id = $2
-RETURNING org_id, user_id
+RETURNING org_id, user_id, role, created_at, updated_at
 `
 
 type RemoveUserFromOrgParams struct {
@@ -156,6 +320,38 @@ type RemoveUserFromOrgParams struct {
 func (q *Queries) RemoveUserFromOrg(ctx context.Context, arg RemoveUserFromOrgParams) (OrgUser, error) {
 	row := q.db.QueryRow(ctx, removeUserFromOrg, arg.OrgID, arg.UserID)
 	var i OrgUser
-	err := row.Scan(&i.OrgID, &i.UserID)
+	err := row.Scan(
+		&i.OrgID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const setOrganizationMembershipRole = `-- name: SetOrganizationMembershipRole :one
+UPDATE public.org_user
+SET role = $1, updated_at = now()
+WHERE org_id = $2 AND user_id = $3
+RETURNING org_id, user_id, role, created_at, updated_at
+`
+
+type SetOrganizationMembershipRoleParams struct {
+	Role   string `json:"role"`
+	OrgID  int64  `json:"org_id"`
+	UserID int64  `json:"user_id"`
+}
+
+func (q *Queries) SetOrganizationMembershipRole(ctx context.Context, arg SetOrganizationMembershipRoleParams) (OrgUser, error) {
+	row := q.db.QueryRow(ctx, setOrganizationMembershipRole, arg.Role, arg.OrgID, arg.UserID)
+	var i OrgUser
+	err := row.Scan(
+		&i.OrgID,
+		&i.UserID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }

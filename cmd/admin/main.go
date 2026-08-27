@@ -25,19 +25,21 @@ import (
 const maximumCLIInputBytes = 1024
 
 var (
-	errUsage            = errors.New("usage: admin user create --email <email> --display-name <name> [--password-stdin]")
-	errDatabaseURL      = errors.New("DATABASE_URL is required")
-	errTerminalRequired = errors.New("interactive password input requires a terminal")
-	errStdinTerminal    = errors.New("--password-stdin refuses terminal input")
-	errPasswordInput    = errors.New("password input must be one bounded line")
-	errPasswordMismatch = errors.New("password confirmation does not match")
-	errInvalidEmail     = errors.New("email is invalid")
-	errInvalidName      = errors.New("display name is invalid")
-	errInvalidPassword  = errors.New("password does not satisfy policy")
-	errEmailExists      = errors.New("email already exists")
-	errCreateFailed     = errors.New("could not create user")
-	errSessionUsage     = errors.New("usage: admin session cleanup [--batch-size <1-1000>]")
-	errCleanupFailed    = errors.New("could not clean sessions")
+	errUsage             = errors.New("usage: admin user create --email <email> --display-name <name> [--password-stdin]")
+	errDatabaseURL       = errors.New("DATABASE_URL is required")
+	errTerminalRequired  = errors.New("interactive password input requires a terminal")
+	errStdinTerminal     = errors.New("--password-stdin refuses terminal input")
+	errPasswordInput     = errors.New("password input must be one bounded line")
+	errPasswordMismatch  = errors.New("password confirmation does not match")
+	errInvalidEmail      = errors.New("email is invalid")
+	errInvalidName       = errors.New("display name is invalid")
+	errInvalidPassword   = errors.New("password does not satisfy policy")
+	errEmailExists       = errors.New("email already exists")
+	errCreateFailed      = errors.New("could not create user")
+	errSessionUsage      = errors.New("usage: admin session cleanup [--batch-size <1-1000>]")
+	errCleanupFailed     = errors.New("could not clean sessions")
+	errOwnerUsage        = errors.New("usage: admin org owner assign --org <UUID> --user <UUID>")
+	errOwnerAssignFailed = errors.New("could not assign organization owner")
 )
 
 type fileInput interface {
@@ -85,6 +87,9 @@ func run(
 	terminal terminalAccess,
 	create accountCreateFunc,
 ) error {
+	if len(args) >= 3 && args[0] == "org" && args[1] == "owner" && args[2] == "assign" {
+		return runOwnerAssign(ctx, args[3:], getenv, output, assignOrganizationOwner)
+	}
 	if len(args) >= 2 && args[0] == "session" && args[1] == "cleanup" {
 		return runSessionCleanup(ctx, args[2:], getenv, output)
 	}
@@ -137,6 +142,70 @@ func run(
 		return errCreateFailed
 	}
 	_, _ = fmt.Fprintf(output, "created user %s\n", userID)
+	return nil
+}
+
+type ownerAssignFunc func(context.Context, string, uuid.UUID, uuid.UUID) error
+
+func runOwnerAssign(
+	ctx context.Context,
+	args []string,
+	getenv func(string) string,
+	output io.Writer,
+	assign ownerAssignFunc,
+) error {
+	flags := flag.NewFlagSet("org owner assign", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	organizationValue := flags.String("org", "", "")
+	userValue := flags.String("user", "", "")
+	if err := flags.Parse(args); err != nil || flags.NArg() != 0 || *organizationValue == "" || *userValue == "" {
+		return errOwnerUsage
+	}
+	organizationID, err := uuid.Parse(*organizationValue)
+	if err != nil || organizationID == uuid.Nil {
+		return errOwnerUsage
+	}
+	userID, err := uuid.Parse(*userValue)
+	if err != nil || userID == uuid.Nil {
+		return errOwnerUsage
+	}
+	databaseURL := getenv("DATABASE_URL")
+	if databaseURL == "" {
+		return errDatabaseURL
+	}
+	if assign == nil || assign(ctx, databaseURL, organizationID, userID) != nil {
+		return errOwnerAssignFailed
+	}
+	_, _ = fmt.Fprintf(output, "assigned organization %s user %s role owner\n", organizationID, userID)
+	return nil
+}
+
+func assignOrganizationOwner(
+	ctx context.Context,
+	databaseURL string,
+	organizationID uuid.UUID,
+	userID uuid.UUID,
+) error {
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		return errOwnerAssignFailed
+	}
+	defer pool.Close()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return errOwnerAssignFailed
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	_, err = publicdb.New(tx).AssignOrganizationOwner(ctx, publicdb.AssignOrganizationOwnerParams{
+		OrganizationPublicID: organizationID,
+		UserPublicID:         userID,
+	})
+	if err != nil {
+		return errOwnerAssignFailed
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return errOwnerAssignFailed
+	}
 	return nil
 }
 

@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | `planned` |
+| Status | `implemented; PR pending` |
 | Branch | `security/m03-d03-authorization` |
 | PR title | `security(authz): enforce role permissions` |
 | Predecessor | M03-D02 merged |
@@ -167,14 +167,14 @@ make check
 git diff --check
 ```
 
-- [ ] Upgrade deduplicates safely, grants least privilege, and guesses no owner.
-- [ ] Every role × permission pair and every unknown value is tested.
-- [ ] Ownerless/read-only and last-owner invariants hold under concurrency.
-- [ ] New organization creation establishes exactly one creator-owner atomically.
-- [ ] Organization administration never implies team-content access.
-- [ ] Mutations re-read current permission in their state-changing transaction.
-- [ ] Wrong-scope and guessed identifiers default deny through real RLS execution.
-- [ ] PR records red and green evidence.
+- [x] Upgrade deduplicates safely, grants least privilege, and guesses no owner.
+- [x] Every role × permission pair and every unknown value is tested.
+- [x] Ownerless/read-only and last-owner invariants hold under concurrency.
+- [x] New organization creation establishes exactly one creator-owner atomically.
+- [x] Organization administration never implies team-content access.
+- [x] Mutations re-read current permission in their state-changing transaction.
+- [x] Wrong-scope and guessed identifiers default deny through real RLS execution.
+- [x] Prepared branch records red and green evidence; PR evidence remains pending.
 
 ## Rollout, rollback, and operations
 
@@ -201,4 +201,26 @@ documents every protected operation in OpenAPI.
 
 **Merge commit:** _pending_
 
-**Red/green evidence:** _pending_
+**Implementation commits:** `28c61f0` closed organization-role migration;
+`515f15b` permission vocabulary and exhaustive mappings; `38744b3` safe owner
+assignment and owner-set locking; `565a139` trusted transactional authorization
+and creator ownership; `695395c` PostgreSQL adversarial proofs; this documentation
+commit.
+
+**Observed red evidence:**
+
+- The first `make generate` run failed on the expected ambiguous owner-assignment
+  query parameter; qualifying the user source made the generated-query boundary
+  explicit.
+- The first `make test-integration` run failed on generated canonical-email test
+  fixtures and showed that the new latest down migration weakened the existing
+  forward-only rollback contract. The fixtures now write only the source email,
+  and migration `000009` refuses destructive rollback.
+
+**Green evidence:** focused authorization, tenancy, admin, and service unit tests;
+`make generate-check`; `git diff --check`; Docker-backed `make test-integration`;
+and Docker-backed `make test-isolation` passed on the prepared branch. The
+database lanes cover M02-to-D03 duplicate upgrade, no guessed owner, atomic
+creator ownership, concurrent owner removal, transaction-time organization
+revocation, lifecycle changes, guessed team UUIDs, and organization/team role
+separation. Final repository-wide gate results are recorded in the PR.
