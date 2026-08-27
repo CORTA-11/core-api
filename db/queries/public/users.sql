@@ -46,3 +46,13 @@ WHERE email_canonical = $1;
 SELECT user_id, password_hash, password_normalization, deleted_at
 FROM public.users
 WHERE user_id = $1;
+
+-- name: CompareAndSwapCredential :execrows
+UPDATE public.users
+SET password_hash = sqlc.arg('new_hash'),
+    password_normalization = sqlc.arg('new_normalization'),
+    updated_at = NOW()
+WHERE user_id = sqlc.arg('user_id')
+  AND password_hash = sqlc.arg('expected_hash')
+  AND password_normalization = sqlc.arg('expected_normalization')
+  AND deleted_at IS NULL;

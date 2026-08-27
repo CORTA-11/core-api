@@ -30,8 +30,18 @@ type StoredCredential struct {
 	Deleted               bool
 }
 
+type CredentialCompareAndSwap struct {
+	UserPublicID          uuid.UUID
+	ExpectedHash          string
+	ExpectedNormalization string
+	NewHash               string
+	NewNormalization      string
+}
+
 type CredentialStore interface {
 	CredentialByCanonicalEmail(context.Context, string) (StoredCredential, error)
+	CompareAndSwapCredential(context.Context, CredentialCompareAndSwap) (bool, error)
+	CurrentCredentialByUserID(context.Context, uuid.UUID) (StoredCredential, error)
 }
 
 type CredentialVerifier interface {
@@ -100,6 +110,58 @@ func (verifier *credentialVerifier) Verify(
 		return CredentialPrincipal{}, err
 	}
 	if !verification.Match {
+		return CredentialPrincipal{}, ErrInvalidCredentials
+	}
+	if credential.PasswordNormalization == PasswordNormalizationLegacyRaw || verification.NeedsRehash {
+		return verifier.upgradeCredential(ctx, credential, password, normalizedPassword)
+	}
+	return CredentialPrincipal{UserPublicID: credential.UserPublicID}, nil
+}
+
+func (verifier *credentialVerifier) upgradeCredential(
+	ctx context.Context,
+	credential StoredCredential,
+	rawPassword string,
+	normalizedPassword string,
+) (CredentialPrincipal, error) {
+	newHash, err := verifier.hasher.Hash(ctx, normalizedPassword)
+	if err != nil {
+		return CredentialPrincipal{}, err
+	}
+	updated, err := verifier.store.CompareAndSwapCredential(ctx, CredentialCompareAndSwap{
+		UserPublicID:          credential.UserPublicID,
+		ExpectedHash:          credential.PasswordHash,
+		ExpectedNormalization: credential.PasswordNormalization,
+		NewHash:               newHash,
+		NewNormalization:      PasswordNormalizationNFCV1,
+	})
+	if err != nil {
+		return CredentialPrincipal{}, ErrCredentialDependency
+	}
+	if updated {
+		return CredentialPrincipal{UserPublicID: credential.UserPublicID}, nil
+	}
+
+	current, err := verifier.store.CurrentCredentialByUserID(ctx, credential.UserPublicID)
+	if err != nil {
+		if errors.Is(err, ErrCredentialNotFound) {
+			return CredentialPrincipal{}, ErrInvalidCredentials
+		}
+		return CredentialPrincipal{}, ErrCredentialDependency
+	}
+	if current.Deleted {
+		return CredentialPrincipal{}, ErrInvalidCredentials
+	}
+	currentPassword := normalizedPassword
+	switch current.PasswordNormalization {
+	case PasswordNormalizationLegacyRaw:
+		currentPassword = rawPassword
+	case PasswordNormalizationNFCV1:
+	default:
+		return CredentialPrincipal{}, ErrInvalidCredentials
+	}
+	verification, err := verifier.hasher.Verify(ctx, currentPassword, current.PasswordHash)
+	if err != nil || !verification.Match {
 		return CredentialPrincipal{}, ErrInvalidCredentials
 	}
 	return CredentialPrincipal{UserPublicID: credential.UserPublicID}, nil

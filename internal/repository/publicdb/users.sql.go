@@ -12,6 +12,39 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const compareAndSwapCredential = `-- name: CompareAndSwapCredential :execrows
+UPDATE public.users
+SET password_hash = $1,
+    password_normalization = $2,
+    updated_at = NOW()
+WHERE user_id = $3
+  AND password_hash = $4
+  AND password_normalization = $5
+  AND deleted_at IS NULL
+`
+
+type CompareAndSwapCredentialParams struct {
+	NewHash               string    `json:"new_hash"`
+	NewNormalization      string    `json:"new_normalization"`
+	UserID                uuid.UUID `json:"user_id"`
+	ExpectedHash          string    `json:"expected_hash"`
+	ExpectedNormalization string    `json:"expected_normalization"`
+}
+
+func (q *Queries) CompareAndSwapCredential(ctx context.Context, arg CompareAndSwapCredentialParams) (int64, error) {
+	result, err := q.db.Exec(ctx, compareAndSwapCredential,
+		arg.NewHash,
+		arg.NewNormalization,
+		arg.UserID,
+		arg.ExpectedHash,
+		arg.ExpectedNormalization,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO public.users (email, password_hash, display_name, password_normalization)
 VALUES ($1, $2, $3, $4)
