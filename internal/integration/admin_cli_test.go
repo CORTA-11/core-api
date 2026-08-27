@@ -23,15 +23,21 @@ func TestAdminCLICreatesCanonicalPolicyCompliantAccount(t *testing.T) {
 	databaseURL := testsupport.RequiredEnv(t, "TEST_DATABASE_URL")
 	testsupport.ApplyMigrations(t, "db/migrations/public", databaseURL)
 
+	repositoryRoot := testsupport.RepositoryRoot()
+	goCache := filepath.Join(repositoryRoot, ".cache", "go-build")
+	adminBinary := filepath.Join(t.TempDir(), "admin")
+	build := exec.CommandContext(context.Background(), "go", "build", "-o", adminBinary, "./cmd/admin")
+	build.Dir = repositoryRoot
+	build.Env = append(os.Environ(), "GOCACHE="+goCache)
+	buildOutput, err := build.CombinedOutput()
+	require.NoError(t, err, string(buildOutput))
+
 	const password = "synodus-admin-password"
 	runAdmin := func(email string) (string, string, error) {
-		command := exec.CommandContext(context.Background(), "go", "run", "./cmd/admin",
+		command := exec.CommandContext(context.Background(), adminBinary,
 			"user", "create", "--email", email, "--display-name", "  CLI User  ", "--password-stdin")
-		command.Dir = testsupport.RepositoryRoot()
-		command.Env = append(os.Environ(),
-			"DATABASE_URL="+databaseURL,
-			"GOCACHE="+filepath.Join(testsupport.RepositoryRoot(), ".cache", "go-build"),
-		)
+		command.Dir = repositoryRoot
+		command.Env = append(os.Environ(), "DATABASE_URL="+databaseURL)
 		command.Stdin = strings.NewReader(password + "\n")
 		var stdout, stderr bytes.Buffer
 		command.Stdout = &stdout
