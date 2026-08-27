@@ -81,30 +81,52 @@ Each account stores a distinct target-parameter hash.
 | `leader@aratuwa.edu` | `48b38b47-36a8-4758-9858-c28c222d2c2e` | University of Aratuwa, MedSync |
 | `member@aratuwa.edu` | `981a7340-2a25-4aac-8b49-fddf45ff4894` | University of Aratuwa |
 
-The seeded organization selectors are:
+The seeded organization public IDs are:
 
-| Organization | `X-Org-ID` |
+| Organization | Public ID |
 | --- | --- |
 | University of Aratuwa | `30ee7153-9b48-4560-8cbf-972587a60fda` |
 | MedSync | `f1810095-f8a0-4e27-83df-d88b3256604d` |
 | Pied Piper | `afb118ba-2ade-4422-9f20-04754fd1d4a7` |
 
-Log in to obtain a bearer token:
+Legacy seed memberships intentionally have no guessed owner. Before using an
+administrative organization route, assign the intended owner and verify the
+cutover precondition:
 
 ```bash
-curl -X POST http://localhost:8080/users/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@aratuwa.edu","password":"synodus-demo-password"}'
+make assign-org-owner \
+  ORG_ID=30ee7153-9b48-4560-8cbf-972587a60fda \
+  USER_ID=0d5a4f4e-8d3b-4f17-9a79-4c38e29a6d11
+make verify-org-owners
 ```
 
-The seeds do not create teams. After assigning the response token to the
-`API_TOKEN` shell variable, create one as the selected organization's
-authenticated member:
+The verify command prints only public IDs for active ownerless organizations
+and exits nonzero until every one has an owner.
+
+The API uses an opaque cookie session. The login response also returns the CSRF
+token required with an approved exact `Origin` on unsafe requests. This example
+uses a temporary cookie jar; do not commit it:
 
 ```bash
-curl -X POST http://localhost:8080/teams \
-  -H "Authorization: Bearer ${API_TOKEN}" \
-  -H 'X-Org-ID: 30ee7153-9b48-4560-8cbf-972587a60fda' \
+COOKIE_JAR="$(mktemp)"
+LOGIN_RESPONSE="$(curl -sS -c "${COOKIE_JAR}" \
+  -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@aratuwa.edu","password":"synodus-demo-password"}')"
+CSRF_TOKEN="$(printf '%s' "${LOGIN_RESPONSE}" | jq -r '.csrf_token')"
+
+curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/auth/session
+curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/orgs
+```
+
+The seeds do not create teams. An organization owner or administrator can create
+one after the tenant provisioner reports the organization current:
+
+```bash
+curl -sS -b "${COOKIE_JAR}" \
+  -X POST http://localhost:8080/api/v1/orgs/30ee7153-9b48-4560-8cbf-972587a60fda/teams \
+  -H 'Origin: http://localhost:3000' \
+  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
   -H 'Content-Type: application/json' \
   -d '{"name":"Lab Alpha"}'
 ```
@@ -143,49 +165,16 @@ existing legacy tenant fleet.
 
 ## File storage
 
-Files are stored in the shared MinIO bucket configured by `MINIO_BUCKET_NAME`.
-Organization and team isolation is provided by hierarchical object keys:
-
-```text
-orgs/{organization-uuid}/teams/{team-id}/files/{filename}
-```
-
-The file endpoints require an existing organization UUID in the `X-Org-ID`
-header and an existing team slug in the URL.
-
-Upload a file:
-
-```bash
-curl -X POST \
-  -H "X-Org-ID: YOUR_ORG_UUID" \
-  -F "file=@./report.pdf" \
-  http://localhost:8080/YOUR_TEAM_SLUG/files/upload
-```
-
-Download the file:
-
-```bash
-curl -f \
-  -H "X-Org-ID: YOUR_ORG_UUID" \
-  -o downloaded-report.pdf \
-  http://localhost:8080/YOUR_TEAM_SLUG/files/download/report.pdf
-```
-
-The MinIO console is available at `http://localhost:9001` when the Docker
-Compose services are running. Uploading the same filename again within the
-same organization and team replaces the existing object.
+MinIO remains a configured and readiness-checked dependency for the M05 storage
+work. The authenticated v1 API deliberately exposes no file HTTP routes yet;
+metadata-backed authorization and bounded transfer semantics must land before
+uploads or downloads become public.
 
 ## Realtime (SaaS-ready fan-out)
 
-After a chat message is saved to Postgres, core-api publishes to Redis:
-
-```text
-POST /teams/.../messages  →  Postgres  →  Redis PUBLISH corta:chat:events
-                                              ↓
-                                    socket-server replica(s) → WebSocket clients
-```
-
-Configure via `REDIS_URL` and `REDIS_CHAT_CHANNEL` (see `.env.example`).
-`INTERNAL_API_KEY` / `JWT_SECRET` must match socket-server.
+Realtime HTTP and WebSocket product routes are not part of the M03 API surface.
+Redis is currently used by core-api for shared login and administrative rate
+limits. The later collaboration milestone will add authorization-aware event
+publication and socket integration.
 
 The project uses `sqlc` for code generation using migration files.
