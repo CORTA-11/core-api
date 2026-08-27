@@ -10,7 +10,7 @@ import (
 const (
 	PasswordNormalizationLegacyRaw = "legacy_raw"
 	PasswordNormalizationNFCV1     = "nfc_v1"
-	dummyPassword                  = "synodus-process-dummy-password"
+	dummyCredentialInput           = "synodus-fixed-dummy-input-v1" // #nosec G101 -- public fixed input, never an account credential.
 )
 
 var (
@@ -60,7 +60,7 @@ func NewCredentialVerifier(ctx context.Context, store CredentialStore, hasher Pa
 	if store == nil || hasher == nil {
 		return nil, ErrCredentialDependency
 	}
-	dummyHash, err := hasher.Hash(ctx, dummyPassword)
+	dummyHash, err := hasher.Hash(ctx, dummyCredentialInput)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (verifier *credentialVerifier) upgradeCredential(
 }
 
 func (verifier *credentialVerifier) denyWithDummy(ctx context.Context) (CredentialPrincipal, error) {
-	if _, err := verifier.hasher.Verify(ctx, dummyPassword, verifier.dummyHash); err != nil {
+	if _, err := verifier.hasher.Verify(ctx, dummyCredentialInput, verifier.dummyHash); err != nil {
 		return CredentialPrincipal{}, err
 	}
 	return CredentialPrincipal{}, ErrInvalidCredentials

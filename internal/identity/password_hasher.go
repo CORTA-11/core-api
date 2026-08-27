@@ -142,8 +142,8 @@ func (hasher *argon2PasswordHasher) Verify(ctx context.Context, password, encode
 		memoryKiB:   parsed.memoryKiB,
 		iterations:  parsed.iterations,
 		parallelism: parsed.parallelism,
-		saltBytes:   uint32(len(parsed.salt)),
-		outputBytes: uint32(len(parsed.digest)),
+		saltBytes:   uint32(len(parsed.salt)),   // #nosec G115 -- parser caps salt at 32 bytes.
+		outputBytes: uint32(len(parsed.digest)), // #nosec G115 -- parser caps output at 64 bytes.
 	}
 	actual, err := hasher.run(ctx, []byte(password), parsed.salt, parameters)
 	if err != nil {

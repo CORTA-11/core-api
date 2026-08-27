@@ -64,9 +64,9 @@ func parseArgon2IDHash(encoded string) (parsedArgon2IDHash, error) {
 	}
 
 	return parsedArgon2IDHash{
-		memoryKiB:   uint32(memory),
-		iterations:  uint32(iterations),
-		parallelism: uint8(parallelism),
+		memoryKiB:   uint32(memory),     // #nosec G115 -- parser ceiling is 256 MiB.
+		iterations:  uint32(iterations), // #nosec G115 -- parser ceiling is ten.
+		parallelism: uint8(parallelism), // #nosec G115 -- parser ceiling is sixteen.
 		salt:        salt,
 		digest:      digest,
 	}, nil
