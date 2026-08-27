@@ -263,6 +263,41 @@ func (q *Queries) GetUsersInOrg(ctx context.Context, arg GetUsersInOrgParams) ([
 	return items, nil
 }
 
+const listOwnerlessActiveOrganizationIDs = `-- name: ListOwnerlessActiveOrganizationIDs :many
+SELECT organization.public_id
+FROM public.orgs AS organization
+WHERE organization.lifecycle_state = 'active'
+  AND organization.deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public.org_user AS membership
+      WHERE membership.org_id = organization.id
+        AND membership.role = 'owner'
+  )
+ORDER BY organization.public_id
+LIMIT $1
+`
+
+func (q *Queries) ListOwnerlessActiveOrganizationIDs(ctx context.Context, limit int32) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOwnerlessActiveOrganizationIDs, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var public_id uuid.UUID
+		if err := rows.Scan(&public_id); err != nil {
+			return nil, err
+		}
+		items = append(items, public_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockOrganizationMemberships = `-- name: LockOrganizationMemberships :many
 SELECT membership.org_id, membership.user_id, membership.role,
        membership.created_at, membership.updated_at

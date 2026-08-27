@@ -77,6 +77,20 @@ SELECT count(*)
 FROM public.org_user
 WHERE org_id = sqlc.arg('org_id') AND role = 'owner';
 
+-- name: ListOwnerlessActiveOrganizationIDs :many
+SELECT organization.public_id
+FROM public.orgs AS organization
+WHERE organization.lifecycle_state = 'active'
+  AND organization.deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public.org_user AS membership
+      WHERE membership.org_id = organization.id
+        AND membership.role = 'owner'
+  )
+ORDER BY organization.public_id
+LIMIT sqlc.arg('limit');
+
 -- name: SetOrganizationMembershipRole :one
 UPDATE public.org_user
 SET role = sqlc.arg('role'), updated_at = now()
