@@ -18,11 +18,12 @@ const (
 )
 
 var (
-	ErrUnauthenticated   = errors.New("session is not authenticated")
-	ErrSessionNotFound   = errors.New("session not found")
-	ErrSessionDependency = errors.New("session dependency unavailable")
-	ErrInvalidBatchSize  = errors.New("session cleanup batch size must be between 1 and 1000")
-	ErrCredentialChanged = errors.New("credential changed concurrently")
+	ErrUnauthenticated    = errors.New("session is not authenticated")
+	ErrSessionNotFound    = errors.New("session not found")
+	ErrSessionDependency  = errors.New("session dependency unavailable")
+	ErrInvalidBatchSize   = errors.New("session cleanup batch size must be between 1 and 1000")
+	ErrCredentialChanged  = errors.New("credential changed concurrently")
+	ErrEmailAlreadyExists = errors.New("email already exists")
 )
 
 type Principal struct {

@@ -1250,8 +1250,10 @@ and then creates a revocable opaque application session. Email comparison is
 canonical and case-insensitive. Passwords use bounded Argon2id verification,
 uniform invalid-credential behavior, and bounded hash concurrency.
 
-Accounts are created by an operator command using an interactive prompt or
-standard input. Public registration and email recovery are not current features.
+Accounts are created either by the public account-only registration flow or by
+an operator command using an interactive prompt or standard input. Public
+registration atomically creates an account and browser session; email recovery
+is not a current feature.
 Passwords MUST NOT appear in process arguments, logs, errors, or audit metadata.
 
 New and changed passwords MUST contain 15–128 Unicode code points after NFC
@@ -2143,6 +2145,8 @@ Login uses Redis-backed GCRA with both an HMAC-pseudonymous canonical-account
 bucket and a trusted-client-IP bucket. Defaults are five failures per account per
 15 minutes and 20 attempts per client IP per 15 minutes; successful login clears
 the account-failure bucket. Redis keys MUST NOT contain raw email or IP values.
+Public registration has a separate trusted-client-IP bucket, defaulting to five
+attempts per 15 minutes with burst five, and fails closed when Redis is unavailable.
 
 ---
 

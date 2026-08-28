@@ -24,6 +24,7 @@ type AuthHandler struct {
 	cookie        http.Cookie
 	allowedOrigin map[string]struct{}
 	loginGuard    *ratelimit.LoginGuard
+	registerGuard *ratelimit.RegistrationGuard
 }
 
 func NewAuthRouter(
@@ -63,6 +64,7 @@ func NewRateLimitedAuthRouter(
 		_ = httpx.WriteProblem(writer, request, httpx.NewError(httpx.ProblemNotFound, nil))
 	})
 	router.Post("/api/v1/auth/login", handler.login)
+	router.Post("/api/v1/auth/register", handler.register)
 	router.Get("/api/v1/auth/session", handler.authenticated(false, handler.current))
 	router.Delete("/api/v1/auth/session", handler.logout)
 	router.Get("/api/v1/auth/sessions", handler.authenticated(false, handler.list))
@@ -75,6 +77,12 @@ func NewRateLimitedAuthRouter(
 type loginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type registerRequest struct {
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
 }
 
 type passwordRequest struct {
@@ -95,6 +103,69 @@ type authResponse struct {
 	User      session.User `json:"user"`
 	Session   sessionView  `json:"session"`
 	CSRFToken string       `json:"csrf_token"`
+}
+
+func (handler *AuthHandler) register(writer http.ResponseWriter, request *http.Request) {
+	if handler.registerGuard != nil {
+		client, ok := httpx.ClientFromContext(request.Context())
+		if !ok {
+			handler.rateProblem(writer, request, ratelimit.Decision{}, errors.New("trusted client unavailable"))
+			return
+		}
+		decision, err := handler.registerGuard.Admit(request.Context(), client.Address)
+		if err != nil || !decision.Allowed {
+			handler.rateProblem(writer, request, decision, err)
+			return
+		}
+	}
+	var input registerRequest
+	if err := httpx.DecodeJSON(request, &input, maximumAuthBodyBytes); err != nil {
+		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
+		return
+	}
+	canonical, emailErr := (identity.EmailCanonicalizer{}).Canonicalize(input.Email)
+	displayName, displayErr := identity.NormalizeDisplayName(input.DisplayName)
+	password, passwordErr := (identity.PasswordPolicy{}).Normalize(input.Password)
+	violations := make([]httpx.Violation, 0, 3)
+	if emailErr != nil {
+		violations = append(violations, httpx.Violation{Field: "email", Code: "invalid", Message: "Enter a valid email address."})
+	}
+	if displayErr != nil {
+		violations = append(violations, httpx.Violation{Field: "display_name", Code: "invalid", Message: "Display name must contain 1 to 100 characters."})
+	}
+	if passwordErr != nil {
+		violations = append(violations, httpx.Violation{Field: "password", Code: "invalid", Message: "Password must contain 15 to 128 characters."})
+	}
+	if len(violations) != 0 {
+		_ = httpx.WriteProblem(writer, request, httpx.NewError(httpx.ProblemInvalidRequest, nil, violations...))
+		return
+	}
+	if handler.hasher == nil || handler.manager == nil {
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, errors.New("registration dependency unavailable"))
+		return
+	}
+	passwordHash, err := handler.hasher.Hash(request.Context(), password)
+	if err != nil {
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
+		return
+	}
+	oldToken := ""
+	if cookie, cookieErr := request.Cookie(handler.cookie.Name); cookieErr == nil {
+		oldToken = cookie.Value
+	}
+	issued, err := handler.manager.Register(request.Context(), canonical.Display, displayName, passwordHash,
+		identity.PasswordNormalizationNFCV1, oldToken, request.UserAgent())
+	if err != nil {
+		if errors.Is(err, session.ErrEmailAlreadyExists) {
+			_ = httpx.WriteProblem(writer, request, httpx.NewError(httpx.ProblemConflict, err,
+				httpx.Violation{Field: "email", Code: "already_exists", Message: "An account with this email already exists."}))
+			return
+		}
+		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
+		return
+	}
+	handler.setCookie(writer, issued.RawToken)
+	_ = httpx.WriteJSON(writer, http.StatusCreated, responseFor(issued.Authentication, issued.CSRFToken))
 }
 
 func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Request) {

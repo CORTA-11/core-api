@@ -132,6 +132,7 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		}
 	}
 	parseRatePolicy(lookup, "RATE_LIMIT_LOGIN_IP", &config.RateLimits.LoginIP, &problems)
+	parseRatePolicy(lookup, "RATE_LIMIT_REGISTRATION_IP", &config.RateLimits.RegistrationIP, &problems)
 	parseRatePolicy(lookup, "RATE_LIMIT_ACCOUNT_FAILURE", &config.RateLimits.AccountFailure, &problems)
 	parseRatePolicy(lookup, "RATE_LIMIT_ADMIN", &config.RateLimits.Administrative, &problems)
 

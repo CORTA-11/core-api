@@ -37,6 +37,7 @@ type RateLimitClass string
 const (
 	RateNone           RateLimitClass = "none"
 	RateLogin          RateLimitClass = "login"
+	RateRegistration   RateLimitClass = "registration"
 	RateAdministrative RateLimitClass = "administrative"
 )
 
@@ -52,6 +53,7 @@ type Route struct {
 }
 
 var Routes = [...]Route{
+	{http.MethodPost, "/api/v1/auth/register", "register", AuthenticationPublic, CSRFNone, "", BodyAuthJSON, RateRegistration},
 	{http.MethodPost, "/api/v1/auth/login", "login", AuthenticationPublic, CSRFNone, "", BodyAuthJSON, RateLogin},
 	{http.MethodGet, "/api/v1/auth/session", "getCurrentSession", AuthenticationRequired, CSRFNone, "", BodyNone, RateNone},
 	{http.MethodDelete, "/api/v1/auth/session", "logout", AuthenticationLogout, CSRFRequired, "", BodyNone, RateNone},

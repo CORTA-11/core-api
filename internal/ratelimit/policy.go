@@ -16,6 +16,7 @@ type Policy struct {
 
 type Policies struct {
 	LoginIP        Policy
+	RegistrationIP Policy
 	AccountFailure Policy
 	Administrative Policy
 }
@@ -23,6 +24,7 @@ type Policies struct {
 func DefaultPolicies() Policies {
 	return Policies{
 		LoginIP:        Policy{"login-ip", 20, 15 * time.Minute, 20},
+		RegistrationIP: Policy{"registration-ip", 5, 15 * time.Minute, 5},
 		AccountFailure: Policy{"account-failure", 5, 15 * time.Minute, 5},
 		Administrative: Policy{"administrative", 60, 15 * time.Minute, 20},
 	}
@@ -43,7 +45,7 @@ func (policy Policy) Validate() error {
 }
 
 func (policies Policies) Validate() error {
-	for _, policy := range []Policy{policies.LoginIP, policies.AccountFailure, policies.Administrative} {
+	for _, policy := range []Policy{policies.LoginIP, policies.RegistrationIP, policies.AccountFailure, policies.Administrative} {
 		if err := policy.Validate(); err != nil {
 			return err
 		}
