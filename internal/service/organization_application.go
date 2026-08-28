@@ -34,12 +34,52 @@ type OrganizationView struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at"`
 	DeletedAt      *time.Time `json:"deleted_at"`
+	MyRole         string     `json:"my_role"`
 }
 
 type OrganizationPage struct {
 	Items          []OrganizationView `json:"items"`
 	NextCursor     *string            `json:"next_cursor"`
 	PreviousCursor *string            `json:"previous_cursor"`
+}
+
+type OrganizationMemberView struct {
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	Email       string    `json:"email"`
+	Role        string    `json:"role"`
+	JoinedAt    time.Time `json:"joined_at"`
+}
+
+func (application *OrganizationApplication) ListMembers(ctx context.Context, principal session.Principal, organizationID uuid.UUID) ([]OrganizationMemberView, error) {
+	if !validPrincipal(principal) {
+		return nil, authorization.ErrUnauthenticated
+	}
+	tx, err := application.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	queries := publicdb.New(tx)
+	membership, err := queries.GetOrganizationMembership(ctx, publicdb.GetOrganizationMembershipParams{OrganizationPublicID: organizationID, UserPublicID: principal.UserID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, authorization.ErrResourceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !authorization.OrganizationAllows(authorization.OrganizationRole(membership.Role), authorization.PermissionOrgMembersRead) {
+		return nil, authorization.ErrOperationDenied
+	}
+	rows, err := queries.ListOrganizationMembersAfter(ctx, publicdb.ListOrganizationMembersAfterParams{OrgID: membership.OrgID, AfterJoinedAt: time.Time{}, AfterUserID: uuid.Nil, Limit: 101})
+	if err != nil {
+		return nil, err
+	}
+	views := make([]OrganizationMemberView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, OrganizationMemberView{UserID: row.UserID, DisplayName: row.DisplayName, Email: row.Email, Role: row.Role, JoinedAt: row.JoinedAt})
+	}
+	return views, tx.Commit(ctx)
 }
 
 type OrganizationApplication struct {
@@ -101,7 +141,13 @@ func (application *OrganizationApplication) List(
 	}
 	page := OrganizationPage{Items: make([]OrganizationView, 0, len(rows))}
 	for _, row := range rows {
-		page.Items = append(page.Items, organizationView(row))
+		view := organizationView(row)
+		membership, lookupErr := queries.GetOrganizationMembership(ctx, publicdb.GetOrganizationMembershipParams{OrganizationPublicID: row.PublicID, UserPublicID: principal.UserID})
+		if lookupErr != nil {
+			return OrganizationPage{}, fmt.Errorf("load organization role: %w", lookupErr)
+		}
+		view.MyRole = membership.Role
+		page.Items = append(page.Items, view)
 	}
 	if len(rows) == 0 {
 		return page, nil
@@ -166,7 +212,9 @@ func (application *OrganizationApplication) Create(
 	if err := tx.Commit(ctx); err != nil {
 		return OrganizationView{}, fmt.Errorf("commit organization creation: %w", err)
 	}
-	return organizationView(organization), nil
+	view := organizationView(organization)
+	view.MyRole = "owner"
+	return view, nil
 }
 
 func (application *OrganizationApplication) Get(
@@ -271,7 +319,9 @@ func (application *OrganizationApplication) mutate(
 	if err := tx.Commit(ctx); err != nil {
 		return OrganizationView{}, fmt.Errorf("commit organization operation: %w", err)
 	}
-	return organizationView(row), nil
+	view := organizationView(row)
+	view.MyRole = membership.Role
+	return view, nil
 }
 
 func normalizeResourceName(name string) (string, error) {

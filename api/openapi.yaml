@@ -356,6 +356,71 @@ paths:
         '429': {$ref: '#/components/responses/RateLimited'}
         '500': {$ref: '#/components/responses/InternalFailure'}
         '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/{org_id}/invitations:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}]
+    get:
+      operationId: listOrganizationInvitations
+      security: [{sessionCookie: []}]
+      responses: {'200': {description: Pending invitations}}
+    post:
+      operationId: createOrganizationInvitation
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [email], properties: {email: {type: string, format: email}}}}}
+      responses: {'201': {description: Invitation created}}
+  /api/v1/orgs/{org_id}/members:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}]
+    get:
+      operationId: listOrganizationMembers
+      security: [{sessionCookie: []}]
+      responses: {'200': {description: Organization members}}
+  /api/v1/orgs/{org_id}/invitations/{invitation_id}:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {name: invitation_id, in: path, required: true, schema: {$ref: '#/components/schemas/PublicID'}}
+    delete:
+      operationId: revokeOrganizationInvitation
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses: {'204': {description: Invitation revoked}}
+  /api/v1/organization-invitations/current:
+    get:
+      operationId: getCurrentOrganizationInvitation
+      parameters: [{$ref: '#/components/parameters/InvitationToken'}]
+      responses: {'200': {description: Invitation preview}}
+    delete:
+      operationId: declineCurrentOrganizationInvitation
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {$ref: '#/components/parameters/InvitationToken'}
+      responses: {'204': {description: Invitation declined}}
+  /api/v1/organization-invitations/current/accept:
+    post:
+      operationId: acceptCurrentOrganizationInvitation
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {$ref: '#/components/parameters/InvitationToken'}
+      responses: {'200': {description: Invitation accepted}}
+  /api/v1/orgs/{org_id}/teams/{team_id}/members:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+    get:
+      operationId: listTeamMembers
+      security: [{sessionCookie: []}]
+      responses: {'200': {description: Team members}}
+    post:
+      operationId: addTeamMember
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [email], properties: {email: {type: string, format: email}}}}}
+      responses: {'201': {description: Team member added}}
   /api/v1/orgs/{org_id}/teams/{team_id}/tasks:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}
@@ -478,6 +543,11 @@ components:
       in: header
       required: true
       schema: {type: string, minLength: 1, maxLength: 512}
+    InvitationToken:
+      name: X-Invitation-Token
+      in: header
+      required: true
+      schema: {type: string, minLength: 43, maxLength: 43}
     PageSize:
       name: page_size
       in: query

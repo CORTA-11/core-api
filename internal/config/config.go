@@ -18,33 +18,35 @@ import (
 )
 
 const (
-	DevelopmentCSRFSecret      = "development-only-csrf-secret-change-me"
-	DevelopmentCursorKeyID     = "development-v1"
-	DevelopmentCursorSecret    = "development-only-cursor-secret-change-me"
-	DevelopmentRateLimitSecret = "development-only-rate-limit-secret-change-me"
+	DevelopmentCSRFSecret       = "development-only-csrf-secret-change-me"
+	DevelopmentCursorKeyID      = "development-v1"
+	DevelopmentCursorSecret     = "development-only-cursor-secret-change-me"
+	DevelopmentRateLimitSecret  = "development-only-rate-limit-secret-change-me"
+	DevelopmentInvitationSecret = "development-only-invitation-secret-change-me"
 )
 
 type Config struct {
-	Environment           string
-	HTTPAddr              string
-	HTTPOrigins           httpx.OriginPolicy
-	TrustedProxies        httpx.TrustedProxies
-	HTTPReadHeaderTimeout time.Duration
-	HTTPReadTimeout       time.Duration
-	HTTPWriteTimeout      time.Duration
-	HTTPIdleTimeout       time.Duration
-	ShutdownTimeout       time.Duration
-	DependencyTimeout     time.Duration
-	DatabaseURL           string
-	RedisURL              string
-	MinIO                 MinIO
-	CSRFSecret            string
-	Cursor                CursorKeys
-	RateLimitSecret       string
-	RateLimitTimeout      time.Duration
-	RateLimits            ratelimit.Policies
-	PprofEnabled          bool
-	PprofAddr             string
+	Environment             string
+	HTTPAddr                string
+	HTTPOrigins             httpx.OriginPolicy
+	TrustedProxies          httpx.TrustedProxies
+	HTTPReadHeaderTimeout   time.Duration
+	HTTPReadTimeout         time.Duration
+	HTTPWriteTimeout        time.Duration
+	HTTPIdleTimeout         time.Duration
+	ShutdownTimeout         time.Duration
+	DependencyTimeout       time.Duration
+	DatabaseURL             string
+	RedisURL                string
+	MinIO                   MinIO
+	CSRFSecret              string
+	Cursor                  CursorKeys
+	RateLimitSecret         string
+	InvitationBindingSecret string
+	RateLimitTimeout        time.Duration
+	RateLimits              ratelimit.Policies
+	PprofEnabled            bool
+	PprofAddr               string
 }
 
 type CursorKeys struct {
@@ -71,13 +73,14 @@ func Load() (Config, error) {
 func LoadFrom(lookup lookupFunc) (Config, error) {
 	var problems []error
 	config := Config{
-		Environment:      valueOrDefault(lookup, "APP_ENV", "development"),
-		HTTPAddr:         valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
-		CSRFSecret:       valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
-		RateLimitSecret:  valueOrDefault(lookup, "RATE_LIMIT_SECRET", DevelopmentRateLimitSecret),
-		RateLimitTimeout: 250 * time.Millisecond,
-		RateLimits:       ratelimit.DefaultPolicies(),
-		PprofAddr:        valueOrDefault(lookup, "PPROF_ADDR", "127.0.0.1:6060"),
+		Environment:             valueOrDefault(lookup, "APP_ENV", "development"),
+		HTTPAddr:                valueOrDefault(lookup, "HTTP_ADDR", ":8080"),
+		CSRFSecret:              valueOrDefault(lookup, "CSRF_SECRET", DevelopmentCSRFSecret),
+		RateLimitSecret:         valueOrDefault(lookup, "RATE_LIMIT_SECRET", DevelopmentRateLimitSecret),
+		InvitationBindingSecret: valueOrDefault(lookup, "INVITATION_BINDING_SECRET", DevelopmentInvitationSecret),
+		RateLimitTimeout:        250 * time.Millisecond,
+		RateLimits:              ratelimit.DefaultPolicies(),
+		PprofAddr:               valueOrDefault(lookup, "PPROF_ADDR", "127.0.0.1:6060"),
 		Cursor: CursorKeys{
 			ActiveKeyID:    valueOrDefault(lookup, "CURSOR_KEY_ID", DevelopmentCursorKeyID),
 			ActiveSecret:   valueOrDefault(lookup, "CURSOR_SECRET", DevelopmentCursorSecret),
@@ -213,6 +216,13 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 			config.RateLimitSecret == config.Cursor.ActiveSecret || config.RateLimitSecret == config.Cursor.PreviousSecret ||
 			config.RateLimitSecret == databasePassword(config.DatabaseURL) {
 			problems = append(problems, errors.New("RATE_LIMIT_SECRET must be a distinct non-development value of at least 32 bytes in production"))
+		}
+		if len([]byte(config.InvitationBindingSecret)) < 32 || isDevelopmentSecret(config.InvitationBindingSecret) ||
+			config.InvitationBindingSecret == config.CSRFSecret ||
+			config.InvitationBindingSecret == config.Cursor.ActiveSecret ||
+			config.InvitationBindingSecret == config.RateLimitSecret ||
+			config.InvitationBindingSecret == databasePassword(config.DatabaseURL) {
+			problems = append(problems, errors.New("INVITATION_BINDING_SECRET must be a distinct non-development value of at least 32 bytes in production"))
 		}
 		if config.PprofEnabled {
 			problems = append(problems, errors.New("PPROF_ENABLED cannot be enabled in production"))

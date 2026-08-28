@@ -46,3 +46,19 @@ WHERE teams.id = nullif(current_setting('app.team_id', true), '')::bigint
   AND teams.public_id = sqlc.arg('team_public_id')
   AND team_members.user_public_id = sqlc.arg('user_public_id')
   AND NOT teams.is_quarantine;
+
+-- name: GetCurrentTeamRole :one
+SELECT role FROM team_members
+WHERE team_id = sqlc.arg('team_id')
+  AND user_public_id = synodus_app_user_public_id();
+
+-- name: ListTeamMembersAfter :many
+SELECT user_public_id, role, created_at
+FROM team_members
+WHERE team_id = nullif(current_setting('app.team_id', true), '')::bigint
+ORDER BY created_at, user_public_id
+LIMIT sqlc.arg('limit');
+
+-- name: AddTeamContributor :one
+SELECT team_id, user_public_id, role, created_at, updated_at
+FROM add_team_contributor(sqlc.arg('email'));

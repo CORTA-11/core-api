@@ -12,11 +12,13 @@ import (
 	"unicode/utf8"
 
 	"github.com/CORTA-11/core-api/internal/authorization"
+	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -35,12 +37,65 @@ type TeamView struct {
 	Slug      string    `json:"slug"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+	MyRole    string    `json:"my_role"`
 }
 
 type TeamPage struct {
 	Items          []TeamView `json:"items"`
 	NextCursor     *string    `json:"next_cursor"`
 	PreviousCursor *string    `json:"previous_cursor"`
+}
+
+type TeamMemberView struct {
+	UserID   uuid.UUID `json:"user_id"`
+	Role     string    `json:"role"`
+	JoinedAt time.Time `json:"joined_at"`
+}
+
+func (application *TeamTaskApplication) ListTeamMembers(ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID) ([]TeamMemberView, error) {
+	var result []TeamMemberView
+	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTeamMembersRead, func(queries *tenantdb.Queries) error {
+		rows, err := queries.ListTeamMembersAfter(ctx, 101)
+		if err != nil {
+			return err
+		}
+		result = make([]TeamMemberView, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, TeamMemberView{UserID: row.UserPublicID, Role: row.Role, JoinedAt: row.CreatedAt})
+		}
+		return nil
+	})
+	return result, err
+}
+
+func (application *TeamTaskApplication) AddTeamMember(ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID, email string) (TeamMemberView, error) {
+	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
+	if err != nil {
+		return TeamMemberView{}, ErrInvalidInput
+	}
+	var result TeamMemberView
+	err = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTeamMembersManage, func(queries *tenantdb.Queries) error {
+		row, queryErr := queries.AddTeamContributor(ctx, canonical.Key)
+		if queryErr != nil {
+			return classifyTeamMemberError(queryErr)
+		}
+		result = TeamMemberView{UserID: row.UserPublicID, Role: row.Role, JoinedAt: row.CreatedAt}
+		return nil
+	})
+	return result, err
+}
+
+func classifyTeamMemberError(err error) error {
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) {
+		if databaseError.Code == "23505" {
+			return ErrConflict
+		}
+		if databaseError.Code == "P0002" {
+			return authorization.ErrResourceNotFound
+		}
+	}
+	return err
 }
 
 type TaskView struct {
@@ -114,7 +169,13 @@ func (application *TeamTaskApplication) ListTeams(
 	}
 	page := TeamPage{Items: make([]TeamView, 0, len(rows))}
 	for _, row := range rows {
-		page.Items = append(page.Items, teamView(row))
+		view := teamView(row)
+		_ = application.authorizer.WithinTeam(ctx, principal, organizationID, row.PublicID, authorization.PermissionTeamRead, func(queries *tenantdb.Queries) error {
+			role, roleErr := queries.GetCurrentTeamRole(ctx, row.ID)
+			view.MyRole = role
+			return roleErr
+		})
+		page.Items = append(page.Items, view)
 	}
 	if err := application.teamLinks(&page, rows, binding, cursor.Direction, parameters.Cursor != "", more); err != nil {
 		return TeamPage{}, err
@@ -147,7 +208,9 @@ func (application *TeamTaskApplication) CreateTeam(
 	if err != nil {
 		return TeamView{}, err
 	}
-	return teamView(row), nil
+	view := teamView(row)
+	view.MyRole = "team_admin"
+	return view, nil
 }
 
 func (application *TeamTaskApplication) ListTasks(

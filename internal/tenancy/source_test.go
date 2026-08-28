@@ -14,7 +14,7 @@ func TestEmbeddedMigrationsAreOrderedAndChecksummed(t *testing.T) {
 	require.NoError(t, err)
 	second, err := EmbeddedMigrations()
 	require.NoError(t, err)
-	require.Len(t, first.Migrations, 5)
+	require.Len(t, first.Migrations, 6)
 	assert.Equal(t, int64(1), first.Migrations[0].Version)
 	assert.Equal(t, int64(2), first.Migrations[1].Version)
 	assert.Len(t, first.Migrations[0].Checksum, 64)

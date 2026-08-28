@@ -31,6 +31,10 @@ type OrganizationService interface {
 	Restore(context.Context, session.Principal, uuid.UUID) (service.OrganizationView, error)
 }
 
+type OrganizationMemberService interface {
+	ListMembers(context.Context, session.Principal, uuid.UUID) ([]service.OrganizationMemberView, error)
+}
+
 type TeamTaskService interface {
 	ListTeams(context.Context, session.Principal, uuid.UUID, pagination.Parameters) (service.TeamPage, error)
 	CreateTeam(context.Context, session.Principal, uuid.UUID, string) (service.TeamView, error)
@@ -38,23 +42,35 @@ type TeamTaskService interface {
 	CreateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, string) (service.TaskView, error)
 	UpdateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, string, string) (service.TaskView, error)
 	DeleteTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
+	ListTeamMembers(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.TeamMemberView, error)
+	AddTeamMember(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.TeamMemberView, error)
+}
+
+type InvitationService interface {
+	List(context.Context, session.Principal, uuid.UUID) ([]service.InvitationView, error)
+	Create(context.Context, session.Principal, uuid.UUID, string) (service.InvitationCreatedView, error)
+	Revoke(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
+	Preview(context.Context, string) (service.InvitationPreview, error)
+	Consume(context.Context, session.Principal, string, bool) error
 }
 
 type RouterConfig struct {
-	Manager           *session.Manager
-	Verifier          identity.CredentialVerifier
-	Hasher            identity.PasswordHasher
-	Organizations     OrganizationService
-	TeamTasks         TeamTaskService
-	Environment       string
-	Origins           httpx.OriginPolicy
-	TrustedProxies    httpx.TrustedProxies
-	Logger            *slog.Logger
-	LoginGuard        *ratelimit.LoginGuard
-	RegistrationGuard *ratelimit.RegistrationGuard
-	Administrative    func(http.Handler) http.Handler
-	ReadinessChecks   map[string]ReadinessCheck
-	ReadinessTimeout  time.Duration
+	Manager             *session.Manager
+	Verifier            identity.CredentialVerifier
+	Hasher              identity.PasswordHasher
+	Organizations       OrganizationService
+	OrganizationMembers OrganizationMemberService
+	TeamTasks           TeamTaskService
+	Invitations         InvitationService
+	Environment         string
+	Origins             httpx.OriginPolicy
+	TrustedProxies      httpx.TrustedProxies
+	Logger              *slog.Logger
+	LoginGuard          *ratelimit.LoginGuard
+	RegistrationGuard   *ratelimit.RegistrationGuard
+	Administrative      func(http.Handler) http.Handler
+	ReadinessChecks     map[string]ReadinessCheck
+	ReadinessTimeout    time.Duration
 }
 
 type Router struct {
@@ -78,7 +94,7 @@ func NewRouter(config RouterConfig) *Router {
 		auth.allowedOrigin[origin] = struct{}{}
 	}
 	router := &Router{mux: chi.NewRouter(), config: config, auth: auth}
-	router.resources = &ResourceHandler{organizations: config.Organizations, teamTasks: config.TeamTasks}
+	router.resources = &ResourceHandler{organizations: config.Organizations, organizationMembers: config.OrganizationMembers, teamTasks: config.TeamTasks, invitations: config.Invitations}
 	router.compose()
 	return router
 }
@@ -160,6 +176,24 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.updateTask)
 	case "deleteTask":
 		return http.HandlerFunc(router.resources.deleteTask)
+	case "listOrganizationInvitations":
+		return http.HandlerFunc(router.resources.listInvitations)
+	case "listOrganizationMembers":
+		return http.HandlerFunc(router.resources.listOrganizationMembers)
+	case "createOrganizationInvitation":
+		return http.HandlerFunc(router.resources.createInvitation)
+	case "revokeOrganizationInvitation":
+		return http.HandlerFunc(router.resources.revokeInvitation)
+	case "getCurrentOrganizationInvitation":
+		return http.HandlerFunc(router.resources.previewInvitation)
+	case "acceptCurrentOrganizationInvitation":
+		return http.HandlerFunc(router.resources.acceptInvitation)
+	case "declineCurrentOrganizationInvitation":
+		return http.HandlerFunc(router.resources.declineInvitation)
+	case "listTeamMembers":
+		return http.HandlerFunc(router.resources.listTeamMembers)
+	case "addTeamMember":
+		return http.HandlerFunc(router.resources.addTeamMember)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -208,7 +242,12 @@ func isResourceOperation(operationID string) bool {
 		operationID == "getOrganization" || operationID == "updateOrganization" ||
 		operationID == "deleteOrganization" || operationID == "restoreOrganization" ||
 		operationID == "listTeams" || operationID == "createTeam" || operationID == "listTasks" ||
-		operationID == "createTask" || operationID == "updateTask" || operationID == "deleteTask"
+		operationID == "createTask" || operationID == "updateTask" || operationID == "deleteTask" ||
+		operationID == "listOrganizationInvitations" || operationID == "createOrganizationInvitation" ||
+		operationID == "listOrganizationMembers" ||
+		operationID == "revokeOrganizationInvitation" || operationID == "acceptCurrentOrganizationInvitation" ||
+		operationID == "declineCurrentOrganizationInvitation" ||
+		operationID == "listTeamMembers" || operationID == "addTeamMember"
 }
 
 func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {

@@ -36,6 +36,7 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, 15*time.Second, config.HTTPReadTimeout)
 	assert.Equal(t, 30*time.Second, config.HTTPWriteTimeout)
 	assert.Equal(t, DevelopmentRateLimitSecret, config.RateLimitSecret)
+	assert.Equal(t, DevelopmentInvitationSecret, config.InvitationBindingSecret)
 	assert.Equal(t, 250*time.Millisecond, config.RateLimitTimeout)
 	assert.Equal(t, int64(20), config.RateLimits.LoginIP.Limit)
 	assert.Equal(t, 15*time.Minute, config.RateLimits.LoginIP.Period)
@@ -227,4 +228,17 @@ func TestLoadErrorsDoNotExposeSecrets(t *testing.T) {
 	_, err := loadMap(values)
 	require.Error(t, err)
 	assert.False(t, strings.Contains(err.Error(), secret))
+}
+
+func TestLoadRejectsUnsafeProductionInvitationSecret(t *testing.T) {
+	values := validEnvironment()
+	values["APP_ENV"] = "production"
+	values["CSRF_SECRET"] = strings.Repeat("c", 32)
+	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
+	values["RATE_LIMIT_SECRET"] = strings.Repeat("r", 32)
+	values["INVITATION_BINDING_SECRET"] = DevelopmentInvitationSecret
+	values["HTTP_ALLOWED_ORIGINS"] = "https://app.example.com"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "INVITATION_BINDING_SECRET")
 }

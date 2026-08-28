@@ -38,6 +38,16 @@ type OrgUser struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type OrganizationInvitation struct {
+	ID        int64     `json:"id"`
+	PublicID  uuid.UUID `json:"public_id"`
+	OrgID     int64     `json:"org_id"`
+	EmailHmac []byte    `json:"email_hmac"`
+	TokenHash []byte    `json:"token_hash"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
 type Session struct {
 	ID                int64              `json:"id"`
 	SessionID         uuid.UUID          `json:"session_id"`
