@@ -18,6 +18,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/config"
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
+	"github.com/CORTA-11/core-api/internal/invitation"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
@@ -128,6 +129,12 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		return fmt.Errorf("configure administrative rate limit: %w", err)
 	}
 	organizations := service.NewOrganizationApplication(pool, cursorCodec)
+	invitationBinding, err := invitation.NewBinding([]byte(cfg.InvitationBindingSecret))
+	if err != nil {
+		return fmt.Errorf("configure invitation binding: %w", err)
+	}
+	invitations := service.NewInvitationApplication(pool, invitationBinding)
+	go runInvitationCleanup(ctx, logger, invitations)
 	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
 	readiness := map[string]v1.ReadinessCheck{
 		"postgres": pool.Ping,
@@ -137,7 +144,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
-		Organizations: organizations, TeamTasks: teamTasks,
+		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Invitations: invitations,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
@@ -167,6 +174,26 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		bindings = append(bindings, serverBinding{name: "diagnostics", server: diagnostic, listener: diagnosticListener})
 	}
 	return serveAll(ctx, bindings, cfg.ShutdownTimeout)
+}
+
+func runInvitationCleanup(ctx context.Context, logger *slog.Logger, invitations *service.InvitationApplication) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			count, err := invitations.Cleanup(ctx)
+			if err != nil {
+				logger.Error("invitation cleanup failed", "error", err)
+				continue
+			}
+			if count > 0 {
+				logger.Info("expired invitations removed", "count", count)
+			}
+		}
+	}
 }
 
 func newDiagnosticServer(cfg config.Config, logger *slog.Logger) (*http.Server, error) {

@@ -12,6 +12,18 @@ AND u.deleted_at IS NULL
 ORDER BY u.created_at ASC, u.id ASC
 LIMIT sqlc.arg('limit');
 
+-- name: ListOrganizationMembersAfter :many
+SELECT app_user.user_id, app_user.display_name, app_user.email, membership.role,
+       membership.created_at AS joined_at
+FROM public.org_user AS membership
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE membership.org_id = sqlc.arg('org_id')
+  AND app_user.deleted_at IS NULL
+  AND (membership.created_at, app_user.user_id) >
+      (sqlc.arg('after_joined_at'), sqlc.arg('after_user_id')::uuid)
+ORDER BY membership.created_at, app_user.user_id
+LIMIT sqlc.arg('limit');
+
 -- name: AddUserToOrg :one
 INSERT INTO public.org_user (org_id, user_id)
 VALUES ($1, $2)

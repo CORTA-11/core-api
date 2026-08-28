@@ -12,6 +12,24 @@ import (
 	"github.com/google/uuid"
 )
 
+const addTeamContributor = `-- name: AddTeamContributor :one
+SELECT team_id, user_public_id, role, created_at, updated_at
+FROM add_team_contributor($1)
+`
+
+func (q *Queries) AddTeamContributor(ctx context.Context, email string) (TeamMember, error) {
+	row := q.db.QueryRow(ctx, addTeamContributor, email)
+	var i TeamMember
+	err := row.Scan(
+		&i.TeamID,
+		&i.UserPublicID,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createTeam = `-- name: CreateTeam :one
 INSERT INTO teams (name, slug)
 VALUES ($1, $2)
@@ -61,6 +79,19 @@ func (q *Queries) CreateTeamWithCreator(ctx context.Context, arg CreateTeamWithC
 		&i.IsQuarantine,
 	)
 	return i, err
+}
+
+const getCurrentTeamRole = `-- name: GetCurrentTeamRole :one
+SELECT role FROM team_members
+WHERE team_id = $1
+  AND user_public_id = synodus_app_user_public_id()
+`
+
+func (q *Queries) GetCurrentTeamRole(ctx context.Context, teamID int64) (string, error) {
+	row := q.db.QueryRow(ctx, getCurrentTeamRole, teamID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
 }
 
 const getTeams = `-- name: GetTeams :many
@@ -174,6 +205,40 @@ func (q *Queries) GetTeamsBefore(ctx context.Context, arg GetTeamsBeforeParams) 
 			&i.PublicID,
 			&i.IsQuarantine,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTeamMembersAfter = `-- name: ListTeamMembersAfter :many
+SELECT user_public_id, role, created_at
+FROM team_members
+WHERE team_id = nullif(current_setting('app.team_id', true), '')::bigint
+ORDER BY created_at, user_public_id
+LIMIT $1
+`
+
+type ListTeamMembersAfterRow struct {
+	UserPublicID uuid.UUID `json:"user_public_id"`
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+func (q *Queries) ListTeamMembersAfter(ctx context.Context, limit int32) ([]ListTeamMembersAfterRow, error) {
+	rows, err := q.db.Query(ctx, listTeamMembersAfter, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTeamMembersAfterRow
+	for rows.Next() {
+		var i ListTeamMembersAfterRow
+		if err := rows.Scan(&i.UserPublicID, &i.Role, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -7,6 +7,7 @@ package publicdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -281,6 +282,65 @@ func (q *Queries) GetUsersInOrg(ctx context.Context, arg GetUsersInOrgParams) ([
 			&i.DeletedAt,
 			&i.EmailCanonical,
 			&i.PasswordNormalization,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationMembersAfter = `-- name: ListOrganizationMembersAfter :many
+SELECT app_user.user_id, app_user.display_name, app_user.email, membership.role,
+       membership.created_at AS joined_at
+FROM public.org_user AS membership
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE membership.org_id = $1
+  AND app_user.deleted_at IS NULL
+  AND (membership.created_at, app_user.user_id) >
+      ($2, $3::uuid)
+ORDER BY membership.created_at, app_user.user_id
+LIMIT $4
+`
+
+type ListOrganizationMembersAfterParams struct {
+	OrgID         int64     `json:"org_id"`
+	AfterJoinedAt time.Time `json:"after_joined_at"`
+	AfterUserID   uuid.UUID `json:"after_user_id"`
+	Limit         int32     `json:"limit"`
+}
+
+type ListOrganizationMembersAfterRow struct {
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	Email       string    `json:"email"`
+	Role        string    `json:"role"`
+	JoinedAt    time.Time `json:"joined_at"`
+}
+
+func (q *Queries) ListOrganizationMembersAfter(ctx context.Context, arg ListOrganizationMembersAfterParams) ([]ListOrganizationMembersAfterRow, error) {
+	rows, err := q.db.Query(ctx, listOrganizationMembersAfter,
+		arg.OrgID,
+		arg.AfterJoinedAt,
+		arg.AfterUserID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOrganizationMembersAfterRow
+	for rows.Next() {
+		var i ListOrganizationMembersAfterRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.DisplayName,
+			&i.Email,
+			&i.Role,
+			&i.JoinedAt,
 		); err != nil {
 			return nil, err
 		}
