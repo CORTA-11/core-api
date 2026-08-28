@@ -27,7 +27,7 @@ RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine;
 
 -- name: CreateTeamWithCreator :one
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
-FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'));
+FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'), sqlc.arg('leader_email'));
 
 -- name: ResolveTeamContext :one
 SELECT teams.id, teams.public_id

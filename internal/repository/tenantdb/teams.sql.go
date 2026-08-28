@@ -58,16 +58,17 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 
 const createTeamWithCreator = `-- name: CreateTeamWithCreator :one
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
-FROM create_team_with_creator($1, $2)
+FROM create_team_with_creator($1, $2, $3)
 `
 
 type CreateTeamWithCreatorParams struct {
-	Name string `json:"name"`
-	Slug string `json:"slug"`
+	Name        string `json:"name"`
+	Slug        string `json:"slug"`
+	LeaderEmail string `json:"leader_email"`
 }
 
 func (q *Queries) CreateTeamWithCreator(ctx context.Context, arg CreateTeamWithCreatorParams) (Team, error) {
-	row := q.db.QueryRow(ctx, createTeamWithCreator, arg.Name, arg.Slug)
+	row := q.db.QueryRow(ctx, createTeamWithCreator, arg.Name, arg.Slug, arg.LeaderEmail)
 	var i Team
 	err := row.Scan(
 		&i.ID,

@@ -188,10 +188,15 @@ func (application *TeamTaskApplication) CreateTeam(
 	principal session.Principal,
 	organizationID uuid.UUID,
 	name string,
+	leaderEmail string,
 ) (TeamView, error) {
 	name, err := normalizeResourceName(name)
 	if err != nil {
 		return TeamView{}, err
+	}
+	leaderEmail = strings.TrimSpace(leaderEmail)
+	if leaderEmail == "" {
+		return TeamView{}, ErrInvalidInput
 	}
 	if application == nil || application.authorizer == nil || !validPrincipal(principal) || organizationID == uuid.Nil {
 		return TeamView{}, authorization.ErrResourceNotFound
@@ -201,7 +206,7 @@ func (application *TeamTaskApplication) CreateTeam(
 		func(queries *tenantdb.Queries) error {
 			var queryErr error
 			row, queryErr = queries.CreateTeamWithCreator(ctx, tenantdb.CreateTeamWithCreatorParams{
-				Name: name, Slug: deterministicTeamSlug(name),
+				Name: name, Slug: deterministicTeamSlug(name), LeaderEmail: leaderEmail,
 			})
 			return classifyConflict(queryErr)
 		})
@@ -209,7 +214,7 @@ func (application *TeamTaskApplication) CreateTeam(
 		return TeamView{}, err
 	}
 	view := teamView(row)
-	view.MyRole = "team_admin"
+	view.MyRole = ""
 	return view, nil
 }
 

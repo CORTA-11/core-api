@@ -77,7 +77,7 @@ func TestTenantRLSMatrix(t *testing.T) {
 		betaTeams[0].PublicID, betaTeams[1].PublicID,
 	})
 
-	createdTeam, err := fixture.teamService.CreateTeam(ctx, alphaShared, "Alpha Runtime Team")
+	createdTeam, err := fixture.teamService.CreateTeam(ctx, alphaShared, "Alpha Runtime Team", "shared@tenant-boundary.example.test")
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, createdTeam.PublicID)
 	_, err = fixture.resolver.ResolveTeam(ctx, alphaShared, createdTeam.PublicID)

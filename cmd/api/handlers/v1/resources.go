@@ -26,6 +26,11 @@ type nameRequest struct {
 	Name string `json:"name"`
 }
 
+type createTeamRequest struct {
+	Name        string `json:"name"`
+	LeaderEmail string `json:"leader_email"`
+}
+
 type taskRequest struct {
 	Description string `json:"description"`
 	Status      string `json:"status"`
@@ -306,7 +311,7 @@ func (handler *ResourceHandler) listTeams(writer http.ResponseWriter, request *h
 
 func (handler *ResourceHandler) createTeam(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, _, ok := handler.scoped(request, false)
-	var input nameRequest
+	var input createTeamRequest
 	err := httpx.DecodeJSON(request, &input, maximumResourceBodyBytes)
 	if !ok || handler.teamTasks == nil {
 		handler.problem(writer, request, authorization.ErrResourceNotFound)
@@ -316,7 +321,7 @@ func (handler *ResourceHandler) createTeam(writer http.ResponseWriter, request *
 		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
 		return
 	}
-	team, err := handler.teamTasks.CreateTeam(request.Context(), authentication.Principal, organizationID, input.Name)
+	team, err := handler.teamTasks.CreateTeam(request.Context(), authentication.Principal, organizationID, input.Name, input.LeaderEmail)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return
