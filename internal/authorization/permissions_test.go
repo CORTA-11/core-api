@@ -20,14 +20,14 @@ func TestRolePermissionMappingsAreClosedAndSeparated(t *testing.T) {
 			PermissionTeamMembersRead, PermissionTeamMembersManage,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete, PermissionAuditRead, PermissionRealtimeConnect),
-		TeamRoleResearchLead: set(PermissionTeamRead,
+		TeamRoleResearchLead: set(PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete, PermissionAuditRead, PermissionRealtimeConnect),
-		TeamRoleResearcher: set(PermissionTeamRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
+		TeamRoleResearcher: set(PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
 			PermissionTaskMove, PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect),
-		TeamRoleContributor: set(PermissionTeamRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
+		TeamRoleContributor: set(PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
 			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect),
-		TeamRoleViewer: set(PermissionTeamRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect),
+		TeamRoleViewer: set(PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect),
 	}
 	for _, role := range organizationRoles {
 		for _, permission := range permissions {

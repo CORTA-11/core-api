@@ -39,7 +39,7 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 		}
 	case TeamRoleResearchLead:
 		switch permission {
-		case PermissionTeamRead,
+		case PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
 			PermissionAuditRead, PermissionRealtimeConnect:
@@ -47,20 +47,20 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 		}
 	case TeamRoleResearcher:
 		switch permission {
-		case PermissionTeamRead,
+		case PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove,
 			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect:
 			return true
 		}
 	case TeamRoleContributor:
 		switch permission {
-		case PermissionTeamRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
+		case PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
 			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect:
 			return true
 		}
 	case TeamRoleViewer:
 		switch permission {
-		case PermissionTeamRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect:
+		case PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect:
 			return true
 		}
 	}
