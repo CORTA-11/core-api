@@ -7,6 +7,7 @@ package publicdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -98,6 +99,39 @@ func (q *Queries) GetOrgName(ctx context.Context, id int64) (Org, error) {
 	return i, err
 }
 
+const getOrganizationByPublicIDIncludingDeleted = `-- name: GetOrganizationByPublicIDIncludingDeleted :one
+SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+       lifecycle_state, tenant_version, tenant_checksum,
+       reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+       last_attempt_at, provisioned_at
+FROM public.orgs
+WHERE public_id = $1
+`
+
+func (q *Queries) GetOrganizationByPublicIDIncludingDeleted(ctx context.Context, publicID uuid.UUID) (Org, error) {
+	row := q.db.QueryRow(ctx, getOrganizationByPublicIDIncludingDeleted, publicID)
+	var i Org
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Name,
+		&i.SchemaName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.LifecycleState,
+		&i.TenantVersion,
+		&i.TenantChecksum,
+		&i.ReconcileAttempts,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.LastErrorDetail,
+		&i.LastAttemptAt,
+		&i.ProvisionedAt,
+	)
+	return i, err
+}
+
 const getOrgs = `-- name: GetOrgs :many
 SELECT id, public_id, name, schema_name, created_at, updated_at, deleted_at,
        lifecycle_state, tenant_version, tenant_checksum,
@@ -111,6 +145,140 @@ LIMIT $1
 
 func (q *Queries) GetOrgs(ctx context.Context, limit int32) ([]Org, error) {
 	rows, err := q.db.Query(ctx, getOrgs, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Org
+	for rows.Next() {
+		var i Org
+		if err := rows.Scan(
+			&i.ID,
+			&i.PublicID,
+			&i.Name,
+			&i.SchemaName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.LifecycleState,
+			&i.TenantVersion,
+			&i.TenantChecksum,
+			&i.ReconcileAttempts,
+			&i.NextAttemptAt,
+			&i.LastErrorCode,
+			&i.LastErrorDetail,
+			&i.LastAttemptAt,
+			&i.ProvisionedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationsForUserAfter = `-- name: ListOrganizationsForUserAfter :many
+SELECT organization.id, organization.public_id, organization.name, organization.schema_name,
+       organization.created_at, organization.updated_at, organization.deleted_at,
+       organization.lifecycle_state, organization.tenant_version, organization.tenant_checksum,
+       organization.reconcile_attempts, organization.next_attempt_at,
+       organization.last_error_code, organization.last_error_detail,
+       organization.last_attempt_at, organization.provisioned_at
+FROM public.orgs AS organization
+JOIN public.org_user AS membership ON membership.org_id = organization.id
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE app_user.user_id = $1
+  AND app_user.deleted_at IS NULL
+  AND (organization.created_at, organization.public_id) >
+      ($2, $3::uuid)
+ORDER BY organization.created_at ASC, organization.public_id ASC
+LIMIT $4
+`
+
+type ListOrganizationsForUserAfterParams struct {
+	UserPublicID   uuid.UUID `json:"user_public_id"`
+	AfterCreatedAt time.Time `json:"after_created_at"`
+	AfterPublicID  uuid.UUID `json:"after_public_id"`
+	Limit          int32     `json:"limit"`
+}
+
+func (q *Queries) ListOrganizationsForUserAfter(ctx context.Context, arg ListOrganizationsForUserAfterParams) ([]Org, error) {
+	rows, err := q.db.Query(ctx, listOrganizationsForUserAfter,
+		arg.UserPublicID,
+		arg.AfterCreatedAt,
+		arg.AfterPublicID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Org
+	for rows.Next() {
+		var i Org
+		if err := rows.Scan(
+			&i.ID,
+			&i.PublicID,
+			&i.Name,
+			&i.SchemaName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.LifecycleState,
+			&i.TenantVersion,
+			&i.TenantChecksum,
+			&i.ReconcileAttempts,
+			&i.NextAttemptAt,
+			&i.LastErrorCode,
+			&i.LastErrorDetail,
+			&i.LastAttemptAt,
+			&i.ProvisionedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOrganizationsForUserBefore = `-- name: ListOrganizationsForUserBefore :many
+SELECT organization.id, organization.public_id, organization.name, organization.schema_name,
+       organization.created_at, organization.updated_at, organization.deleted_at,
+       organization.lifecycle_state, organization.tenant_version, organization.tenant_checksum,
+       organization.reconcile_attempts, organization.next_attempt_at,
+       organization.last_error_code, organization.last_error_detail,
+       organization.last_attempt_at, organization.provisioned_at
+FROM public.orgs AS organization
+JOIN public.org_user AS membership ON membership.org_id = organization.id
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE app_user.user_id = $1
+  AND app_user.deleted_at IS NULL
+  AND (organization.created_at, organization.public_id) <
+      ($2, $3::uuid)
+ORDER BY organization.created_at DESC, organization.public_id DESC
+LIMIT $4
+`
+
+type ListOrganizationsForUserBeforeParams struct {
+	UserPublicID    uuid.UUID `json:"user_public_id"`
+	BeforeCreatedAt time.Time `json:"before_created_at"`
+	BeforePublicID  uuid.UUID `json:"before_public_id"`
+	Limit           int32     `json:"limit"`
+}
+
+func (q *Queries) ListOrganizationsForUserBefore(ctx context.Context, arg ListOrganizationsForUserBeforeParams) ([]Org, error) {
+	rows, err := q.db.Query(ctx, listOrganizationsForUserBefore,
+		arg.UserPublicID,
+		arg.BeforeCreatedAt,
+		arg.BeforePublicID,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -236,6 +404,46 @@ type UpdateOrgParams struct {
 
 func (q *Queries) UpdateOrg(ctx context.Context, arg UpdateOrgParams) (Org, error) {
 	row := q.db.QueryRow(ctx, updateOrg, arg.PublicID, arg.Name)
+	var i Org
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Name,
+		&i.SchemaName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.LifecycleState,
+		&i.TenantVersion,
+		&i.TenantChecksum,
+		&i.ReconcileAttempts,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.LastErrorDetail,
+		&i.LastAttemptAt,
+		&i.ProvisionedAt,
+	)
+	return i, err
+}
+
+const updateOrganizationIncludingDeleting = `-- name: UpdateOrganizationIncludingDeleting :one
+UPDATE public.orgs
+SET name = $1, updated_at = NOW()
+WHERE public_id = $2
+  AND lifecycle_state <> 'deleted'
+RETURNING id, public_id, name, schema_name, created_at, updated_at, deleted_at,
+          lifecycle_state, tenant_version, tenant_checksum,
+          reconcile_attempts, next_attempt_at, last_error_code, last_error_detail,
+          last_attempt_at, provisioned_at
+`
+
+type UpdateOrganizationIncludingDeletingParams struct {
+	Name     string    `json:"name"`
+	PublicID uuid.UUID `json:"public_id"`
+}
+
+func (q *Queries) UpdateOrganizationIncludingDeleting(ctx context.Context, arg UpdateOrganizationIncludingDeletingParams) (Org, error) {
+	row := q.db.QueryRow(ctx, updateOrganizationIncludingDeleting, arg.Name, arg.PublicID)
 	var i Org
 	err := row.Scan(
 		&i.ID,

@@ -125,11 +125,11 @@ multi-instance Redis limit/outage, security-header, and pprof topology tests pas
 **Artifacts:** `cmd/api/handlers/v1/`, exact route inventory, legacy deletion,
 live contract/isolation suite, browser-style M03 demonstration.
 
-- [ ] Mount the approved auth, organization, team, and task operations under
+- [x] Mount the approved auth, organization, team, and task operations under
   `/api/v1`; leave only live/ready health routes outside it.
-- [ ] Enforce request ID → trusted client → recovery → logs → envelope → rate
+- [x] Enforce request ID → trusted client → recovery → logs → envelope → rate
   limit → session → unsafe CSRF → service authorization order.
-- [ ] Remove root/public user CRUD-registration, unversioned routes, `X-Org-ID`,
+- [x] Remove root/public user CRUD-registration, unversioned routes, `X-Org-ID`,
   prototype files, JWT service/middleware/config/dependency, and bearer helpers.
 - [ ] Apply migrations, assign every active legacy organization an owner, verify
   all configuration/check lanes, run the browser demonstration, and record links.
@@ -150,7 +150,9 @@ JWT, unversioned, `X-Org-ID`, registration, or file aliases.
 [PR #30](https://github.com/CORTA-11/core-api/pull/30) at `08bf473`; D02 merged
 in [PR #31](https://github.com/CORTA-11/core-api/pull/31) at `b603fb1`; and D03
 merged in [PR #32](https://github.com/CORTA-11/core-api/pull/32) at `66a8406`.
-D04 is prepared in [PR #33](https://github.com/CORTA-11/core-api/pull/33)
-through `592b179`. D05 is complete on `security/m03-d05-http-envelope` through
-`ff3097b` (implementation record pending its PR). M03 remains in progress pending
-D06.
+D04 was prepared in [PR #33](https://github.com/CORTA-11/core-api/pull/33)
+through `592b179`. D05 merged in
+[PR #34](https://github.com/CORTA-11/core-api/pull/34) at `f248ea3`. D06 is open
+in [PR #35](https://github.com/CORTA-11/core-api/pull/35), implemented through
+`a94ffdd`; M03 remains in progress pending merge, deployment owner inventory,
+and merge evidence.

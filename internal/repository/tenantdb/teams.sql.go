@@ -7,6 +7,7 @@ package tenantdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -71,6 +72,92 @@ LIMIT $1
 
 func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
 	rows, err := q.db.Query(ctx, getTeams, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Team
+	for rows.Next() {
+		var i Team
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PublicID,
+			&i.IsQuarantine,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTeamsAfter = `-- name: GetTeamsAfter :many
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+FROM teams
+WHERE NOT is_quarantine
+  AND (created_at, public_id) > ($1, $2::uuid)
+ORDER BY created_at ASC, public_id ASC
+LIMIT $3
+`
+
+type GetTeamsAfterParams struct {
+	AfterCreatedAt time.Time `json:"after_created_at"`
+	AfterPublicID  uuid.UUID `json:"after_public_id"`
+	Limit          int32     `json:"limit"`
+}
+
+func (q *Queries) GetTeamsAfter(ctx context.Context, arg GetTeamsAfterParams) ([]Team, error) {
+	rows, err := q.db.Query(ctx, getTeamsAfter, arg.AfterCreatedAt, arg.AfterPublicID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Team
+	for rows.Next() {
+		var i Team
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Slug,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PublicID,
+			&i.IsQuarantine,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTeamsBefore = `-- name: GetTeamsBefore :many
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+FROM teams
+WHERE NOT is_quarantine
+  AND (created_at, public_id) < ($1, $2::uuid)
+ORDER BY created_at DESC, public_id DESC
+LIMIT $3
+`
+
+type GetTeamsBeforeParams struct {
+	BeforeCreatedAt time.Time `json:"before_created_at"`
+	BeforePublicID  uuid.UUID `json:"before_public_id"`
+	Limit           int32     `json:"limit"`
+}
+
+func (q *Queries) GetTeamsBefore(ctx context.Context, arg GetTeamsBeforeParams) ([]Team, error) {
+	rows, err := q.db.Query(ctx, getTeamsBefore, arg.BeforeCreatedAt, arg.BeforePublicID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

@@ -34,6 +34,16 @@ WHERE organization.public_id = sqlc.arg('organization_public_id')
   AND app_user.user_id = sqlc.arg('user_public_id')
   AND app_user.deleted_at IS NULL;
 
+-- name: GetOrganizationMembershipIncludingDeleted :one
+SELECT membership.org_id, membership.user_id, membership.role,
+       membership.created_at, membership.updated_at
+FROM public.org_user AS membership
+JOIN public.orgs AS organization ON organization.id = membership.org_id
+JOIN public.users AS app_user ON app_user.id = membership.user_id
+WHERE organization.public_id = sqlc.arg('organization_public_id')
+  AND app_user.user_id = sqlc.arg('user_public_id')
+  AND app_user.deleted_at IS NULL;
+
 -- name: AssignOrganizationOwner :one
 WITH locked_organization AS (
     SELECT id, public_id
@@ -76,6 +86,20 @@ FOR UPDATE OF organization, membership;
 SELECT count(*)
 FROM public.org_user
 WHERE org_id = sqlc.arg('org_id') AND role = 'owner';
+
+-- name: ListOwnerlessActiveOrganizationIDs :many
+SELECT organization.public_id
+FROM public.orgs AS organization
+WHERE organization.lifecycle_state = 'active'
+  AND organization.deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public.org_user AS membership
+      WHERE membership.org_id = organization.id
+        AND membership.role = 'owner'
+  )
+ORDER BY organization.public_id
+LIMIT sqlc.arg('limit');
 
 -- name: SetOrganizationMembershipRole :one
 UPDATE public.org_user

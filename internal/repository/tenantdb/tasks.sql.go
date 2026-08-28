@@ -7,6 +7,7 @@ package tenantdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -67,6 +68,90 @@ LIMIT $1
 
 func (q *Queries) GetTasks(ctx context.Context, limit int32) ([]Task, error) {
 	rows, err := q.db.Query(ctx, getTasks, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.TeamID,
+			&i.Description,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PublicID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTasksAfter = `-- name: GetTasksAfter :many
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
+FROM tasks
+WHERE (tasks.created_at, tasks.public_id) > ($1, $2::uuid)
+ORDER BY tasks.created_at ASC, tasks.public_id ASC
+LIMIT $3
+`
+
+type GetTasksAfterParams struct {
+	AfterCreatedAt time.Time `json:"after_created_at"`
+	AfterPublicID  uuid.UUID `json:"after_public_id"`
+	Limit          int32     `json:"limit"`
+}
+
+func (q *Queries) GetTasksAfter(ctx context.Context, arg GetTasksAfterParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, getTasksAfter, arg.AfterCreatedAt, arg.AfterPublicID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Task
+	for rows.Next() {
+		var i Task
+		if err := rows.Scan(
+			&i.ID,
+			&i.TeamID,
+			&i.Description,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.PublicID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTasksBefore = `-- name: GetTasksBefore :many
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
+FROM tasks
+WHERE (tasks.created_at, tasks.public_id) < ($1, $2::uuid)
+ORDER BY tasks.created_at DESC, tasks.public_id DESC
+LIMIT $3
+`
+
+type GetTasksBeforeParams struct {
+	BeforeCreatedAt time.Time `json:"before_created_at"`
+	BeforePublicID  uuid.UUID `json:"before_public_id"`
+	Limit           int32     `json:"limit"`
+}
+
+func (q *Queries) GetTasksBefore(ctx context.Context, arg GetTasksBeforeParams) ([]Task, error) {
+	rows, err := q.db.Query(ctx, getTasksBefore, arg.BeforeCreatedAt, arg.BeforePublicID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

@@ -93,6 +93,44 @@ func TestRunOwnerAssignRejectsInvalidOrAmbiguousTargets(t *testing.T) {
 	}
 }
 
+func TestRunOwnerVerifyReportsOnlyOwnerlessPublicOrganizationIDs(t *testing.T) {
+	t.Parallel()
+	first := uuid.MustParse("16f71004-92bd-47dc-b083-203fbdd70f38")
+	second := uuid.MustParse("aaa0dd02-ac71-4cc8-96dd-b9782c1f7c9b")
+	output := new(bytes.Buffer)
+	err := runOwnerVerify(context.Background(), nil, func(string) string { return "database-url" }, output,
+		func(_ context.Context, databaseURL string) ([]uuid.UUID, error) {
+			assert.Equal(t, "database-url", databaseURL)
+			return []uuid.UUID{first, second}, nil
+		})
+	assert.ErrorIs(t, err, errOwnerlessOrganizations)
+	assert.Equal(t, first.String()+"\n"+second.String()+"\n", output.String())
+}
+
+func TestRunOwnerVerifySucceedsWhenEveryActiveOrganizationHasAnOwner(t *testing.T) {
+	t.Parallel()
+	output := new(bytes.Buffer)
+	err := runOwnerVerify(context.Background(), nil, func(string) string { return "database-url" }, output,
+		func(context.Context, string) ([]uuid.UUID, error) { return nil, nil })
+	require.NoError(t, err)
+	assert.Empty(t, output.String())
+}
+
+func TestRunOwnerVerifyRejectsArgumentsAndRedactsDatabaseFailures(t *testing.T) {
+	t.Parallel()
+	called := false
+	err := runOwnerVerify(context.Background(), []string{"extra"}, func(string) string { return "database-url" },
+		new(bytes.Buffer), func(context.Context, string) ([]uuid.UUID, error) { called = true; return nil, nil })
+	assert.ErrorIs(t, err, errOwnerVerifyUsage)
+	assert.False(t, called)
+
+	secret := "database-internal-secret"
+	err = runOwnerVerify(context.Background(), nil, func(string) string { return "database-url" },
+		new(bytes.Buffer), func(context.Context, string) ([]uuid.UUID, error) { return nil, errors.New(secret) })
+	assert.ErrorIs(t, err, errOwnerVerifyFailed)
+	assert.NotContains(t, err.Error(), secret)
+}
+
 func (capture *createCapture) create(
 	_ context.Context,
 	_ string,
