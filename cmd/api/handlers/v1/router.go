@@ -41,19 +41,20 @@ type TeamTaskService interface {
 }
 
 type RouterConfig struct {
-	Manager          *session.Manager
-	Verifier         identity.CredentialVerifier
-	Hasher           identity.PasswordHasher
-	Organizations    OrganizationService
-	TeamTasks        TeamTaskService
-	Environment      string
-	Origins          httpx.OriginPolicy
-	TrustedProxies   httpx.TrustedProxies
-	Logger           *slog.Logger
-	LoginGuard       *ratelimit.LoginGuard
-	Administrative   func(http.Handler) http.Handler
-	ReadinessChecks  map[string]ReadinessCheck
-	ReadinessTimeout time.Duration
+	Manager           *session.Manager
+	Verifier          identity.CredentialVerifier
+	Hasher            identity.PasswordHasher
+	Organizations     OrganizationService
+	TeamTasks         TeamTaskService
+	Environment       string
+	Origins           httpx.OriginPolicy
+	TrustedProxies    httpx.TrustedProxies
+	Logger            *slog.Logger
+	LoginGuard        *ratelimit.LoginGuard
+	RegistrationGuard *ratelimit.RegistrationGuard
+	Administrative    func(http.Handler) http.Handler
+	ReadinessChecks   map[string]ReadinessCheck
+	ReadinessTimeout  time.Duration
 }
 
 type Router struct {
@@ -70,7 +71,8 @@ func NewRouter(config RouterConfig) *Router {
 	auth := &AuthHandler{
 		manager: config.Manager, verifier: config.Verifier, hasher: config.Hasher,
 		cookie: session.CookiePolicy(config.Environment), allowedOrigin: map[string]struct{}{},
-		loginGuard: config.LoginGuard,
+		loginGuard:    config.LoginGuard,
+		registerGuard: config.RegistrationGuard,
 	}
 	for _, origin := range config.Origins.Values() {
 		auth.allowedOrigin[origin] = struct{}{}
@@ -118,6 +120,8 @@ func (router *Router) compose() {
 
 func (router *Router) operation(operationID string) http.Handler {
 	switch operationID {
+	case "register":
+		return http.HandlerFunc(router.auth.register)
 	case "login":
 		return http.HandlerFunc(router.auth.login)
 	case "getCurrentSession":

@@ -10,6 +10,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -99,17 +100,80 @@ func (manager *Manager) Rotate(
 	return issued, nil
 }
 
+// Register creates a local account and its first browser session atomically.
+// Password hashing is deliberately performed by the caller and session token
+// generation is completed here before the database transaction is opened.
+func (manager *Manager) Register(
+	ctx context.Context,
+	email string,
+	displayName string,
+	passwordHash string,
+	passwordNormalization string,
+	oldToken string,
+	userAgent string,
+) (IssuedSession, error) {
+	token, raw, err := manager.codec.issue()
+	if err != nil {
+		return IssuedSession{}, ErrSessionDependency
+	}
+	tx, err := manager.database.Begin(ctx)
+	if err != nil {
+		return IssuedSession{}, ErrSessionDependency
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	queries := manager.queries.WithTx(tx)
+	user, err := queries.CreateUser(ctx, publicdb.CreateUserParams{
+		Email: email, PasswordHash: passwordHash, DisplayName: displayName,
+		PasswordNormalization: passwordNormalization,
+	})
+	if err != nil {
+		var postgresError *pgconn.PgError
+		if errors.As(err, &postgresError) && postgresError.Code == "23505" &&
+			postgresError.ConstraintName == "users_email_canonical_unique" {
+			return IssuedSession{}, ErrEmailAlreadyExists
+		}
+		return IssuedSession{}, ErrSessionDependency
+	}
+	if oldRaw, parseErr := parseToken(oldToken); parseErr == nil {
+		hash := hashToken(oldRaw)
+		if _, err := queries.RevokeSessionByHash(ctx, publicdb.RevokeSessionByHashParams{
+			Now: pgTimestamp(manager.now()), TokenHash: hash[:],
+		}); err != nil {
+			return IssuedSession{}, ErrSessionDependency
+		}
+	}
+	issued, err := manager.issuePreparedWithQueries(ctx, queries, user.UserID, userAgent, token, raw)
+	if err != nil {
+		return IssuedSession{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return IssuedSession{}, ErrSessionDependency
+	}
+	return issued, nil
+}
+
 func (manager *Manager) issueWithQueries(
 	ctx context.Context,
 	queries *publicdb.Queries,
 	userID uuid.UUID,
 	userAgent string,
 ) (IssuedSession, error) {
-	now := manager.now()
 	token, raw, err := manager.codec.issue()
 	if err != nil {
 		return IssuedSession{}, ErrSessionDependency
 	}
+	return manager.issuePreparedWithQueries(ctx, queries, userID, userAgent, token, raw)
+}
+
+func (manager *Manager) issuePreparedWithQueries(
+	ctx context.Context,
+	queries *publicdb.Queries,
+	userID uuid.UUID,
+	userAgent string,
+	token string,
+	raw []byte,
+) (IssuedSession, error) {
+	now := manager.now()
 	hash := hashToken(raw)
 	row, err := queries.CreateSession(ctx, publicdb.CreateSessionParams{
 		TokenHash: hash[:], UserAgent: NormalizeUserAgent(userAgent), Now: now,

@@ -12,6 +12,31 @@ tags:
   - name: Teams
   - name: Tasks
 paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Authentication]
+      operationId: register
+      summary: Create a local account and browser session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterRequest'}
+            example: {display_name: Researcher, email: researcher@example.com, password: correct-horse-battery-staple}
+      responses:
+        '201':
+          description: Account and session created
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionCookie'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuthResponse'}
+              examples: {standard: {$ref: '#/components/examples/AuthResponse'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/auth/login:
     post:
       tags: [Authentication]
@@ -558,6 +583,14 @@ components:
       properties:
         email: {type: string, format: email, maxLength: 254}
         password: {type: string, minLength: 1, maxLength: 1024}
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [display_name, email, password]
+      properties:
+        display_name: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, format: email, maxLength: 254}
+        password: {type: string, minLength: 15, maxLength: 128}
     PasswordRequest:
       type: object
       additionalProperties: false

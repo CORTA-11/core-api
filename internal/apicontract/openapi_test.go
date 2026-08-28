@@ -21,9 +21,9 @@ func TestOpenAPISourceContractIsValidAndClosed(t *testing.T) {
 	document, err := Load(context.Background(), contractPath())
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.2", document.OpenAPI)
-	assert.Len(t, document.Paths.Map(), 11)
+	assert.Len(t, document.Paths.Map(), 12)
 
-	legacyFragments := []string{"/users", "/files", "/register", "/pprof", "/api/v1/user", "X-Org-ID", "bearer", "jwt"}
+	legacyFragments := []string{"/users", "/files", "/pprof", "/api/v1/user", "X-Org-ID", "bearer", "jwt"}
 	for path := range document.Paths.Map() {
 		for _, legacy := range legacyFragments {
 			assert.NotContains(t, strings.ToLower(path), strings.ToLower(legacy))
@@ -46,6 +46,21 @@ func TestValidatorAcceptsDocumentedLoginRequest(t *testing.T) {
 	require.NoError(t, operation.ValidateRequest(context.Background()))
 }
 
+func TestValidatorAcceptsDocumentedRegistrationRequest(t *testing.T) {
+	document, err := Load(context.Background(), contractPath())
+	require.NoError(t, err)
+	validator, err := NewValidator(document)
+	require.NoError(t, err)
+	request, err := http.NewRequest(http.MethodPost, "http://example.test/api/v1/auth/register",
+		strings.NewReader(`{"display_name":"Researcher","email":"researcher@example.com","password":"password-value-1"}`))
+	require.NoError(t, err)
+	request.Header.Set("Content-Type", "application/json")
+	operation, err := validator.Match(request)
+	require.NoError(t, err)
+	assert.Equal(t, "register", operation.OperationID())
+	require.NoError(t, operation.ValidateRequest(context.Background()))
+}
+
 func TestOpenAPIOperationIDsAreUnique(t *testing.T) {
 	document, err := Load(context.Background(), contractPath())
 	require.NoError(t, err)
@@ -58,7 +73,7 @@ func TestOpenAPIOperationIDsAreUnique(t *testing.T) {
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	assert.Len(t, seen, 19)
+	assert.Len(t, seen, 20)
 }
 
 func TestInventoryMatchesOpenAPIBidirectionally(t *testing.T) {
@@ -111,7 +126,7 @@ func TestInventoryMetadataUsesClosedValues(t *testing.T) {
 		assert.Contains(t, []AuthenticationPolicy{AuthenticationPublic, AuthenticationRequired, AuthenticationLogout}, route.Authentication)
 		assert.Contains(t, []CSRFPolicy{CSRFNone, CSRFRequired}, route.CSRF)
 		assert.Contains(t, []BodyLimitClass{BodyNone, BodyAuthJSON, BodyJSON}, route.BodyLimit)
-		assert.Contains(t, []RateLimitClass{RateNone, RateLogin, RateAdministrative}, route.RateLimit)
+		assert.Contains(t, []RateLimitClass{RateNone, RateLogin, RateRegistration, RateAdministrative}, route.RateLimit)
 		if route.Permission != "" {
 			assert.True(t, authorization.ValidPermission(route.Permission), "%s permission", route.OperationID)
 		}

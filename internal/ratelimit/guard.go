@@ -21,6 +21,25 @@ type LoginGuard struct {
 	policies Policies
 }
 
+type RegistrationGuard struct {
+	limiter Limiter
+	policy  Policy
+}
+
+func NewRegistrationGuard(limiter Limiter, policy Policy) (*RegistrationGuard, error) {
+	if limiter == nil || policy.Validate() != nil {
+		return nil, errors.New("invalid registration guard configuration")
+	}
+	return &RegistrationGuard{limiter: limiter, policy: policy}, nil
+}
+
+func (guard *RegistrationGuard) Admit(ctx context.Context, address netip.Addr) (Decision, error) {
+	if !address.IsValid() {
+		return Decision{}, errors.New("trusted client address is required")
+	}
+	return guard.limiter.Check(ctx, guard.policy, address.Unmap().String(), true)
+}
+
 func NewLoginGuard(limiter Limiter, policies Policies) (*LoginGuard, error) {
 	if limiter == nil || policies.Validate() != nil {
 		return nil, errors.New("invalid login guard configuration")

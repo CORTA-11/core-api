@@ -119,6 +119,10 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("configure login rate limit: %w", err)
 	}
+	registrationGuard, err := ratelimit.NewRegistrationGuard(rateLimiter, cfg.RateLimits.RegistrationIP)
+	if err != nil {
+		return fmt.Errorf("configure registration rate limit: %w", err)
+	}
 	administrative, err := ratelimit.NewAdministrativeMiddleware(rateLimiter, cfg.RateLimits.Administrative)
 	if err != nil {
 		return fmt.Errorf("configure administrative rate limit: %w", err)
@@ -135,7 +139,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
 		Organizations: organizations, TeamTasks: teamTasks,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
-		Logger: logger, LoginGuard: loginGuard, Administrative: administrative,
+		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
 	})
 	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
