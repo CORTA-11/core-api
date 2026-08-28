@@ -72,8 +72,9 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 		SELECT concat_ws(':', tablename, tableowner)
 		FROM pg_tables
 		WHERE schemaname = 'public' AND tablename = ANY($1)
-		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "schema_migrations", "sessions"}}, []string{
+		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "organization_invitations", "schema_migrations", "sessions"}}, []string{
 		"org_user:synodus_owner",
+		"organization_invitations:synodus_owner",
 		"orgs:synodus_owner",
 		"schema_migrations:synodus_owner",
 		"sessions:synodus_owner",
@@ -81,6 +82,8 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{"public"}}, []string{
 		"public:org_user:DELETE", "public:org_user:INSERT", "public:org_user:SELECT", "public:org_user:UPDATE",
+		"public:organization_invitations:DELETE", "public:organization_invitations:INSERT",
+		"public:organization_invitations:SELECT", "public:organization_invitations:UPDATE",
 		"public:orgs:DELETE", "public:orgs:INSERT", "public:orgs:SELECT", "public:orgs:UPDATE",
 		"public:sessions:DELETE", "public:sessions:INSERT", "public:sessions:SELECT", "public:sessions:UPDATE",
 		"public:users:DELETE", "public:users:INSERT", "public:users:SELECT", "public:users:UPDATE",
@@ -89,10 +92,10 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 		SELECT concat_ws(':', sequencename, sequenceowner)
 		FROM pg_sequences
 		WHERE schemaname = 'public' AND sequencename = ANY($1)
-		ORDER BY sequencename`, []any{[]string{"orgs_id_seq", "sessions_id_seq", "users_id_seq"}}, []string{
-		"orgs_id_seq:synodus_owner", "sessions_id_seq:synodus_owner", "users_id_seq:synodus_owner",
+		ORDER BY sequencename`, []any{[]string{"organization_invitations_id_seq", "orgs_id_seq", "sessions_id_seq", "users_id_seq"}}, []string{
+		"organization_invitations_id_seq:synodus_owner", "orgs_id_seq:synodus_owner", "sessions_id_seq:synodus_owner", "users_id_seq:synodus_owner",
 	})
-	for _, sequence := range []string{"orgs_id_seq", "sessions_id_seq", "users_id_seq"} {
+	for _, sequence := range []string{"organization_invitations_id_seq", "orgs_id_seq", "sessions_id_seq", "users_id_seq"} {
 		fixture.assertSequencePrivileges(t, "public", sequence, true, true, false)
 	}
 }
@@ -170,7 +173,9 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM information_schema.routine_privileges
 		WHERE specific_schema = $1 AND grantee = 'synodus_runtime'
 		ORDER BY routine_name`, []any{schema}, []string{
+		"add_team_contributor:EXECUTE",
 		"create_team_with_creator:EXECUTE",
+		"list_bound_team_members:EXECUTE",
 		"synodus_app_user_public_id:EXECUTE",
 		"synodus_has_team_membership:EXECUTE",
 	})
@@ -180,9 +185,11 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
 		WHERE namespace.nspname = $1 AND procedure.proname = ANY($2)
 		ORDER BY procedure.proname`, []any{schema, []string{
-		"create_team_with_creator", "synodus_app_user_public_id", "synodus_has_team_membership",
+		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_has_team_membership",
 	}}, []string{
+		"add_team_contributor:synodus_owner",
 		"create_team_with_creator:synodus_owner",
+		"list_bound_team_members:synodus_owner",
 		"synodus_app_user_public_id:synodus_owner",
 		"synodus_has_team_membership:synodus_owner",
 	})
