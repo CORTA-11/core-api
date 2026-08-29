@@ -48,6 +48,8 @@ type TeamPage struct {
 
 type TeamMemberView struct {
 	UserID   uuid.UUID `json:"user_id"`
+	Name     string    `json:"name"`
+	Email    string    `json:"email"`
 	Role     string    `json:"role"`
 	JoinedAt time.Time `json:"joined_at"`
 }
@@ -55,13 +57,16 @@ type TeamMemberView struct {
 func (application *TeamTaskApplication) ListTeamMembers(ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID) ([]TeamMemberView, error) {
 	var result []TeamMemberView
 	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTeamMembersRead, func(queries *tenantdb.Queries) error {
-		rows, err := queries.ListTeamMembersAfter(ctx, 101)
+		rows, err := queries.ListBoundTeamMembers(ctx, 101)
 		if err != nil {
 			return err
 		}
 		result = make([]TeamMemberView, 0, len(rows))
 		for _, row := range rows {
-			result = append(result, TeamMemberView{UserID: row.UserPublicID, Role: row.Role, JoinedAt: row.CreatedAt})
+			result = append(result, TeamMemberView{
+				UserID: row.UserPublicID, Name: row.DisplayName, Email: row.Email,
+				Role: row.Role, JoinedAt: row.JoinedAt,
+			})
 		}
 		return nil
 	})
