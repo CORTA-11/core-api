@@ -31,8 +31,6 @@ CREATE TABLE team_members (
 CREATE INDEX team_members_user_team_idx
     ON team_members (user_public_id, team_id);
 
--- A task with no prior team has no trustworthy owner. Keep it in exactly one
--- internal team with no memberships instead of guessing from organization data.
 INSERT INTO teams (name, slug, is_quarantine)
 SELECT 'Synodus inaccessible task quarantine', '__synodus_task_quarantine__', true
 WHERE EXISTS (SELECT 1 FROM tasks WHERE team_id IS NULL);
@@ -47,9 +45,6 @@ ALTER TABLE tasks
 CREATE INDEX tasks_team_created_id_idx
     ON tasks (team_id, created_at DESC, id DESC);
 
--- Existing organization membership proves only current organization access.
--- D04 intentionally backfills the least-privileged closed role on every
--- ordinary existing team; role-to-permission mapping is deferred to M03.
 INSERT INTO team_members (team_id, user_public_id, role)
 SELECT team.id, app_user.user_id, 'viewer'
 FROM teams AS team
