@@ -10,21 +10,38 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const assigneeIsMember = `-- name: AssigneeIsMember :one
+SELECT EXISTS (
+    SELECT 1 FROM team_members
+    WHERE team_id = NULLIF(current_setting('app.team_id', true), '')::BIGINT
+      AND user_public_id = $1
+)
+`
+
+func (q *Queries) AssigneeIsMember(ctx context.Context, userPublicID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, assigneeIsMember, userPublicID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (team_id, description, status)
-VALUES (NULLIF(current_setting('app.team_id', true), '')::BIGINT, $1, $2)
-RETURNING id, team_id, description, status, created_at, updated_at, public_id
+INSERT INTO tasks (team_id, description, status, assignee_public_id)
+VALUES (NULLIF(current_setting('app.team_id', true), '')::BIGINT, $1, $2, $3)
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id
 `
 
 type CreateTaskParams struct {
-	Description string `json:"description"`
-	Status      string `json:"status"`
+	Description      string      `json:"description"`
+	Status           string      `json:"status"`
+	AssigneePublicID pgtype.UUID `json:"assignee_public_id"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, createTask, arg.Description, arg.Status)
+	row := q.db.QueryRow(ctx, createTask, arg.Description, arg.Status, arg.AssigneePublicID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -34,6 +51,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PublicID,
+		&i.AssigneePublicID,
 	)
 	return i, err
 }
@@ -41,7 +59,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 const deleteTask = `-- name: DeleteTask :one
 DELETE FROM tasks
 WHERE public_id = $1
-RETURNING id, team_id, description, status, created_at, updated_at, public_id
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id
 `
 
 func (q *Queries) DeleteTask(ctx context.Context, publicID uuid.UUID) (Task, error) {
@@ -55,12 +73,13 @@ func (q *Queries) DeleteTask(ctx context.Context, publicID uuid.UUID) (Task, err
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PublicID,
+		&i.AssigneePublicID,
 	)
 	return i, err
 }
 
 const getTasks = `-- name: GetTasks :many
-SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id
 FROM tasks
 ORDER BY tasks.created_at ASC, tasks.id ASC
 LIMIT $1
@@ -83,6 +102,7 @@ func (q *Queries) GetTasks(ctx context.Context, limit int32) ([]Task, error) {
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PublicID,
+			&i.AssigneePublicID,
 		); err != nil {
 			return nil, err
 		}
@@ -95,7 +115,7 @@ func (q *Queries) GetTasks(ctx context.Context, limit int32) ([]Task, error) {
 }
 
 const getTasksAfter = `-- name: GetTasksAfter :many
-SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id
 FROM tasks
 WHERE (tasks.created_at, tasks.public_id) > ($1, $2::uuid)
 ORDER BY tasks.created_at ASC, tasks.public_id ASC
@@ -125,6 +145,7 @@ func (q *Queries) GetTasksAfter(ctx context.Context, arg GetTasksAfterParams) ([
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PublicID,
+			&i.AssigneePublicID,
 		); err != nil {
 			return nil, err
 		}
@@ -137,7 +158,7 @@ func (q *Queries) GetTasksAfter(ctx context.Context, arg GetTasksAfterParams) ([
 }
 
 const getTasksBefore = `-- name: GetTasksBefore :many
-SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id
 FROM tasks
 WHERE (tasks.created_at, tasks.public_id) < ($1, $2::uuid)
 ORDER BY tasks.created_at DESC, tasks.public_id DESC
@@ -167,6 +188,7 @@ func (q *Queries) GetTasksBefore(ctx context.Context, arg GetTasksBeforeParams) 
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PublicID,
+			&i.AssigneePublicID,
 		); err != nil {
 			return nil, err
 		}
@@ -179,7 +201,7 @@ func (q *Queries) GetTasksBefore(ctx context.Context, arg GetTasksBeforeParams) 
 }
 
 const isolationProbeTasks = `-- name: IsolationProbeTasks :many
-SELECT id, team_id, description, status, created_at, updated_at, public_id
+SELECT id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id
 FROM tasks
 ORDER BY created_at ASC, id ASC
 LIMIT $1
@@ -204,6 +226,7 @@ func (q *Queries) IsolationProbeTasks(ctx context.Context, limit int32) ([]Task,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.PublicID,
+			&i.AssigneePublicID,
 		); err != nil {
 			return nil, err
 		}
@@ -215,23 +238,16 @@ func (q *Queries) IsolationProbeTasks(ctx context.Context, limit int32) ([]Task,
 	return items, nil
 }
 
-const updateTask = `-- name: UpdateTask :one
+const unassignTask = `-- name: UnassignTask :one
 UPDATE tasks
-SET description = $2,
-    status = $3,
+SET assignee_public_id = NULL,
     updated_at = NOW()
 WHERE public_id = $1
-RETURNING id, team_id, description, status, created_at, updated_at, public_id
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id
 `
 
-type UpdateTaskParams struct {
-	PublicID    uuid.UUID `json:"public_id"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-}
-
-func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
-	row := q.db.QueryRow(ctx, updateTask, arg.PublicID, arg.Description, arg.Status)
+func (q *Queries) UnassignTask(ctx context.Context, publicID uuid.UUID) (Task, error) {
+	row := q.db.QueryRow(ctx, unassignTask, publicID)
 	var i Task
 	err := row.Scan(
 		&i.ID,
@@ -241,6 +257,45 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PublicID,
+		&i.AssigneePublicID,
+	)
+	return i, err
+}
+
+const updateTask = `-- name: UpdateTask :one
+UPDATE tasks
+SET description = $2,
+    status = $3,
+    assignee_public_id = COALESCE($4, assignee_public_id),
+    updated_at = NOW()
+WHERE public_id = $1
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id
+`
+
+type UpdateTaskParams struct {
+	PublicID         uuid.UUID   `json:"public_id"`
+	Description      string      `json:"description"`
+	Status           string      `json:"status"`
+	AssigneePublicID pgtype.UUID `json:"assignee_public_id"`
+}
+
+func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, error) {
+	row := q.db.QueryRow(ctx, updateTask,
+		arg.PublicID,
+		arg.Description,
+		arg.Status,
+		arg.AssigneePublicID,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.Description,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PublicID,
+		&i.AssigneePublicID,
 	)
 	return i, err
 }

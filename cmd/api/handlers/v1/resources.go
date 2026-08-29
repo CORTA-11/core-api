@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -35,8 +37,38 @@ type createTeamRequest struct {
 }
 
 type taskRequest struct {
-	Description string `json:"description"`
-	Status      string `json:"status"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	AssigneeID  *uuid.UUID `json:"assignee_id"`
+	// assigneeSet separates an omitted field (keep current) from an explicit
+	// null (unassign); encoding/json cannot express that on a plain pointer.
+	assigneeSet bool
+}
+
+func (task *taskRequest) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Description string          `json:"description"`
+		Status      string          `json:"status"`
+		AssigneeID  json.RawMessage `json:"assignee_id"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	task.Description = raw.Description
+	task.Status = raw.Status
+	if raw.AssigneeID == nil {
+		return nil
+	}
+	task.assigneeSet = true
+	if bytes.Equal(bytes.TrimSpace(raw.AssigneeID), []byte("null")) {
+		return nil
+	}
+	var value uuid.UUID
+	if err := json.Unmarshal(raw.AssigneeID, &value); err != nil {
+		return err
+	}
+	task.AssigneeID = &value
+	return nil
 }
 
 type invitationRequest struct {
@@ -359,7 +391,7 @@ func (handler *ResourceHandler) createTask(writer http.ResponseWriter, request *
 		return
 	}
 	task, err := handler.teamTasks.CreateTask(request.Context(), authentication.Principal,
-		organizationID, teamID, input.Description, input.Status)
+		organizationID, teamID, input.Description, input.Status, input.AssigneeID)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return
@@ -380,7 +412,7 @@ func (handler *ResourceHandler) updateTask(writer http.ResponseWriter, request *
 		return
 	}
 	task, err := handler.teamTasks.UpdateTask(request.Context(), authentication.Principal,
-		organizationID, teamID, taskID, input.Description, input.Status)
+		organizationID, teamID, taskID, input.Description, input.Status, input.AssigneeID, input.assigneeSet)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return

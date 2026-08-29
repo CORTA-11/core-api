@@ -115,8 +115,8 @@ func TestTaskServiceGetTasksUsesServerOwnedLimit(t *testing.T) {
 	mockPool.ExpectQuery("(?s)GetTasks :many.*SELECT").
 		WithArgs(int32(100)).
 		WillReturnRows(pgxmock.NewRows([]string{
-			"id", "team_id", "description", "status", "created_at", "updated_at", "public_id",
-		}).AddRow(int64(1), int64(7), "Example", "todo", now, now, uuid.New()))
+			"id", "team_id", "description", "status", "created_at", "updated_at", "public_id", "assignee_public_id",
+		}).AddRow(int64(1), int64(7), "Example", "todo", now, now, uuid.New(), nil))
 
 	service := NewTaskService(immediateTeamExecutor{queries: tenantdb.New(mockPool)})
 	tasks, err := service.GetTasks(context.Background(), tenancy.TeamContext{})

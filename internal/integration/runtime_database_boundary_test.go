@@ -164,7 +164,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
 		WHERE namespace.nspname = $1 AND relation.relname = ANY($2)
 		ORDER BY relation.relname, constraint_name.conname`, []any{schema, []string{"teams", "team_members", "tasks"}}, []string{
-		"tasks:tasks_created_at_not_null:n", "tasks:tasks_description_not_null:n", "tasks:tasks_id_not_null:n",
+		"tasks:tasks_assignee_public_id_fk:f", "tasks:tasks_created_at_not_null:n", "tasks:tasks_description_not_null:n", "tasks:tasks_id_not_null:n",
 		"tasks:tasks_pk:p", "tasks:tasks_public_id_not_null:n", "tasks:tasks_public_id_unique:u",
 		"tasks:tasks_status_check:c", "tasks:tasks_status_not_null:n", "tasks:tasks_team_fk:f",
 		"tasks:tasks_team_id_not_null:n", "tasks:tasks_updated_at_not_null:n",
@@ -183,7 +183,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_indexes
 		WHERE schemaname = $1 AND tablename = ANY($2)
 		ORDER BY tablename, indexname`, []any{schema, []string{"teams", "team_members", "tasks"}}, []string{
-		"tasks:tasks_pk", "tasks:tasks_public_id_unique", "tasks:tasks_team_created_id_idx",
+		"tasks:tasks_assignee_team_idx", "tasks:tasks_pk", "tasks:tasks_public_id_unique", "tasks:tasks_team_created_id_idx",
 		"team_members:team_members_pk", "team_members:team_members_user_team_idx",
 		"teams:teams_name_unique", "teams:teams_pk", "teams:teams_public_id_unique", "teams:teams_single_quarantine_idx", "teams:teams_slug_unique",
 	})

@@ -441,7 +441,7 @@ paths:
               schema: {$ref: '#/components/schemas/TaskPage'}
               example:
                 items:
-                  - {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+                  - {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
                 next_cursor: null
                 previous_cursor: null
         '400': {$ref: '#/components/responses/InvalidRequest'}
@@ -1051,11 +1051,12 @@ components:
     Task:
       type: object
       additionalProperties: false
-      required: [id, description, status, created_at, updated_at]
+      required: [id, description, status, assignee_id, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/PublicID'}
         description: {type: string, minLength: 1, maxLength: 4096}
         status: {type: string, enum: [todo, in_progress, done]}
+        assignee_id: {type: [string, 'null'], format: uuid}
         created_at: {$ref: '#/components/schemas/Timestamp'}
         updated_at: {$ref: '#/components/schemas/Timestamp'}
     TaskWrite:
@@ -1065,6 +1066,8 @@ components:
       properties:
         description: {type: string, minLength: 1, maxLength: 4096}
         status: {type: string, enum: [todo, in_progress, done]}
+        # Absent keeps the current assignee; null unassigns; a value reassigns.
+        assignee_id: {type: [string, 'null'], format: uuid}
     AvailabilityWindow:
       type: object
       additionalProperties: false
@@ -1211,7 +1214,7 @@ components:
     Team:
       value: {id: 22222222-2222-4222-8222-222222222222, name: Reproducibility Group, slug: reproducibility-group, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
     Task:
-      value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+      value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: 44444444-4444-4444-8444-444444444444, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
     InvalidRequestProblem:
       value: {type: /problems/invalid-request, title: Invalid request, status: 400, detail: The request is invalid., request_id: 55555555-5555-4555-8555-555555555555, violations: [{field: body, code: malformed, message: The request body must contain one valid JSON object.}]}
     UnauthenticatedProblem:

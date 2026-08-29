@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const (
@@ -104,11 +105,12 @@ func classifyTeamMemberError(err error) error {
 }
 
 type TaskView struct {
-	ID          uuid.UUID `json:"id"`
-	Description string    `json:"description"`
-	Status      string    `json:"status"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          uuid.UUID  `json:"id"`
+	Description string     `json:"description"`
+	Status      string     `json:"status"`
+	AssigneeID  *uuid.UUID `json:"assignee_id"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 type TaskPage struct {
@@ -285,6 +287,7 @@ func (application *TeamTaskApplication) ListTasks(
 
 func (application *TeamTaskApplication) CreateTask(
 	ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID, description, status string,
+	assigneeID *uuid.UUID,
 ) (TaskView, error) {
 	description, status, err := validateTaskWrite(description, status)
 	if err != nil {
@@ -297,8 +300,13 @@ func (application *TeamTaskApplication) CreateTask(
 	var row tenantdb.Task
 	err = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTaskCreate,
 		func(queries *tenantdb.Queries) error {
+			if queryErr := validateAssigneeMembership(ctx, queries, assigneeID); queryErr != nil {
+				return queryErr
+			}
 			var queryErr error
-			row, queryErr = queries.CreateTask(ctx, tenantdb.CreateTaskParams{Description: description, Status: status})
+			row, queryErr = queries.CreateTask(ctx, tenantdb.CreateTaskParams{
+				Description: description, Status: status, AssigneePublicID: assigneeValue(assigneeID),
+			})
 			return classifyConflict(queryErr)
 		})
 	if err != nil {
@@ -309,6 +317,7 @@ func (application *TeamTaskApplication) CreateTask(
 
 func (application *TeamTaskApplication) UpdateTask(
 	ctx context.Context, principal session.Principal, organizationID, teamID, taskID uuid.UUID, description, status string,
+	assigneeID *uuid.UUID, setAssignee bool,
 ) (TaskView, error) {
 	description, status, err := validateTaskWrite(description, status)
 	if err != nil {
@@ -325,9 +334,16 @@ func (application *TeamTaskApplication) UpdateTask(
 	err = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTaskUpdate,
 		func(queries *tenantdb.Queries) error {
 			var queryErr error
-			row, queryErr = queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{
-				PublicID: taskID, Description: description, Status: status,
-			})
+			if setAssignee && assigneeID == nil {
+				row, queryErr = queries.UnassignTask(ctx, taskID)
+			} else {
+				if queryErr = validateAssigneeMembership(ctx, queries, assigneeID); queryErr != nil {
+					return queryErr
+				}
+				row, queryErr = queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{
+					PublicID: taskID, Description: description, Status: status, AssigneePublicID: assigneeValue(assigneeID),
+				})
+			}
 			if errors.Is(queryErr, pgx.ErrNoRows) {
 				return authorization.ErrResourceNotFound
 			}
@@ -473,6 +489,30 @@ func validateTaskWrite(description, status string) (string, string, error) {
 	}
 }
 
+// validateAssigneeMembership rejects assignees outside the team an update or
+// insert runs under; memberOfTeam is the security-definer client bound to the
+// same app.team_id as the write.
+func validateAssigneeMembership(ctx context.Context, queries *tenantdb.Queries, assigneeID *uuid.UUID) error {
+	if assigneeID == nil {
+		return nil
+	}
+	member, err := queries.AssigneeIsMember(ctx, *assigneeID)
+	if err != nil {
+		return err
+	}
+	if !member {
+		return ErrInvalidInput
+	}
+	return nil
+}
+
+func assigneeValue(assigneeID *uuid.UUID) pgtype.UUID {
+	if assigneeID == nil {
+		return pgtype.UUID{}
+	}
+	return pgtype.UUID{Bytes: [16]byte(*assigneeID), Valid: true}
+}
+
 func teamView(row tenantdb.Team) TeamView {
 	return TeamView{ID: row.PublicID, Name: row.Name, Slug: row.Slug,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
@@ -480,5 +520,14 @@ func teamView(row tenantdb.Team) TeamView {
 
 func taskView(row tenantdb.Task) TaskView {
 	return TaskView{ID: row.PublicID, Description: row.Description, Status: row.Status,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		AssigneeID: publicIDOf(row.AssigneePublicID),
+		CreatedAt:  row.CreatedAt, UpdatedAt: row.UpdatedAt}
+}
+
+func publicIDOf(value pgtype.UUID) *uuid.UUID {
+	if !value.Valid {
+		return nil
+	}
+	converted := uuid.UUID(value.Bytes)
+	return &converted
 }
