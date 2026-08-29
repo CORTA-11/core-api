@@ -54,6 +54,17 @@ type InvitationService interface {
 	Consume(context.Context, session.Principal, string, bool) error
 }
 
+type ResourceBookingService interface {
+	List(context.Context, session.Principal, uuid.UUID) ([]service.ResourceView, error)
+	Create(context.Context, session.Principal, uuid.UUID, service.ResourceWrite) (service.ResourceView, error)
+	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.ResourcePatch) (service.ResourceView, error)
+	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
+	ListBookings(context.Context, session.Principal, uuid.UUID) ([]service.BookingView, error)
+	Request(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, time.Time, time.Time, string) (service.ResourceRequestView, error)
+	ListRequests(context.Context, session.Principal, uuid.UUID) ([]service.ResourceRequestView, error)
+	Decide(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.ResourceRequestView, error)
+}
+
 type RouterConfig struct {
 	Manager             *session.Manager
 	Verifier            identity.CredentialVerifier
@@ -62,6 +73,7 @@ type RouterConfig struct {
 	OrganizationMembers OrganizationMemberService
 	TeamTasks           TeamTaskService
 	Invitations         InvitationService
+	ResourceBookings    ResourceBookingService
 	Environment         string
 	Origins             httpx.OriginPolicy
 	TrustedProxies      httpx.TrustedProxies
@@ -94,7 +106,7 @@ func NewRouter(config RouterConfig) *Router {
 		auth.allowedOrigin[origin] = struct{}{}
 	}
 	router := &Router{mux: chi.NewRouter(), config: config, auth: auth}
-	router.resources = &ResourceHandler{organizations: config.Organizations, organizationMembers: config.OrganizationMembers, teamTasks: config.TeamTasks, invitations: config.Invitations}
+	router.resources = &ResourceHandler{organizations: config.Organizations, organizationMembers: config.OrganizationMembers, teamTasks: config.TeamTasks, invitations: config.Invitations, resourceBookings: config.ResourceBookings}
 	router.compose()
 	return router
 }
@@ -194,6 +206,22 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.listTeamMembers)
 	case "addTeamMember":
 		return http.HandlerFunc(router.resources.addTeamMember)
+	case "listResources":
+		return http.HandlerFunc(router.resources.listResources)
+	case "createResource":
+		return http.HandlerFunc(router.resources.createResource)
+	case "updateResource":
+		return http.HandlerFunc(router.resources.updateResource)
+	case "deleteResource":
+		return http.HandlerFunc(router.resources.deleteResource)
+	case "listBookings":
+		return http.HandlerFunc(router.resources.listBookings)
+	case "createResourceRequest":
+		return http.HandlerFunc(router.resources.createResourceRequest)
+	case "listResourceRequests":
+		return http.HandlerFunc(router.resources.listResourceRequests)
+	case "decideResourceRequest":
+		return http.HandlerFunc(router.resources.decideResourceRequest)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -247,7 +275,11 @@ func isResourceOperation(operationID string) bool {
 		operationID == "listOrganizationMembers" ||
 		operationID == "revokeOrganizationInvitation" || operationID == "acceptCurrentOrganizationInvitation" ||
 		operationID == "declineCurrentOrganizationInvitation" ||
-		operationID == "listTeamMembers" || operationID == "addTeamMember"
+		operationID == "listTeamMembers" || operationID == "addTeamMember" ||
+		operationID == "listResources" || operationID == "createResource" ||
+		operationID == "updateResource" || operationID == "deleteResource" ||
+		operationID == "listBookings" || operationID == "createResourceRequest" ||
+		operationID == "listResourceRequests" || operationID == "decideResourceRequest"
 }
 
 func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {

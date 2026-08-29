@@ -29,7 +29,7 @@ func mapDBTeamToDomain(row tenantdb.Team) Team {
 
 type TeamService interface {
 	GetTeams(ctx context.Context, organization tenancy.OrganizationContext) ([]Team, error)
-	CreateTeam(ctx context.Context, organization tenancy.OrganizationContext, name string) (*Team, error)
+	CreateTeam(ctx context.Context, organization tenancy.OrganizationContext, name, leaderEmail string) (*Team, error)
 }
 
 type organizationExecutor interface {

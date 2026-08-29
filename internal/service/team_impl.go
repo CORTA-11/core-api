@@ -37,12 +37,12 @@ func (t *teamService) GetTeams(ctx context.Context, organization tenancy.Organiz
 	return domainTeams, nil
 }
 
-func (t *teamService) CreateTeam(ctx context.Context, organization tenancy.OrganizationContext, name string) (*Team, error) {
+func (t *teamService) CreateTeam(ctx context.Context, organization tenancy.OrganizationContext, name, leaderEmail string) (*Team, error) {
 	slug := strings.ReplaceAll(strings.ToLower(name), " ", "-")
 	var team tenantdb.Team
 	err := t.executor.WithinOrganization(ctx, organization, func(queries *tenantdb.Queries) error {
 		var queryErr error
-		team, queryErr = queries.CreateTeamWithCreator(ctx, tenantdb.CreateTeamWithCreatorParams{Name: name, Slug: slug})
+		team, queryErr = queries.CreateTeamWithCreator(ctx, tenantdb.CreateTeamWithCreatorParams{Name: name, Slug: slug, LeaderEmail: leaderEmail})
 		return queryErr
 	})
 	if err != nil {

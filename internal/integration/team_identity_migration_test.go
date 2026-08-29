@@ -105,7 +105,9 @@ func TestTeamIdentityMigrationDownFailsSafely(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _, _ = migrator.Close() })
 	require.NoError(t, migrator.Up())
-	err = migrator.Steps(-1)
+	// The resource migration is reversible; the next historical migration is
+	// intentionally irreversible and must still fail safely.
+	err = migrator.Steps(-2)
 	assert.Error(t, err)
 	assert.False(t, errors.Is(err, migrate.ErrNoChange))
 }

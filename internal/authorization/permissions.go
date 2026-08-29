@@ -8,17 +8,19 @@ func OrganizationAllows(role OrganizationRole, permission Permission) bool {
 	case OrganizationRoleOwner:
 		switch permission {
 		case PermissionOrgRead, PermissionOrgUpdate, PermissionOrgDelete, PermissionOrgRestore,
-			PermissionOrgMembersRead, PermissionOrgMembersManage, PermissionOrgOwnersManage, PermissionTeamCreate:
+			PermissionOrgMembersRead, PermissionOrgMembersManage, PermissionOrgOwnersManage, PermissionTeamCreate,
+			PermissionResourceRead, PermissionResourceManage, PermissionResourceDecide:
 			return true
 		}
 	case OrganizationRoleAdministrator:
 		switch permission {
 		case PermissionOrgRead, PermissionOrgUpdate, PermissionOrgMembersRead,
-			PermissionOrgMembersManage, PermissionTeamCreate:
+			PermissionOrgMembersManage, PermissionTeamCreate,
+			PermissionResourceRead, PermissionResourceManage, PermissionResourceDecide:
 			return true
 		}
 	case OrganizationRoleMember:
-		return permission == PermissionOrgRead
+		return permission == PermissionOrgRead || permission == PermissionResourceRead
 	}
 	return false
 }
@@ -34,7 +36,7 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 			PermissionTeamMembersRead, PermissionTeamMembersManage,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
-			PermissionAuditRead, PermissionRealtimeConnect:
+			PermissionAuditRead, PermissionRealtimeConnect, PermissionResourceRequest:
 			return true
 		}
 	case TeamRoleResearchLead:

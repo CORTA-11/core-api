@@ -108,12 +108,16 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_tables
 		WHERE schemaname = $1
 		ORDER BY tablename`, []any{schema}, []string{
+		"resource_requests:synodus_owner",
+		"resources:synodus_owner",
 		"schema_migrations:synodus_owner",
 		"tasks:synodus_owner",
 		"team_members:synodus_owner",
 		"teams:synodus_owner",
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{schema}}, []string{
+		schema + ":resource_requests:DELETE", schema + ":resource_requests:INSERT", schema + ":resource_requests:SELECT", schema + ":resource_requests:UPDATE",
+		schema + ":resources:DELETE", schema + ":resources:INSERT", schema + ":resources:SELECT", schema + ":resources:UPDATE",
 		schema + ":tasks:DELETE", schema + ":tasks:INSERT", schema + ":tasks:SELECT", schema + ":tasks:UPDATE",
 		schema + ":team_members:SELECT",
 		schema + ":teams:SELECT",
@@ -123,19 +127,24 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_class AS relation
 		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
 		WHERE namespace.nspname = $1 AND relation.relname = ANY($2)
-		ORDER BY relation.relname`, []any{schema, []string{"teams", "team_members", "tasks"}}, []string{
-		"tasks:t:t", "team_members:t:t", "teams:t:t",
+		ORDER BY relation.relname`, []any{schema, []string{"teams", "team_members", "tasks", "resources", "resource_requests"}}, []string{
+		"resource_requests:t:t", "resources:t:t", "tasks:t:t", "team_members:t:t", "teams:t:t",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', tablename, policyname, cmd, array_to_string(roles, ','))
 		FROM pg_policies
 		WHERE schemaname = $1
 		ORDER BY tablename, policyname`, []any{schema}, []string{
+		"resource_requests:resource_requests_owner_maintenance:ALL:synodus_owner",
+		"resource_requests:resource_requests_runtime_access:ALL:synodus_runtime",
+		"resources:resources_owner_maintenance:ALL:synodus_owner",
+		"resources:resources_runtime_access:ALL:synodus_runtime",
 		"tasks:tasks_owner_maintenance:ALL:synodus_owner",
 		"tasks:tasks_runtime_access:ALL:synodus_runtime",
 		"team_members:team_members_owner_maintenance:ALL:synodus_owner",
 		"team_members:team_members_runtime_select:SELECT:synodus_runtime",
 		"teams:teams_owner_maintenance:ALL:synodus_owner",
+		"teams:teams_runtime_organization_select:SELECT:synodus_runtime",
 		"teams:teams_runtime_select:SELECT:synodus_runtime",
 	})
 	assertCatalogRows(t, fixture, `
@@ -175,9 +184,13 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		ORDER BY routine_name`, []any{schema}, []string{
 		"add_team_contributor:EXECUTE",
 		"create_team_with_creator:EXECUTE",
+		"create_team_with_creator:EXECUTE",
 		"list_bound_team_members:EXECUTE",
 		"synodus_app_user_public_id:EXECUTE",
+		"synodus_current_organization_role:EXECUTE",
+		"synodus_has_organization_membership:EXECUTE",
 		"synodus_has_team_membership:EXECUTE",
+		"synodus_user_display_name:EXECUTE",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', procedure.proname, pg_get_userbyid(procedure.proowner))
@@ -189,6 +202,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 	}}, []string{
 		"add_team_contributor:synodus_owner",
 		"create_team_with_creator:synodus_owner",
+		"create_team_with_creator:synodus_owner",
 		"list_bound_team_members:synodus_owner",
 		"synodus_app_user_public_id:synodus_owner",
 		"synodus_has_team_membership:synodus_owner",
@@ -197,9 +211,11 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		SELECT concat_ws(':', sequencename, sequenceowner)
 		FROM pg_sequences
 		WHERE schemaname = $1 AND sequencename = ANY($2)
-		ORDER BY sequencename`, []any{schema, []string{"tasks_id_seq", "teams_id_seq"}}, []string{
-		"tasks_id_seq:synodus_owner", "teams_id_seq:synodus_owner",
+		ORDER BY sequencename`, []any{schema, []string{"resource_requests_id_seq", "resources_id_seq", "tasks_id_seq", "teams_id_seq"}}, []string{
+		"resource_requests_id_seq:synodus_owner", "resources_id_seq:synodus_owner", "tasks_id_seq:synodus_owner", "teams_id_seq:synodus_owner",
 	})
+	fixture.assertSequencePrivileges(t, schema, "resource_requests_id_seq", true, true, false)
+	fixture.assertSequencePrivileges(t, schema, "resources_id_seq", true, true, false)
 	fixture.assertSequencePrivileges(t, schema, "tasks_id_seq", true, true, false)
 	fixture.assertSequencePrivileges(t, schema, "teams_id_seq", false, false, false)
 

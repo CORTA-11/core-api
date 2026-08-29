@@ -82,4 +82,12 @@ var Routes = [...]Route{
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks", "createTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskCreate, BodyJSON, RateNone},
 	{http.MethodPatch, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}", "updateTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskUpdate, BodyJSON, RateNone},
 	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks/{task_id}", "deleteTask", AuthenticationRequired, CSRFRequired, authorization.PermissionTaskDelete, BodyNone, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/resources", "listResources", AuthenticationRequired, CSRFNone, authorization.PermissionResourceRead, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/resources", "createResource", AuthenticationRequired, CSRFRequired, authorization.PermissionResourceManage, BodyJSON, RateAdministrative},
+	{http.MethodPatch, "/api/v1/orgs/{org_id}/resources/{resource_id}", "updateResource", AuthenticationRequired, CSRFRequired, authorization.PermissionResourceManage, BodyJSON, RateAdministrative},
+	{http.MethodDelete, "/api/v1/orgs/{org_id}/resources/{resource_id}", "deleteResource", AuthenticationRequired, CSRFRequired, authorization.PermissionResourceManage, BodyNone, RateAdministrative},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/bookings", "listBookings", AuthenticationRequired, CSRFNone, authorization.PermissionResourceRead, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/resources/{resource_id}/requests", "createResourceRequest", AuthenticationRequired, CSRFRequired, authorization.PermissionResourceRequest, BodyJSON, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/resource-requests", "listResourceRequests", AuthenticationRequired, CSRFNone, authorization.PermissionResourceRead, BodyNone, RateNone},
+	{http.MethodPatch, "/api/v1/orgs/{org_id}/resource-requests/{request_id}", "decideResourceRequest", AuthenticationRequired, CSRFRequired, authorization.PermissionResourceDecide, BodyJSON, RateAdministrative},
 }

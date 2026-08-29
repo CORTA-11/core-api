@@ -36,6 +36,10 @@ const (
 	PermissionFileDelete        Permission = "file.delete"
 	PermissionAuditRead         Permission = "audit.read"
 	PermissionRealtimeConnect   Permission = "realtime.connect"
+	PermissionResourceRead      Permission = "resource.read"
+	PermissionResourceManage    Permission = "resource.manage"
+	PermissionResourceRequest   Permission = "resource.request"
+	PermissionResourceDecide    Permission = "resource.decide"
 )
 
 var permissions = [...]Permission{
@@ -46,6 +50,7 @@ var permissions = [...]Permission{
 	PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 	PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
 	PermissionAuditRead, PermissionRealtimeConnect,
+	PermissionResourceRead, PermissionResourceManage, PermissionResourceRequest, PermissionResourceDecide,
 }
 
 type OrganizationRole string

@@ -20,6 +20,7 @@ type ResourceHandler struct {
 	organizationMembers OrganizationMemberService
 	teamTasks           TeamTaskService
 	invitations         InvitationService
+	resourceBookings    ResourceBookingService
 }
 
 type nameRequest struct {

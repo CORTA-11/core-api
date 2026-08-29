@@ -86,7 +86,7 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 
 	teamResponse := cutoverRequest(t, client, http.MethodPost,
 		server.URL+"/api/v1/orgs/"+organization.publicID.String()+"/teams",
-		`{"name":"Browser Research Team"}`, loginBody.CSRFToken, "https://app.example")
+		`{"name":"Browser Research Team","leader_email":"shared@tenant-boundary.example.test"}`, loginBody.CSRFToken, "https://app.example")
 	require.Equal(t, http.StatusCreated, teamResponse.status, string(teamResponse.body))
 	var team struct {
 		ID uuid.UUID `json:"id"`

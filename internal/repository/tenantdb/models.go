@@ -8,7 +8,35 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type Resource struct {
+	ID           int64     `json:"id"`
+	PublicID     uuid.UUID `json:"public_id"`
+	Name         string    `json:"name"`
+	Code         string    `json:"code"`
+	Kind         string    `json:"kind"`
+	Location     string    `json:"location"`
+	Enabled      bool      `json:"enabled"`
+	Availability []byte    `json:"availability"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type ResourceRequest struct {
+	ID          int64              `json:"id"`
+	PublicID    uuid.UUID          `json:"public_id"`
+	ResourceID  int64              `json:"resource_id"`
+	TeamID      int64              `json:"team_id"`
+	RequestedBy uuid.UUID          `json:"requested_by"`
+	StartTime   time.Time          `json:"start_time"`
+	EndTime     time.Time          `json:"end_time"`
+	Purpose     string             `json:"purpose"`
+	Status      string             `json:"status"`
+	CreatedAt   time.Time          `json:"created_at"`
+	DecidedAt   pgtype.Timestamptz `json:"decided_at"`
+}
 
 type Task struct {
 	ID          int64     `json:"id"`

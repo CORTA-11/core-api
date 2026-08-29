@@ -136,6 +136,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	invitations := service.NewInvitationApplication(pool, invitationBinding)
 	go runInvitationCleanup(ctx, logger, invitations)
 	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
+	resourceBookings := service.NewResourceApplication(authorizer)
 	readiness := map[string]v1.ReadinessCheck{
 		"postgres": pool.Ping,
 		"minio": func(checkCtx context.Context) error {
@@ -144,7 +145,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
-		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Invitations: invitations,
+		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Invitations: invitations, ResourceBookings: resourceBookings,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
