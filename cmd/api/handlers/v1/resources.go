@@ -21,6 +21,8 @@ type ResourceHandler struct {
 	teamTasks           TeamTaskService
 	invitations         InvitationService
 	resourceBookings    ResourceBookingService
+	keys                KeyService
+	files               FileService
 }
 
 type nameRequest struct {

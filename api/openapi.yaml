@@ -641,6 +641,190 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalFailure'}
         '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/auth/public-key:
+    put:
+      tags: [Authentication]
+      operationId: upsertPublicKey
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [public_key]
+              properties:
+                public_key: {type: string}
+      responses:
+        '200':
+          description: Public key registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: {type: string}
+                  public_key: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/members/public-keys:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    get:
+      tags: [Teams]
+      operationId: getPublicKeysForTeam
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Public keys of team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    user_id: {type: string}
+                    public_key: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/keys:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: upsertTeamSharedKeys
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                required: [user_id, encrypted_key, key_version]
+                properties:
+                  user_id: {type: string}
+                  encrypted_key: {type: string}
+                  key_version: {type: integer}
+      responses:
+        '204': {description: Keys upserted}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+    get:
+      tags: [Teams]
+      operationId: listTeamSharedKeysForUser
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Shared keys of the current user for the team
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    team_id: {type: string}
+                    user_id: {type: string}
+                    encrypted_key: {type: string}
+                    key_version: {type: integer}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/files:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: uploadFile
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, key_version, iv, file]
+              properties:
+                name: {type: string}
+                key_version: {type: integer}
+                iv: {type: string}
+                file: {type: string, format: binary}
+      responses:
+        '201':
+          description: File uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  name: {type: string}
+                  size: {type: integer}
+                  content_type: {type: string}
+                  iv: {type: string}
+                  key_version: {type: integer}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+    get:
+      tags: [Teams]
+      operationId: listFiles
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: List of team files
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: string}
+                    name: {type: string}
+                    size: {type: integer}
+                    content_type: {type: string}
+                    iv: {type: string}
+                    key_version: {type: integer}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/files/{file_id}:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+      - name: file_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/PublicID'}
+    get:
+      tags: [Teams]
+      operationId: downloadFile
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: File stream response
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+    delete:
+      tags: [Teams]
+      operationId: deleteFile
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '204': {description: File deleted}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
 components:
   securitySchemes:
     sessionCookie:

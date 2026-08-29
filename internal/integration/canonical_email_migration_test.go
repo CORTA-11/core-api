@@ -109,7 +109,7 @@ func TestCanonicalEmailIdentityEnforcesGlobalUniquenessAndRefusesDown(t *testing
 	pool := testsupport.OpenPostgres(t)
 	testsupport.ResetPostgres(t, pool)
 	migrator := publicMigratorAt(t)
-	require.NoError(t, migrator.Up())
+	require.NoError(t, migrator.Steps(6))
 
 	ctx := context.Background()
 	_, err := pool.Exec(ctx, `

@@ -11,6 +11,22 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type File struct {
+	ID          int64              `json:"id"`
+	PublicID    uuid.UUID          `json:"public_id"`
+	TeamID      int64              `json:"team_id"`
+	Name        string             `json:"name"`
+	Size        int64              `json:"size"`
+	ContentType string             `json:"content_type"`
+	ObjectKey   string             `json:"object_key"`
+	Iv          []byte             `json:"iv"`
+	KeyVersion  int32              `json:"key_version"`
+	UploadedBy  uuid.UUID          `json:"uploaded_by"`
+	CreatedAt   time.Time          `json:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at"`
+	DeletedAt   pgtype.Timestamptz `json:"deleted_at"`
+}
+
 type Resource struct {
 	ID           int64     `json:"id"`
 	PublicID     uuid.UUID `json:"public_id"`
@@ -64,4 +80,12 @@ type TeamMember struct {
 	Role         string    `json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+type TeamSharedKey struct {
+	TeamID       int64     `json:"team_id"`
+	UserID       uuid.UUID `json:"user_id"`
+	EncryptedKey string    `json:"encrypted_key"`
+	KeyVersion   int32     `json:"key_version"`
+	CreatedAt    time.Time `json:"created_at"`
 }

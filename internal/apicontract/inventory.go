@@ -30,6 +30,7 @@ const (
 	BodyNone     BodyLimitClass = "none"
 	BodyAuthJSON BodyLimitClass = "auth-json-4k"
 	BodyJSON     BodyLimitClass = "resource-json-64k"
+	BodyFile     BodyLimitClass = "file-multipart-10m"
 )
 
 type RateLimitClass string
@@ -90,4 +91,12 @@ var Routes = [...]Route{
 	{http.MethodPost, "/api/v1/orgs/{org_id}/resources/{resource_id}/requests", "createResourceRequest", AuthenticationRequired, CSRFRequired, authorization.PermissionResourceRequest, BodyJSON, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/resource-requests", "listResourceRequests", AuthenticationRequired, CSRFNone, authorization.PermissionResourceRead, BodyNone, RateNone},
 	{http.MethodPatch, "/api/v1/orgs/{org_id}/resource-requests/{request_id}", "decideResourceRequest", AuthenticationRequired, CSRFRequired, authorization.PermissionResourceDecide, BodyJSON, RateAdministrative},
+	{http.MethodPut, "/api/v1/auth/public-key", "upsertPublicKey", AuthenticationRequired, CSRFRequired, "", BodyJSON, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/members/public-keys", "getPublicKeysForTeam", AuthenticationRequired, CSRFNone, authorization.PermissionTeamRead, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/keys", "upsertTeamSharedKeys", AuthenticationRequired, CSRFRequired, authorization.PermissionFileUpload, BodyJSON, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/keys", "listTeamSharedKeysForUser", AuthenticationRequired, CSRFNone, authorization.PermissionTeamRead, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/files", "uploadFile", AuthenticationRequired, CSRFRequired, authorization.PermissionFileUpload, BodyFile, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/files", "listFiles", AuthenticationRequired, CSRFNone, authorization.PermissionFileRead, BodyNone, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/files/{file_id}", "downloadFile", AuthenticationRequired, CSRFNone, authorization.PermissionFileRead, BodyNone, RateNone},
+	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/files/{file_id}", "deleteFile", AuthenticationRequired, CSRFRequired, authorization.PermissionFileDelete, BodyNone, RateNone},
 }

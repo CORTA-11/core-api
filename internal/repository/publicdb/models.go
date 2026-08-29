@@ -72,3 +72,9 @@ type User struct {
 	EmailCanonical        string             `json:"email_canonical"`
 	PasswordNormalization string             `json:"password_normalization"`
 }
+
+type UserPublicKey struct {
+	UserID    uuid.UUID `json:"user_id"`
+	PublicKey string    `json:"public_key"`
+	CreatedAt time.Time `json:"created_at"`
+}

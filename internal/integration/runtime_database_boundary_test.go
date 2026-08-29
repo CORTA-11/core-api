@@ -72,12 +72,13 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 		SELECT concat_ws(':', tablename, tableowner)
 		FROM pg_tables
 		WHERE schemaname = 'public' AND tablename = ANY($1)
-		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "organization_invitations", "schema_migrations", "sessions"}}, []string{
+		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "organization_invitations", "schema_migrations", "sessions", "user_public_keys"}}, []string{
 		"org_user:synodus_owner",
 		"organization_invitations:synodus_owner",
 		"orgs:synodus_owner",
 		"schema_migrations:synodus_owner",
 		"sessions:synodus_owner",
+		"user_public_keys:synodus_owner",
 		"users:synodus_owner",
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{"public"}}, []string{
@@ -86,6 +87,7 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 		"public:organization_invitations:SELECT", "public:organization_invitations:UPDATE",
 		"public:orgs:DELETE", "public:orgs:INSERT", "public:orgs:SELECT", "public:orgs:UPDATE",
 		"public:sessions:DELETE", "public:sessions:INSERT", "public:sessions:SELECT", "public:sessions:UPDATE",
+		"public:user_public_keys:DELETE", "public:user_public_keys:INSERT", "public:user_public_keys:SELECT", "public:user_public_keys:UPDATE",
 		"public:users:DELETE", "public:users:INSERT", "public:users:SELECT", "public:users:UPDATE",
 	})
 	assertCatalogRows(t, fixture, `
@@ -108,18 +110,22 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_tables
 		WHERE schemaname = $1
 		ORDER BY tablename`, []any{schema}, []string{
+		"files:synodus_owner",
 		"resource_requests:synodus_owner",
 		"resources:synodus_owner",
 		"schema_migrations:synodus_owner",
 		"tasks:synodus_owner",
 		"team_members:synodus_owner",
+		"team_shared_keys:synodus_owner",
 		"teams:synodus_owner",
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{schema}}, []string{
+		schema + ":files:DELETE", schema + ":files:INSERT", schema + ":files:SELECT", schema + ":files:UPDATE",
 		schema + ":resource_requests:DELETE", schema + ":resource_requests:INSERT", schema + ":resource_requests:SELECT", schema + ":resource_requests:UPDATE",
 		schema + ":resources:DELETE", schema + ":resources:INSERT", schema + ":resources:SELECT", schema + ":resources:UPDATE",
 		schema + ":tasks:DELETE", schema + ":tasks:INSERT", schema + ":tasks:SELECT", schema + ":tasks:UPDATE",
 		schema + ":team_members:SELECT",
+		schema + ":team_shared_keys:DELETE", schema + ":team_shared_keys:INSERT", schema + ":team_shared_keys:SELECT", schema + ":team_shared_keys:UPDATE",
 		schema + ":teams:SELECT",
 	})
 	assertCatalogRows(t, fixture, `
@@ -135,6 +141,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_policies
 		WHERE schemaname = $1
 		ORDER BY tablename, policyname`, []any{schema}, []string{
+		"files:files_owner_maintenance:ALL:synodus_owner",
+		"files:files_runtime_access:ALL:synodus_runtime",
 		"resource_requests:resource_requests_owner_maintenance:ALL:synodus_owner",
 		"resource_requests:resource_requests_runtime_access:ALL:synodus_runtime",
 		"resources:resources_owner_maintenance:ALL:synodus_owner",
@@ -143,6 +151,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"tasks:tasks_runtime_access:ALL:synodus_runtime",
 		"team_members:team_members_owner_maintenance:ALL:synodus_owner",
 		"team_members:team_members_runtime_select:SELECT:synodus_runtime",
+		"team_shared_keys:team_shared_keys_owner_maintenance:ALL:synodus_owner",
+		"team_shared_keys:team_shared_keys_runtime_access:ALL:synodus_runtime",
 		"teams:teams_owner_maintenance:ALL:synodus_owner",
 		"teams:teams_runtime_organization_select:SELECT:synodus_runtime",
 		"teams:teams_runtime_select:SELECT:synodus_runtime",

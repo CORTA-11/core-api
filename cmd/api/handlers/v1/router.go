@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -65,6 +66,23 @@ type ResourceBookingService interface {
 	Decide(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.ResourceRequestView, error)
 }
 
+type KeyService interface {
+	UpsertPublicKey(ctx context.Context, p session.Principal, publicKey string) (*service.UserPublicKey, error)
+	GetPublicKey(ctx context.Context, p session.Principal, userID uuid.UUID) (*service.UserPublicKey, error)
+	GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.UserPublicKey, error)
+
+	UpsertTeamSharedKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, keys []service.TeamSharedKey) error
+	GetTeamSharedKeyForUser(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, userID uuid.UUID, version int32) (*service.TeamSharedKey, error)
+	ListTeamSharedKeysForUser(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, userID uuid.UUID) ([]service.TeamSharedKey, error)
+}
+
+type FileService interface {
+	UploadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, name string, contentType string, reader io.Reader, size int64, iv []byte, keyVersion int32) (*service.FileView, error)
+	DownloadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) (*service.FileView, io.ReadCloser, error)
+	ListFiles(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.FileView, error)
+	DeleteFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) error
+}
+
 type RouterConfig struct {
 	Manager             *session.Manager
 	Verifier            identity.CredentialVerifier
@@ -74,6 +92,8 @@ type RouterConfig struct {
 	TeamTasks           TeamTaskService
 	Invitations         InvitationService
 	ResourceBookings    ResourceBookingService
+	Keys                KeyService
+	Files               FileService
 	Environment         string
 	Origins             httpx.OriginPolicy
 	TrustedProxies      httpx.TrustedProxies
@@ -101,12 +121,21 @@ func NewRouter(config RouterConfig) *Router {
 		cookie: session.CookiePolicy(config.Environment), allowedOrigin: map[string]struct{}{},
 		loginGuard:    config.LoginGuard,
 		registerGuard: config.RegistrationGuard,
+		keys:          config.Keys,
 	}
 	for _, origin := range config.Origins.Values() {
 		auth.allowedOrigin[origin] = struct{}{}
 	}
 	router := &Router{mux: chi.NewRouter(), config: config, auth: auth}
-	router.resources = &ResourceHandler{organizations: config.Organizations, organizationMembers: config.OrganizationMembers, teamTasks: config.TeamTasks, invitations: config.Invitations, resourceBookings: config.ResourceBookings}
+	router.resources = &ResourceHandler{
+		organizations:       config.Organizations,
+		organizationMembers: config.OrganizationMembers,
+		teamTasks:           config.TeamTasks,
+		invitations:         config.Invitations,
+		resourceBookings:    config.ResourceBookings,
+		keys:                config.Keys,
+		files:               config.Files,
+	}
 	router.compose()
 	return router
 }
@@ -222,6 +251,22 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.listResourceRequests)
 	case "decideResourceRequest":
 		return http.HandlerFunc(router.resources.decideResourceRequest)
+	case "upsertPublicKey":
+		return http.HandlerFunc(router.auth.upsertPublicKey)
+	case "getPublicKeysForTeam":
+		return http.HandlerFunc(router.resources.getPublicKeysForTeam)
+	case "upsertTeamSharedKeys":
+		return http.HandlerFunc(router.resources.upsertTeamSharedKeys)
+	case "listTeamSharedKeysForUser":
+		return http.HandlerFunc(router.resources.listTeamSharedKeysForUser)
+	case "uploadFile":
+		return http.HandlerFunc(router.resources.uploadFile)
+	case "listFiles":
+		return http.HandlerFunc(router.resources.listFiles)
+	case "downloadFile":
+		return http.HandlerFunc(router.resources.downloadFile)
+	case "deleteFile":
+		return http.HandlerFunc(router.resources.deleteFile)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -279,7 +324,11 @@ func isResourceOperation(operationID string) bool {
 		operationID == "listResources" || operationID == "createResource" ||
 		operationID == "updateResource" || operationID == "deleteResource" ||
 		operationID == "listBookings" || operationID == "createResourceRequest" ||
-		operationID == "listResourceRequests" || operationID == "decideResourceRequest"
+		operationID == "listResourceRequests" || operationID == "decideResourceRequest" ||
+		operationID == "upsertPublicKey" || operationID == "getPublicKeysForTeam" ||
+		operationID == "upsertTeamSharedKeys" || operationID == "listTeamSharedKeysForUser" ||
+		operationID == "uploadFile" || operationID == "listFiles" ||
+		operationID == "downloadFile" || operationID == "deleteFile"
 }
 
 func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {

@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS team_shared_keys;
+DROP TABLE IF EXISTS files;

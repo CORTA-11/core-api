@@ -16,6 +16,8 @@ func BodyLimitBytes(class apicontract.BodyLimitClass) int64 {
 		return 4 << 10
 	case apicontract.BodyJSON:
 		return 64 << 10
+	case apicontract.BodyFile:
+		return 10 << 20 // 10 MiB
 	case apicontract.BodyNone:
 		return 0
 	default:

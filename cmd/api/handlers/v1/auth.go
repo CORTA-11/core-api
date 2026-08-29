@@ -25,6 +25,7 @@ type AuthHandler struct {
 	allowedOrigin map[string]struct{}
 	loginGuard    *ratelimit.LoginGuard
 	registerGuard *ratelimit.RegistrationGuard
+	keys          KeyService
 }
 
 func NewAuthRouter(
@@ -425,3 +426,27 @@ func responseFor(authentication session.Authentication, csrfToken string) authRe
 		CSRFToken: csrfToken,
 	}
 }
+
+type upsertPublicKeyRequest struct {
+	PublicKey string `json:"public_key"`
+}
+
+func (handler *AuthHandler) upsertPublicKey(writer http.ResponseWriter, request *http.Request) {
+	authentication, ok := authenticationFrom(request)
+	if !ok || handler.keys == nil {
+		handler.problem(writer, request, httpx.ProblemUnauthenticated, nil)
+		return
+	}
+	var input upsertPublicKeyRequest
+	if err := httpx.DecodeJSON(request, &input, maximumAuthBodyBytes); err != nil {
+		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
+		return
+	}
+	res, err := handler.keys.UpsertPublicKey(request.Context(), authentication.Principal, input.PublicKey)
+	if err != nil {
+		handler.problem(writer, request, httpx.ProblemInvalidRequest, err)
+		return
+	}
+	_ = httpx.WriteJSON(writer, http.StatusOK, res)
+}
+
