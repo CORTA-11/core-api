@@ -21,6 +21,7 @@ type Policies struct {
 	Administrative Policy
 }
 
+// DefaultPolicies returns the default rate-limit policies.
 func DefaultPolicies() Policies {
 	return Policies{
 		LoginIP:        Policy{"login-ip", 20, 15 * time.Minute, 20},
@@ -30,6 +31,7 @@ func DefaultPolicies() Policies {
 	}
 }
 
+// Validate checks whether a rate-limit policy is within the supported bounds.
 func (policy Policy) Validate() error {
 	if policy.Bucket == "" || len(policy.Bucket) > 32 || strings.ContainsAny(policy.Bucket, ": \t\r\n") {
 		return errors.New("rate-limit bucket is invalid")
@@ -44,6 +46,7 @@ func (policy Policy) Validate() error {
 	return nil
 }
 
+// Validate checks whether all rate-limit policies are valid.
 func (policies Policies) Validate() error {
 	for _, policy := range []Policy{policies.LoginIP, policies.RegistrationIP, policies.AccountFailure, policies.Administrative} {
 		if err := policy.Validate(); err != nil {

@@ -21,6 +21,7 @@ var (
 	ErrBodyNotAllowed       = errors.New("request body is not allowed")
 )
 
+// DecodeJSON decodes json.
 func DecodeJSON(request *http.Request, destination any, maxBytes int64) error {
 	if err := request.Context().Err(); err != nil {
 		return err
@@ -62,6 +63,7 @@ func DecodeJSON(request *http.Request, destination any, maxBytes int64) error {
 	return nil
 }
 
+// DecodeProblem decodes problem.
 func DecodeProblem(err error) *AppError {
 	violation := Violation{Field: "body", Code: "invalid", Message: "The request body is invalid."}
 	switch {
@@ -81,6 +83,7 @@ func DecodeProblem(err error) *AppError {
 	return NewError(ProblemInvalidRequest, err, violation)
 }
 
+// WriteJSON writes json.
 func WriteJSON(writer http.ResponseWriter, status int, value any) error {
 	var buffer bytes.Buffer
 	encoder := json.NewEncoder(&buffer)

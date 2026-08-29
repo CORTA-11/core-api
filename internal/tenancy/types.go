@@ -52,10 +52,13 @@ type permanentError struct {
 	detail string
 }
 
+// Error returns the error message.
 func (e *permanentError) Error() string { return e.detail }
 
+// permanent handles the permanent operation.
 func permanent(code, detail string) error { return &permanentError{code: code, detail: detail} }
 
+// errorFields errors fields.
 func errorFields(err error) (code, detail string, isPermanent bool) {
 	var target *permanentError
 	if errors.As(err, &target) {

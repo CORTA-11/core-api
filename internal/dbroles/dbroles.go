@@ -39,6 +39,7 @@ func LoadConfig(lookup LookupFunc) (Config, error) {
 	return config, nil
 }
 
+// validate handles the validate operation.
 func (c Config) validate() error {
 	missing := make([]string, 0, 4)
 	for _, setting := range []struct {
@@ -143,6 +144,7 @@ func Configure(ctx context.Context, config Config) error {
 	return nil
 }
 
+// value handles the value operation.
 func value(lookup LookupFunc, name string) string {
 	value, _ := lookup(name)
 	return strings.TrimSpace(value)

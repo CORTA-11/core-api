@@ -16,6 +16,7 @@ type ServerTimeouts struct {
 	Idle       time.Duration
 }
 
+// NewServer creates a server.
 func NewServer(address string, handler http.Handler, timeouts ServerTimeouts, logger *slog.Logger) *http.Server {
 	if logger == nil {
 		logger = slog.Default()
@@ -34,6 +35,7 @@ func NewServer(address string, handler http.Handler, timeouts ServerTimeouts, lo
 
 type redactedServerErrorWriter struct{ logger *slog.Logger }
 
+// Write writes the supplied data.
 func (writer redactedServerErrorWriter) Write(message []byte) (int, error) {
 	writer.logger.Error("HTTP server rejected a connection")
 	return len(message), nil

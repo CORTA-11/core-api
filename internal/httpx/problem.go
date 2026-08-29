@@ -58,6 +58,7 @@ type AppError struct {
 	cause      error
 }
 
+// NewError creates an error.
 func NewError(kind ProblemKind, cause error, violations ...Violation) *AppError {
 	if _, ok := problemRegistry[kind]; !ok {
 		kind = ProblemInternalFailure
@@ -65,6 +66,7 @@ func NewError(kind ProblemKind, cause error, violations ...Violation) *AppError 
 	return &AppError{kind: kind, violations: append([]Violation(nil), violations...), cause: cause}
 }
 
+// Error returns the error message.
 func (err *AppError) Error() string {
 	if err.cause != nil {
 		return err.cause.Error()
@@ -72,6 +74,7 @@ func (err *AppError) Error() string {
 	return string(err.kind)
 }
 
+// Unwrap returns the underlying error.
 func (err *AppError) Unwrap() error { return err.cause }
 
 type Problem struct {
@@ -83,6 +86,7 @@ type Problem struct {
 	Violations []Violation `json:"violations,omitempty"`
 }
 
+// ProblemFromError problems from error.
 func ProblemFromError(request *http.Request, err error) Problem {
 	kind := ProblemInternalFailure
 	var appError *AppError
@@ -108,6 +112,7 @@ func ProblemFromError(request *http.Request, err error) Problem {
 	return problem
 }
 
+// WriteProblem writes problem.
 func WriteProblem(writer http.ResponseWriter, request *http.Request, err error) error {
 	problem := ProblemFromError(request, err)
 	var buffer responseBuffer
@@ -124,6 +129,7 @@ func WriteProblem(writer http.ResponseWriter, request *http.Request, err error) 
 	return writeErr
 }
 
+// safeViolations safes violations.
 func safeViolations(input []Violation) []Violation {
 	result := make([]Violation, 0, min(len(input), maximumViolations))
 	for _, violation := range input {
@@ -139,6 +145,7 @@ func safeViolations(input []Violation) []Violation {
 	return result
 }
 
+// validBoundedText checks whether bounded text is valid.
 func validBoundedText(value string, maximum int) bool {
 	return value != "" && utf8.ValidString(value) && len([]byte(value)) <= maximum
 }

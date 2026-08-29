@@ -29,6 +29,7 @@ type HashConfig struct {
 	AdmissionTimeout time.Duration
 }
 
+// withDefaults withs defaults.
 func (config HashConfig) withDefaults() (HashConfig, error) {
 	if config.Concurrency == 0 {
 		config.Concurrency = max(1, min(4, runtime.GOMAXPROCS(0)))
@@ -80,6 +81,7 @@ type argon2PasswordHasher struct {
 
 var processAdmissions sync.Map
 
+// NewPasswordHasher creates a password hasher.
 func NewPasswordHasher(config HashConfig) (*argon2PasswordHasher, error) {
 	validated, err := config.withDefaults()
 	if err != nil {
@@ -97,6 +99,7 @@ func NewPasswordHasher(config HashConfig) (*argon2PasswordHasher, error) {
 	}, nil
 }
 
+// newPasswordHasher news password hasher.
 func newPasswordHasher(config HashConfig, random io.Reader, derive argon2Derive) (*argon2PasswordHasher, error) {
 	validated, err := config.withDefaults()
 	if err != nil {
@@ -113,6 +116,7 @@ func newPasswordHasher(config HashConfig, random io.Reader, derive argon2Derive)
 	}, nil
 }
 
+// Hash handles the hash operation.
 func (hasher *argon2PasswordHasher) Hash(ctx context.Context, password string) (string, error) {
 	salt := make([]byte, targetArgon2Parameters.saltBytes)
 	if _, err := io.ReadFull(hasher.random, salt); err != nil {
@@ -133,6 +137,7 @@ func (hasher *argon2PasswordHasher) Hash(ctx context.Context, password string) (
 	), nil
 }
 
+// Verify handles the verify operation.
 func (hasher *argon2PasswordHasher) Verify(ctx context.Context, password, encoded string) (PasswordVerification, error) {
 	parsed, err := parseArgon2IDHash(encoded)
 	if err != nil {
@@ -156,6 +161,7 @@ func (hasher *argon2PasswordHasher) Verify(ctx context.Context, password, encode
 	}, nil
 }
 
+// run runs the command workflow.
 func (hasher *argon2PasswordHasher) run(
 	ctx context.Context,
 	password []byte,
@@ -178,6 +184,7 @@ func (hasher *argon2PasswordHasher) run(
 	return hasher.derive(password, salt, parameters), nil
 }
 
+// deriveArgon2ID derives argon 2 id.
 func deriveArgon2ID(password, salt []byte, parameters argon2Parameters) []byte {
 	return argon2.IDKey(
 		password,

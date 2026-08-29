@@ -60,6 +60,7 @@ type Redis struct {
 	timeout time.Duration
 }
 
+// NewRedis creates a Redis-backed rate limiter.
 func NewRedis(client redisCommands, secret []byte, timeout time.Duration) (*Redis, error) {
 	if client == nil || len(secret) < 16 || timeout <= 0 || timeout > 5*time.Second {
 		return nil, errors.New("invalid Redis rate limiter configuration")
@@ -67,6 +68,7 @@ func NewRedis(client redisCommands, secret []byte, timeout time.Duration) (*Redi
 	return &Redis{client: client, secret: append([]byte(nil), secret...), timeout: timeout}, nil
 }
 
+// Check evaluates an identity against a rate-limit policy and optionally consumes an allowance.
 func (limiter *Redis) Check(parent context.Context, policy Policy, identity string, consume bool) (Decision, error) {
 	if err := policy.Validate(); err != nil || identity == "" || len(identity) > 512 {
 		return Decision{}, errors.New("invalid rate-limit request")
@@ -98,6 +100,7 @@ func (limiter *Redis) Check(parent context.Context, policy Policy, identity stri
 		TTL: time.Duration(max(ttlMillis, 0)) * time.Millisecond}, nil
 }
 
+// Clear removes the stored rate-limit state for an identity and policy.
 func (limiter *Redis) Clear(parent context.Context, policy Policy, identity string) error {
 	if err := policy.Validate(); err != nil || identity == "" || len(identity) > 512 {
 		return errors.New("invalid rate-limit request")
@@ -110,6 +113,7 @@ func (limiter *Redis) Clear(parent context.Context, policy Policy, identity stri
 	return nil
 }
 
+// key creates the Redis key for a rate-limit bucket and identity.
 func (limiter *Redis) key(bucket, identity string) string {
 	mac := hmac.New(sha256.New, limiter.secret)
 	_, _ = mac.Write([]byte(bucket))
@@ -118,6 +122,7 @@ func (limiter *Redis) key(bucket, identity string) string {
 	return redisKeyPrefix + bucket + ":" + hex.EncodeToString(mac.Sum(nil))
 }
 
+// boolInt converts a boolean value to its integer representation.
 func boolInt(value bool) int {
 	if value {
 		return 1
@@ -125,6 +130,7 @@ func boolInt(value bool) int {
 	return 0
 }
 
+// boundedInteger converts a supported value to an integer within the given bounds.
 func boundedInteger(value any, minimum, maximum int64) (int64, bool) {
 	var result int64
 	switch typed := value.(type) {

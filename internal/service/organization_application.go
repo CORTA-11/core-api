@@ -51,6 +51,7 @@ type OrganizationMemberView struct {
 	JoinedAt    time.Time `json:"joined_at"`
 }
 
+// ListMembers lists members.
 func (application *OrganizationApplication) ListMembers(ctx context.Context, principal session.Principal, organizationID uuid.UUID) ([]OrganizationMemberView, error) {
 	if !validPrincipal(principal) {
 		return nil, authorization.ErrUnauthenticated
@@ -87,10 +88,12 @@ type OrganizationApplication struct {
 	codec *pagination.Codec
 }
 
+// NewOrganizationApplication creates an organization application.
 func NewOrganizationApplication(pool *pgxpool.Pool, codec *pagination.Codec) *OrganizationApplication {
 	return &OrganizationApplication{pool: pool, codec: codec}
 }
 
+// List lists the requested resources.
 func (application *OrganizationApplication) List(
 	ctx context.Context,
 	principal session.Principal,
@@ -172,6 +175,7 @@ func (application *OrganizationApplication) List(
 	return page, nil
 }
 
+// Create creates the requested resource.
 func (application *OrganizationApplication) Create(
 	ctx context.Context,
 	principal session.Principal,
@@ -217,6 +221,7 @@ func (application *OrganizationApplication) Create(
 	return view, nil
 }
 
+// Get retrieves the requested resource.
 func (application *OrganizationApplication) Get(
 	ctx context.Context,
 	principal session.Principal,
@@ -228,6 +233,7 @@ func (application *OrganizationApplication) Get(
 		})
 }
 
+// Update updates the requested resource.
 func (application *OrganizationApplication) Update(
 	ctx context.Context,
 	principal session.Principal,
@@ -247,6 +253,7 @@ func (application *OrganizationApplication) Update(
 		})
 }
 
+// Delete deletes the requested resource.
 func (application *OrganizationApplication) Delete(
 	ctx context.Context,
 	principal session.Principal,
@@ -259,6 +266,7 @@ func (application *OrganizationApplication) Delete(
 	return err
 }
 
+// Restore handles the restore operation.
 func (application *OrganizationApplication) Restore(
 	ctx context.Context,
 	principal session.Principal,
@@ -268,6 +276,7 @@ func (application *OrganizationApplication) Restore(
 		func(queries *publicdb.Queries) (publicdb.Org, error) { return queries.RestoreOrg(ctx, organizationID) })
 }
 
+// mutate handles the mutate operation.
 func (application *OrganizationApplication) mutate(
 	ctx context.Context,
 	principal session.Principal,
@@ -324,6 +333,7 @@ func (application *OrganizationApplication) mutate(
 	return view, nil
 }
 
+// normalizeResourceName normalizes resource name.
 func normalizeResourceName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || !utf8.ValidString(name) || utf8.RuneCountInString(name) > 200 {
@@ -332,10 +342,12 @@ func normalizeResourceName(name string) (string, error) {
 	return name, nil
 }
 
+// validPrincipal checks whether principal is valid.
 func validPrincipal(principal session.Principal) bool {
 	return principal.UserID != uuid.Nil && principal.SessionID != uuid.Nil
 }
 
+// organizationView organizations view.
 func organizationView(row publicdb.Org) OrganizationView {
 	view := OrganizationView{ID: row.PublicID, Name: row.Name, LifecycleState: row.LifecycleState,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
@@ -346,6 +358,7 @@ func organizationView(row publicdb.Org) OrganizationView {
 	return view
 }
 
+// classifyConflict classifys conflict.
 func classifyConflict(err error) error {
 	if err == nil {
 		return nil

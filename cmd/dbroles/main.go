@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// main runs the command.
 func main() {
 	_ = godotenv.Load()
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

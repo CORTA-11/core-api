@@ -17,6 +17,7 @@ var ErrInvalidToken = errors.New("invalid invitation token")
 
 type Binding struct{ secret []byte }
 
+// NewBinding creates a binding.
 func NewBinding(secret []byte) (*Binding, error) {
 	if len(secret) < 32 {
 		return nil, errors.New("invitation binding secret must contain at least 32 bytes")
@@ -24,6 +25,7 @@ func NewBinding(secret []byte) (*Binding, error) {
 	return &Binding{secret: append([]byte(nil), secret...)}, nil
 }
 
+// EmailFingerprint emails fingerprint.
 func (binding *Binding) EmailFingerprint(email string) ([]byte, error) {
 	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
 	if err != nil {
@@ -34,6 +36,7 @@ func (binding *Binding) EmailFingerprint(email string) ([]byte, error) {
 	return mac.Sum(nil), nil
 }
 
+// GenerateToken generates token.
 func (binding *Binding) GenerateToken(random io.Reader) (string, []byte, error) {
 	raw := make([]byte, TokenBytes)
 	if _, err := io.ReadFull(random, raw); err != nil {
@@ -44,6 +47,7 @@ func (binding *Binding) GenerateToken(random io.Reader) (string, []byte, error) 
 	return token, hash[:], nil
 }
 
+// ParseToken parses token.
 func (binding *Binding) ParseToken(token string) ([]byte, []byte, error) {
 	raw, err := base64.RawURLEncoding.Strict().DecodeString(token)
 	if err != nil || len(raw) != TokenBytes || base64.RawURLEncoding.EncodeToString(raw) != token {

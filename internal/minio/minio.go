@@ -13,6 +13,7 @@ type BucketClient interface {
 	BucketExists(context.Context, string) (bool, error)
 }
 
+// NewClient creates a client.
 func NewClient(endpoint, accessKeyID, secretAccessKey string, useSSL bool) (*miniogo.Client, error) {
 	client, err := miniogo.New(endpoint, &miniogo.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
@@ -24,6 +25,7 @@ func NewClient(endpoint, accessKeyID, secretAccessKey string, useSSL bool) (*min
 	return client, nil
 }
 
+// EnsureBucket ensures bucket.
 func EnsureBucket(ctx context.Context, client BucketClient, bucketName string) error {
 	if err := client.MakeBucket(ctx, bucketName, miniogo.MakeBucketOptions{}); err != nil {
 		exists, existsErr := client.BucketExists(ctx, bucketName)
@@ -37,6 +39,7 @@ func EnsureBucket(ctx context.Context, client BucketClient, bucketName string) e
 	return nil
 }
 
+// VerifyBucket verifies bucket.
 func VerifyBucket(ctx context.Context, client BucketClient, bucketName string) error {
 	exists, err := client.BucketExists(ctx, bucketName)
 	if err != nil {

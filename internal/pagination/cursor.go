@@ -77,6 +77,7 @@ type claims struct {
 	ExpiresAt      int64     `json:"e"`
 }
 
+// NewCodec creates a codec.
 func NewCodec(config CodecConfig) (*Codec, error) {
 	if config.Clock == nil {
 		config.Clock = time.Now
@@ -101,6 +102,7 @@ func NewCodec(config CodecConfig) (*Codec, error) {
 	return codec, nil
 }
 
+// Issue handles the issue operation.
 func (codec *Codec) Issue(binding Binding, cursor Cursor) (string, error) {
 	if !validBinding(binding) || !validDirection(cursor.Direction) ||
 		cursor.Sort.Timestamp.IsZero() || cursor.Sort.ID == uuid.Nil {
@@ -132,6 +134,7 @@ func (codec *Codec) Issue(binding Binding, cursor Cursor) (string, error) {
 	return token, nil
 }
 
+// Verify handles the verify operation.
 func (codec *Codec) Verify(token string, binding Binding) (Cursor, error) {
 	if len(token) == 0 || len(token) > MaximumTokenSize || !validBinding(binding) {
 		return Cursor{}, ErrInvalidCursor
@@ -183,12 +186,14 @@ func (codec *Codec) Verify(token string, binding Binding) (Cursor, error) {
 	}, nil
 }
 
+// sign handles the sign operation.
 func sign(secret []byte, input string) []byte {
 	mac := hmac.New(sha256.New, secret)
 	_, _ = mac.Write([]byte(input))
 	return mac.Sum(nil)
 }
 
+// decodeCanonical decodes canonical.
 func decodeCanonical(value string) ([]byte, error) {
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil || base64.RawURLEncoding.EncodeToString(decoded) != value {
@@ -197,10 +202,12 @@ func decodeCanonical(value string) ([]byte, error) {
 	return decoded, nil
 }
 
+// validKey checks whether key is valid.
 func validKey(key Key) bool {
 	return validKeyID(key.ID) && len(key.Secret) >= 32
 }
 
+// validKeyID checks whether key id is valid.
 func validKeyID(keyID string) bool {
 	if len(keyID) == 0 || len(keyID) > maximumKeyIDSize {
 		return false
@@ -216,6 +223,7 @@ func validKeyID(keyID string) bool {
 	return true
 }
 
+// validBinding checks whether binding is valid.
 func validBinding(binding Binding) bool {
 	if len(binding.RouteID) == 0 || len(binding.RouteID) > maximumRouteSize {
 		return false
@@ -226,10 +234,12 @@ func validBinding(binding Binding) bool {
 	return binding.TeamID == nil || *binding.TeamID != uuid.Nil
 }
 
+// validDirection checks whether direction is valid.
 func validDirection(direction Direction) bool {
 	return direction == DirectionNext || direction == DirectionPrevious
 }
 
+// optionalUUID optionals uuid.
 func optionalUUID(value *uuid.UUID) string {
 	if value == nil {
 		return ""

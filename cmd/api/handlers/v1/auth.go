@@ -28,6 +28,7 @@ type AuthHandler struct {
 	keys          KeyService
 }
 
+// NewAuthRouter creates an auth router.
 func NewAuthRouter(
 	manager *session.Manager,
 	verifier identity.CredentialVerifier,
@@ -38,6 +39,7 @@ func NewAuthRouter(
 	return NewRateLimitedAuthRouter(manager, verifier, hasher, environment, allowedOrigins, nil)
 }
 
+// NewRateLimitedAuthRouter creates a rate limited auth router.
 func NewRateLimitedAuthRouter(
 	manager *session.Manager,
 	verifier identity.CredentialVerifier,
@@ -106,6 +108,7 @@ type authResponse struct {
 	CSRFToken string       `json:"csrf_token"`
 }
 
+// register handles account registration.
 func (handler *AuthHandler) register(writer http.ResponseWriter, request *http.Request) {
 	if handler.registerGuard != nil {
 		client, ok := httpx.ClientFromContext(request.Context())
@@ -169,6 +172,7 @@ func (handler *AuthHandler) register(writer http.ResponseWriter, request *http.R
 	_ = httpx.WriteJSON(writer, http.StatusCreated, responseFor(issued.Authentication, issued.CSRFToken))
 }
 
+// login handles account login.
 func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Request) {
 	if handler.loginGuard != nil {
 		client, ok := httpx.ClientFromContext(request.Context())
@@ -232,6 +236,7 @@ func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Requ
 	_ = httpx.WriteJSON(writer, http.StatusOK, responseFor(issued.Authentication, issued.CSRFToken))
 }
 
+// rateProblem writes a rate-limit problem response.
 func (handler *AuthHandler) rateProblem(writer http.ResponseWriter, request *http.Request, decision ratelimit.Decision, err error) {
 	if err != nil {
 		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
@@ -244,6 +249,7 @@ func (handler *AuthHandler) rateProblem(writer http.ResponseWriter, request *htt
 
 type authenticatedHandler func(http.ResponseWriter, *http.Request, session.Authentication, string)
 
+// authenticated wraps a handler with authentication checks.
 func (handler *AuthHandler) authenticated(unsafe bool, next authenticatedHandler) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		cookie, err := request.Cookie(handler.cookie.Name)
@@ -269,6 +275,7 @@ func (handler *AuthHandler) authenticated(unsafe bool, next authenticatedHandler
 	}
 }
 
+// current returns the current authenticated session.
 func (handler *AuthHandler) current(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -279,6 +286,7 @@ func (handler *AuthHandler) current(
 		responseFor(authentication, handler.manager.CSRFToken(authentication)))
 }
 
+// logout ends the current session.
 func (handler *AuthHandler) logout(writer http.ResponseWriter, request *http.Request) {
 	cookie, err := request.Cookie(handler.cookie.Name)
 	if err != nil || !session.ParseableToken(cookie.Value) {
@@ -299,6 +307,7 @@ func (handler *AuthHandler) logout(writer http.ResponseWriter, request *http.Req
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// list handles the list operation.
 func (handler *AuthHandler) list(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -315,6 +324,7 @@ func (handler *AuthHandler) list(
 	}{Sessions: items})
 }
 
+// revokeAll revokes all.
 func (handler *AuthHandler) revokeAll(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -329,6 +339,7 @@ func (handler *AuthHandler) revokeAll(
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// revokeSpecific revokes specific.
 func (handler *AuthHandler) revokeSpecific(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -354,6 +365,7 @@ func (handler *AuthHandler) revokeSpecific(
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// changePassword changes password.
 func (handler *AuthHandler) changePassword(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -384,16 +396,19 @@ func (handler *AuthHandler) changePassword(
 	_ = httpx.WriteJSON(writer, http.StatusOK, responseFor(issued.Authentication, issued.CSRFToken))
 }
 
+// validUnsafe checks whether unsafe is valid.
 func (handler *AuthHandler) validUnsafe(request *http.Request, authentication session.Authentication) bool {
 	return handler.validOrigin(request) &&
 		handler.manager.ValidCSRF(authentication, request.Header.Get("X-CSRF-Token"))
 }
 
+// validOrigin checks whether origin is valid.
 func (handler *AuthHandler) validOrigin(request *http.Request) bool {
 	_, ok := handler.allowedOrigin[request.Header.Get("Origin")]
 	return ok && request.Header.Get("Origin") != ""
 }
 
+// setCookie sets cookie.
 func (handler *AuthHandler) setCookie(writer http.ResponseWriter, token string) {
 	// #nosec G124 -- handler.cookie is the complete environment-derived policy.
 	cookie := handler.cookie
@@ -401,6 +416,7 @@ func (handler *AuthHandler) setCookie(writer http.ResponseWriter, token string) 
 	http.SetCookie(writer, &cookie)
 }
 
+// clearCookie clears cookie.
 func (handler *AuthHandler) clearCookie(writer http.ResponseWriter) {
 	// #nosec G124 -- clearing reuses the exact complete issuance policy.
 	cookie := handler.cookie
@@ -410,10 +426,12 @@ func (handler *AuthHandler) clearCookie(writer http.ResponseWriter) {
 	http.SetCookie(writer, &cookie)
 }
 
+// problem writes an HTTP problem response.
 func (handler *AuthHandler) problem(writer http.ResponseWriter, request *http.Request, kind httpx.ProblemKind, cause error) {
 	_ = httpx.WriteProblem(writer, request, httpx.NewError(kind, cause))
 }
 
+// responseFor builds an authentication response.
 func responseFor(authentication session.Authentication, csrfToken string) authResponse {
 	metadata := authentication.Session
 	return authResponse{
@@ -431,6 +449,7 @@ type upsertPublicKeyRequest struct {
 	PublicKey string `json:"public_key"`
 }
 
+// upsertPublicKey upserts public key.
 func (handler *AuthHandler) upsertPublicKey(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	if !ok || handler.keys == nil {
@@ -449,4 +468,3 @@ func (handler *AuthHandler) upsertPublicKey(writer http.ResponseWriter, request 
 	}
 	_ = httpx.WriteJSON(writer, http.StatusOK, res)
 }
-

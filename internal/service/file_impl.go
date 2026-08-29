@@ -29,6 +29,7 @@ func NewFileService(minioClient *miniogo.Client, bucket string, authorizer appli
 	}
 }
 
+// UploadFile uploads file.
 func (s *fileService) UploadFile(
 	ctx context.Context,
 	p session.Principal,
@@ -95,11 +96,12 @@ func (s *fileService) UploadFile(
 		IV:          row.Iv,
 		KeyVersion:  row.KeyVersion,
 		UploadedBy:  row.UploadedBy,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
 	}, nil
 }
 
+// DownloadFile downloads file.
 func (s *fileService) DownloadFile(
 	ctx context.Context,
 	p session.Principal,
@@ -144,13 +146,14 @@ func (s *fileService) DownloadFile(
 		IV:          row.Iv,
 		KeyVersion:  row.KeyVersion,
 		UploadedBy:  row.UploadedBy,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
 	}
 
 	return view, object, nil
 }
 
+// ListFiles lists files.
 func (s *fileService) ListFiles(
 	ctx context.Context,
 	p session.Principal,
@@ -185,13 +188,14 @@ func (s *fileService) ListFiles(
 			IV:          row.Iv,
 			KeyVersion:  row.KeyVersion,
 			UploadedBy:  row.UploadedBy,
-			CreatedAt:    row.CreatedAt,
-			UpdatedAt:    row.UpdatedAt,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
 		}
 	}
 	return views, nil
 }
 
+// DeleteFile deletes file.
 func (s *fileService) DeleteFile(
 	ctx context.Context,
 	p session.Principal,

@@ -118,6 +118,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, publicID uuid.UUID) Result {
 	return result
 }
 
+// loadOrganization loads organization.
 func loadOrganization(ctx context.Context, conn *pgxpool.Conn, publicID uuid.UUID) (Organization, error) {
 	var org Organization
 	err := conn.QueryRow(ctx, `
@@ -136,6 +137,7 @@ func loadOrganization(ctx context.Context, conn *pgxpool.Conn, publicID uuid.UUI
 	return org, nil
 }
 
+// beginAttempt begins attempt.
 func beginAttempt(ctx context.Context, conn *pgxpool.Conn, id int64, timeout time.Duration) (int, error) {
 	var attempts int
 	// next_attempt_at doubles as a bounded claim lease. A crashed process becomes
@@ -152,6 +154,7 @@ func beginAttempt(ctx context.Context, conn *pgxpool.Conn, id int64, timeout tim
 	return attempts, nil
 }
 
+// prepareAndValidateLedger prepares and validate ledger.
 func (r *Reconciler) prepareAndValidateLedger(ctx context.Context, conn *pgxpool.Conn, org Organization) error {
 	// Identifier.Sanitize quotes the server-derived name before it is used in DDL;
 	// query parameters cannot represent PostgreSQL identifiers.
@@ -229,6 +232,7 @@ func (r *Reconciler) prepareAndValidateLedger(ctx context.Context, conn *pgxpool
 	return nil
 }
 
+// setTenantSearchPath sets tenant search path.
 func setTenantSearchPath(ctx context.Context, tx pgx.Tx, schema string) error {
 	// The transaction-local setting prevents a pooled connection from leaking one
 	// organization's schema into a later borrower.
@@ -238,6 +242,7 @@ func setTenantSearchPath(ctx context.Context, tx pgx.Tx, schema string) error {
 	return nil
 }
 
+// ledgerColumns returns the migration ledger columns.
 func ledgerColumns(ctx context.Context, tx pgx.Tx, schema string) (map[string]bool, error) {
 	rows, err := tx.Query(ctx, `
         SELECT column_name FROM information_schema.columns
@@ -260,6 +265,7 @@ func ledgerColumns(ctx context.Context, tx pgx.Tx, schema string) (map[string]bo
 	return columns, nil
 }
 
+// createLedger creates ledger.
 func createLedger(ctx context.Context, tx pgx.Tx) error {
 	_, err := tx.Exec(ctx, `CREATE TABLE schema_migrations (
         version BIGINT PRIMARY KEY,
@@ -272,6 +278,7 @@ func createLedger(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
+// adoptLegacy adopts legacy.
 func (r *Reconciler) adoptLegacy(ctx context.Context, tx pgx.Tx, schema string) error {
 	var version int64
 	var dirty bool
@@ -307,6 +314,7 @@ func (r *Reconciler) adoptLegacy(ctx context.Context, tx pgx.Tx, schema string) 
 	return nil
 }
 
+// validateBaseCatalog validates base catalog.
 func validateBaseCatalog(ctx context.Context, tx pgx.Tx, schema string, version int64) error {
 	// This is deliberately a compatibility check for the fixed base catalog. For
 	// later migrations, the ledger proves migration-source identity; it does not
@@ -361,6 +369,7 @@ func validateBaseCatalog(ctx context.Context, tx pgx.Tx, schema string, version 
 	return nil
 }
 
+// validateLedger validates ledger.
 func (r *Reconciler) validateLedger(ctx context.Context, tx pgx.Tx) error {
 	rows, err := tx.Query(ctx, `SELECT version, trim(checksum) FROM schema_migrations ORDER BY version`)
 	if err != nil {
@@ -390,6 +399,7 @@ func (r *Reconciler) validateLedger(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
+// applyMissing applies missing.
 func (r *Reconciler) applyMissing(ctx context.Context, conn *pgxpool.Conn, org Organization) error {
 	var current int64
 	if err := conn.QueryRow(ctx, `SELECT tenant_version FROM public.orgs WHERE id = $1`, org.ID).Scan(&current); err != nil {
@@ -436,6 +446,7 @@ func (r *Reconciler) applyMissing(ctx context.Context, conn *pgxpool.Conn, org O
 	return nil
 }
 
+// failureResult failures result.
 func (r *Reconciler) failureResult(ctx context.Context, result Result, attempts int, reconcileErr error) Result {
 	code, detail, isPermanent := errorFields(reconcileErr)
 	result.State, result.Attempts, result.ErrorCode, result.ErrorDetail = StateProvisioning, attempts, code, detail
@@ -461,4 +472,5 @@ func (r *Reconciler) failureResult(ctx context.Context, result Result, attempts 
 	return result
 }
 
+// trimChecksum trims checksum.
 func trimChecksum(value string) string { return strings.TrimSpace(value) }

@@ -27,6 +27,7 @@ type Authorizer struct {
 	executor tenantExecutor
 }
 
+// NewAuthorizer creates an authorizer.
 func NewAuthorizer(resolver tenantResolver, executor tenantExecutor) *Authorizer {
 	return &Authorizer{resolver: resolver, executor: executor}
 }
@@ -131,10 +132,12 @@ func (authorizer *Authorizer) WithinTeam(
 	return err
 }
 
+// authenticated wraps a handler with authentication checks.
 func authenticated(principal session.Principal) bool {
 	return principal.UserID != uuid.Nil && principal.SessionID != uuid.Nil
 }
 
+// organizationMutationRequiresOwner organizations mutation requires owner.
 func organizationMutationRequiresOwner(permission Permission) bool {
 	switch permission {
 	case PermissionOrgUpdate, PermissionOrgDelete, PermissionOrgRestore,

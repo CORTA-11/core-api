@@ -112,6 +112,7 @@ type Router struct {
 	resources *ResourceHandler
 }
 
+// NewRouter creates a router.
 func NewRouter(config RouterConfig) *Router {
 	if config.ReadinessTimeout <= 0 {
 		config.ReadinessTimeout = 3 * time.Second
@@ -140,8 +141,10 @@ func NewRouter(config RouterConfig) *Router {
 	return router
 }
 
+// Handler returns the HTTP handler.
 func (router *Router) Handler() http.Handler { return router.mux }
 
+// compose handles the compose operation.
 func (router *Router) compose() {
 	router.mux.Use(httpx.RequestID)
 	router.mux.Use(router.config.TrustedProxies.Middleware)
@@ -175,6 +178,7 @@ func (router *Router) compose() {
 	}
 }
 
+// operation handles the operation operation.
 func (router *Router) operation(operationID string) http.Handler {
 	switch operationID {
 	case "register":
@@ -274,6 +278,7 @@ func (router *Router) operation(operationID string) http.Handler {
 
 type authenticationContextKey struct{}
 
+// authenticate handles the authenticate operation.
 func (router *Router) authenticate(unsafe bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if router.config.Manager == nil {
@@ -305,11 +310,13 @@ func (router *Router) authenticate(unsafe bool, next http.Handler) http.Handler 
 	})
 }
 
+// authenticationFrom authentications from.
 func authenticationFrom(request *http.Request) (session.Authentication, bool) {
 	authentication, ok := request.Context().Value(authenticationContextKey{}).(session.Authentication)
 	return authentication, ok
 }
 
+// isResourceOperation checks whether resource operation.
 func isResourceOperation(operationID string) bool {
 	return operationID == "listOrganizations" || operationID == "createOrganization" ||
 		operationID == "getOrganization" || operationID == "updateOrganization" ||
@@ -331,6 +338,7 @@ func isResourceOperation(operationID string) bool {
 		operationID == "downloadFile" || operationID == "deleteFile"
 }
 
+// ready handles the ready operation.
 func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {
 	ctx, cancel := context.WithTimeout(request.Context(), router.config.ReadinessTimeout)
 	defer cancel()
@@ -359,10 +367,12 @@ func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {
 	}{Failed: failed})
 }
 
+// problemHandler problems handler.
 func problemHandler(kind httpx.ProblemKind) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) { writeProblem(writer, request, kind, nil) }
 }
 
+// writeProblem writes problem.
 func writeProblem(writer http.ResponseWriter, request *http.Request, kind httpx.ProblemKind, cause error) {
 	_ = httpx.WriteProblem(writer, request, httpx.NewError(kind, cause))
 }
