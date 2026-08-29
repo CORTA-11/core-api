@@ -159,10 +159,12 @@ func (handler *ResourceHandler) downloadFile(writer http.ResponseWriter, request
 	}
 	defer func() { _ = stream.Close() }()
 
+	// X-File-IV is deliberately absent: the seal header carries the IV inside
+	// the encrypted bytes, and raw ciphertext bytes are not valid ASCII header
+	// values — undici (Next's proxy) rejects them and the download 500s.
 	writer.Header().Set("Content-Type", metadata.ContentType)
 	writer.Header().Set("Content-Length", strconv.FormatInt(metadata.Size, 10))
 	writer.Header().Set("X-File-Name", metadata.Name)
-	writer.Header().Set("X-File-IV", string(metadata.IV))
 	writer.Header().Set("X-File-Key-Version", strconv.Itoa(int(metadata.KeyVersion)))
 
 	_, _ = io.Copy(writer, stream)
