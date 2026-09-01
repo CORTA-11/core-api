@@ -38,6 +38,11 @@ func TestFileService_UploadValidation(t *testing.T) {
 		assert.ErrorIs(t, err, ErrInvalidInput)
 	})
 
+	t.Run("oversized file", func(t *testing.T) {
+		_, err := svc.UploadFile(context.Background(), p, orgID, teamID, "file.txt", "text/plain", strings.NewReader("data"), MaxFileUploadBytes+1, []byte("iv-bytes"), 1)
+		assert.ErrorIs(t, err, ErrInvalidInput)
+	})
+
 	t.Run("missing iv", func(t *testing.T) {
 		_, err := svc.UploadFile(context.Background(), p, orgID, teamID, "file.txt", "text/plain", strings.NewReader("data"), 4, nil, 1)
 		assert.ErrorIs(t, err, ErrInvalidInput)

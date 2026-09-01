@@ -83,7 +83,9 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 		return
 	}
 
-	err := request.ParseMultipartForm(10 << 20) // 10 MB limit
+	// Allow bounded multipart framing overhead in addition to the file itself.
+	request.Body = http.MaxBytesReader(writer, request.Body, service.MaxFileUploadBytes+(1<<20))
+	err := request.ParseMultipartForm(1 << 20) // #nosec G120 -- MaxBytesReader above bounds the entire request body.
 	if err != nil {
 		handler.problem(writer, request, service.ErrInvalidInput)
 		return
@@ -93,7 +95,7 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 	keyVersionStr := request.FormValue("key_version")
 	ivStr := request.FormValue("iv")
 
-	keyVersion, err := strconv.Atoi(keyVersionStr)
+	parsedKeyVersion, err := strconv.ParseInt(keyVersionStr, 10, 32)
 	if err != nil {
 		handler.problem(writer, request, service.ErrInvalidInput)
 		return
@@ -107,6 +109,11 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 		return
 	}
 	defer func() { _ = file.Close() }()
+	if fileHeader.Size > service.MaxFileUploadBytes {
+		handler.problem(writer, request, service.ErrInvalidInput)
+		return
+	}
+	keyVersion := int32(parsedKeyVersion) // #nosec G115 -- ParseInt above enforces the int32 range.
 
 	metadata, err := handler.files.UploadFile(
 		request.Context(),
@@ -118,7 +125,7 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 		file,
 		fileHeader.Size,
 		iv,
-		int32(keyVersion),
+		keyVersion,
 	)
 	if err != nil {
 		handler.problem(writer, request, err)

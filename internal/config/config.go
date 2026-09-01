@@ -75,7 +75,7 @@ func Load() (Config, error) {
 // mounted secret files. It also assembles DATABASE_URL because PostgreSQL
 // passwords cannot be consumed independently by pgx.
 func runtimeLookup(environment lookupFunc) lookupFunc {
-	secretFiles := map[string]string{
+	mountedFiles := map[string]string{ // #nosec G101 -- values are mounted secret filenames, not credentials.
 		"DB_RUNTIME_PASSWORD":       "db_runtime_password.txt",
 		"MINIO_ACCESS_KEY":          "minio_access_key",
 		"MINIO_SECRET_KEY":          "minio_secret_key.txt",
@@ -96,7 +96,7 @@ func runtimeLookup(environment lookupFunc) lookupFunc {
 		if raw, ok := environment(name); ok && raw != "" {
 			return raw, true
 		}
-		filename, ok := secretFiles[name]
+		filename, ok := mountedFiles[name]
 		if !ok {
 			return "", false
 		}

@@ -20,6 +20,9 @@ type fileService struct {
 	authorizer  applicationAuthorizer
 }
 
+// MaxFileUploadBytes bounds both HTTP and service-level file ingestion.
+const MaxFileUploadBytes int64 = 10 << 20
+
 // NewFileService creates a new instance of FileService.
 func NewFileService(minioClient *miniogo.Client, bucket string, authorizer applicationAuthorizer) FileService {
 	return &fileService{
@@ -48,7 +51,7 @@ func (s *fileService) UploadFile(
 	if len(iv) == 0 || len(iv) > 64 {
 		return nil, ErrInvalidInput
 	}
-	if size <= 0 {
+	if size <= 0 || size > MaxFileUploadBytes {
 		return nil, ErrInvalidInput
 	}
 
