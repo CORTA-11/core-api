@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// BoundaryLog boundarys log.
 func BoundaryLog(logger *slog.Logger, next http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
@@ -54,6 +55,7 @@ type boundaryResponseWriter struct {
 	bytes  int
 }
 
+// WriteHeader writes header.
 func (writer *boundaryResponseWriter) WriteHeader(status int) {
 	if writer.status == 0 {
 		writer.status = status
@@ -61,6 +63,7 @@ func (writer *boundaryResponseWriter) WriteHeader(status int) {
 	writer.ResponseWriter.WriteHeader(status)
 }
 
+// Write writes the supplied data.
 func (writer *boundaryResponseWriter) Write(body []byte) (int, error) {
 	if writer.status == 0 {
 		writer.status = http.StatusOK
@@ -70,8 +73,10 @@ func (writer *boundaryResponseWriter) Write(body []byte) (int, error) {
 	return written, err
 }
 
+// Unwrap returns the underlying error.
 func (writer *boundaryResponseWriter) Unwrap() http.ResponseWriter { return writer.ResponseWriter }
 
+// maskedPrefix maskeds prefix.
 func maskedPrefix(address netip.Addr) string {
 	address = address.Unmap()
 	bits := 56
@@ -81,6 +86,7 @@ func maskedPrefix(address netip.Addr) string {
 	return netip.PrefixFrom(address, bits).Masked().String()
 }
 
+// routePattern routes pattern.
 func routePattern(request *http.Request) string {
 	if routeContext := chi.RouteContext(request.Context()); routeContext != nil {
 		return routeContext.RoutePattern()
@@ -88,6 +94,7 @@ func routePattern(request *http.Request) string {
 	return ""
 }
 
+// problemForStatus problems for status.
 func problemForStatus(status int) string {
 	switch status {
 	case http.StatusBadRequest:

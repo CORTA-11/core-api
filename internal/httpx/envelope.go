@@ -20,6 +20,7 @@ var corsHeaders = map[string]struct{}{
 	"Content-Type": {}, "X-Csrf-Token": {}, "If-Match": {}, "Idempotency-Key": {},
 }
 
+// CORS handles the cors operation.
 func CORS(policy OriginPolicy, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		addVary(writer.Header(), "Origin")
@@ -46,6 +47,7 @@ func CORS(policy OriginPolicy, next http.Handler) http.Handler {
 	})
 }
 
+// SecurityHeaders securitys headers.
 func SecurityHeaders(environment string, authenticationResponse bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		header := writer.Header()
@@ -64,16 +66,19 @@ func SecurityHeaders(environment string, authenticationResponse bool, next http.
 	})
 }
 
+// grantCORS grants cors.
 func grantCORS(header http.Header, origin string) {
 	header.Set("Access-Control-Allow-Origin", origin)
 	header.Set("Access-Control-Allow-Credentials", "true")
 }
 
+// validCORSMethod checks whether corsme thod is valid.
 func validCORSMethod(method string) bool {
 	_, ok := corsMethods[method]
 	return ok && method != ""
 }
 
+// validCORSHeaders checks whether corshe aders is valid.
 func validCORSHeaders(raw string) bool {
 	if raw == "" {
 		return true
@@ -95,6 +100,7 @@ func validCORSHeaders(raw string) bool {
 	return true
 }
 
+// singleHeader singles header.
 func singleHeader(header http.Header, name string) string {
 	values := header.Values(name)
 	if len(values) != 1 || strings.Contains(values[0], "\x00") {
@@ -103,6 +109,7 @@ func singleHeader(header http.Header, name string) string {
 	return strings.TrimSpace(values[0])
 }
 
+// addVary adds vary.
 func addVary(header http.Header, value string) {
 	for _, existing := range header.Values("Vary") {
 		for _, item := range strings.Split(existing, ",") {

@@ -2,21 +2,30 @@
 
 ## Development
 
-1. Copy the environment template and choose distinct development passwords:
+1. Copy the non-secret environment template and development secret templates:
 
    ```bash
    cp .env.example .env
+   cp -R dev_secrets .local_secrets
    ```
 
-   If `.env` already exists, keep its working `DB_USER`/`DB_PASSWORD` values
-   and add `DB_RUNTIME_PASSWORD`, `DB_MIGRATOR_PASSWORD`, and
-   `DB_PROVISIONER_PASSWORD`. These three values become the PostgreSQL passwords
-   for their matching roles.
+   `dev_secrets` contains development-only values and is safe to use only for a
+   local stack. `.local_secrets` is ignored by Git and is the active secret
+   directory used by Make, Docker Compose, and direct application startup.
+   Replace its values when needed; never use the development templates in a
+   deployed environment.
 
-2. Start Postgres, Redis, and MinIO:
+   The required files are `db_admin_user.txt`, `db_admin_password.txt`,
+   `db_runtime_password.txt`, `db_migrator_password.txt`,
+   `db_provisioner_password.txt`, `minio_root_user.txt`,
+   `minio_root_password.txt`, `minio_access_key`, `minio_secret_key.txt`,
+   `redis_limit_secret.txt`, `redis_invitation_binding_secret.txt`, and
+   `csrf_secret.txt`.
+
+2. Start Postgres, Redis, and MinIO without starting the API yet:
 
    ```bash
-   docker compose up -d
+   docker compose up -d postgres redis minio
    ```
 
 3. Bootstrap the database roles and apply public migrations:
@@ -25,7 +34,7 @@
    make bootstrap-db
    ```
 
-   This one-time/recovery command uses `DB_USER`/`DB_PASSWORD` as administrator
+   This one-time/recovery command uses the admin secret files as administrator
    credentials, applies the public role migration, and assigns the three
    operational role passwords. Normal migrations, provisioning, and API traffic
    use the separated migrator, provisioner, and runtime credentials afterward.
@@ -53,6 +62,28 @@
    ```bash
    make run
    ```
+
+   To run the API in Docker instead, build and start its Compose service after
+   completing the database and MinIO bootstrap steps above:
+
+   ```bash
+   docker compose up --build -d api
+   docker compose ps
+   ```
+
+   For a fresh database, start dependencies and perform bootstrap first:
+
+   ```bash
+   docker compose up -d postgres redis minio
+   make bootstrap-db
+   make bootstrap
+   docker compose up --build -d api
+   ```
+
+   The API is available on `http://localhost:8080`. Compose also starts the
+   long-running tenant provisioner, mounts a separate least-privilege database
+   secret into each service, and waits for infrastructure dependencies to
+   become healthy.
 
    Verify startup with `curl -i http://localhost:8080/health/ready`; a ready
    development stack returns HTTP 204.

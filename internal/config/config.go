@@ -66,10 +66,73 @@ type MinIO struct {
 
 type lookupFunc func(string) (string, bool)
 
+// Load loads the required data.
 func Load() (Config, error) {
-	return LoadFrom(os.LookupEnv)
+	return LoadFrom(runtimeLookup(os.LookupEnv))
 }
 
+// runtimeLookup preserves explicit environment values, then resolves local or
+// mounted secret files. It also assembles DATABASE_URL because PostgreSQL
+// passwords cannot be consumed independently by pgx.
+func runtimeLookup(environment lookupFunc) lookupFunc {
+	mountedFiles := map[string]string{ // #nosec G101 -- values are mounted secret filenames, not credentials.
+		"DB_RUNTIME_PASSWORD":       "db_runtime_password.txt",
+		"MINIO_ACCESS_KEY":          "minio_access_key",
+		"MINIO_SECRET_KEY":          "minio_secret_key.txt",
+		"RATE_LIMIT_SECRET":         "redis_limit_secret.txt",
+		"INVITATION_BINDING_SECRET": "redis_invitation_binding_secret.txt",
+		"CSRF_SECRET":               "csrf_secret.txt",
+	}
+	secretDir := ".local_secrets"
+	if configured, ok := environment("LOCAL_SECRETS_DIR"); ok && configured != "" {
+		secretDir = configured
+	} else if _, err := os.Stat(secretDir); errors.Is(err, os.ErrNotExist) {
+		if _, mountedErr := os.Stat("/run/secrets"); mountedErr == nil {
+			secretDir = "/run/secrets"
+		}
+	}
+
+	lookup := func(name string) (string, bool) {
+		if raw, ok := environment(name); ok && raw != "" {
+			return raw, true
+		}
+		filename, ok := mountedFiles[name]
+		if !ok {
+			return "", false
+		}
+		raw, err := os.ReadFile(secretDir + string(os.PathSeparator) + filename)
+		if err != nil {
+			return "", false
+		}
+		return strings.TrimSuffix(strings.TrimSuffix(string(raw), "\n"), "\r"), true
+	}
+
+	return func(name string) (string, bool) {
+		if raw, ok := lookup(name); ok {
+			return raw, true
+		}
+		if name != "DATABASE_URL" {
+			return "", false
+		}
+		host, hostOK := lookup("DB_HOST")
+		port, portOK := lookup("DB_PORT")
+		database, databaseOK := lookup("DB_NAME")
+		password, passwordOK := lookup("DB_RUNTIME_PASSWORD")
+		if !hostOK || !portOK || !databaseOK || !passwordOK {
+			return "", false
+		}
+		databaseURL := url.URL{
+			Scheme:   "postgres",
+			User:     url.UserPassword("synodus_runtime", password),
+			Host:     net.JoinHostPort(host, port),
+			Path:     database,
+			RawQuery: "sslmode=disable",
+		}
+		return databaseURL.String(), true
+	}
+}
+
+// LoadFrom loads from.
 func LoadFrom(lookup lookupFunc) (Config, error) {
 	var problems []error
 	config := Config{
@@ -235,6 +298,7 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	return config, nil
 }
 
+// validatePprofAddress validates pprof address.
 func validatePprofAddress(apiAddress, diagnosticAddress string) error {
 	host, portText, err := net.SplitHostPort(diagnosticAddress)
 	if err != nil {
@@ -253,6 +317,7 @@ func validatePprofAddress(apiAddress, diagnosticAddress string) error {
 	return nil
 }
 
+// parseRatePolicy parses rate policy.
 func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy, problems *[]error) {
 	if raw, ok := lookup(prefix + "_LIMIT"); ok && strings.TrimSpace(raw) != "" {
 		parsed, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
@@ -283,6 +348,7 @@ func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy,
 	}
 }
 
+// databasePassword databases password.
 func databasePassword(databaseURL string) string {
 	parsed, err := url.Parse(databaseURL)
 	if err != nil || parsed.User == nil {
@@ -292,17 +358,20 @@ func databasePassword(databaseURL string) string {
 	return password
 }
 
+// isDevelopmentSecret checks whether development secret.
 func isDevelopmentSecret(secret string) bool {
 	normalized := strings.ToLower(secret)
 	return secret == "your-super-secret-key-change-in-production" ||
 		strings.Contains(normalized, "change-me")
 }
 
+// value handles the value operation.
 func value(lookup lookupFunc, name string) string {
 	value, _ := lookup(name)
 	return strings.TrimSpace(value)
 }
 
+// valueOrDefault values or default.
 func valueOrDefault(lookup lookupFunc, name, fallback string) string {
 	if result := value(lookup, name); result != "" {
 		return result

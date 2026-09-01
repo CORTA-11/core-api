@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// main runs the command.
 func main() {
 	ctx := context.Background()
 

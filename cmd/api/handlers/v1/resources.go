@@ -45,6 +45,7 @@ type taskRequest struct {
 	assigneeSet bool
 }
 
+// UnmarshalJSON decodes JSON into the value.
 func (task *taskRequest) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Description string          `json:"description"`
@@ -75,6 +76,7 @@ type invitationRequest struct {
 	Email string `json:"email"`
 }
 
+// listOrganizationMembers lists organization members.
 func (handler *ResourceHandler) listOrganizationMembers(writer http.ResponseWriter, request *http.Request) {
 	auth, ok := authenticationFrom(request)
 	orgID, valid := routeUUID(request, "org_id")
@@ -92,6 +94,7 @@ func (handler *ResourceHandler) listOrganizationMembers(writer http.ResponseWrit
 	}{items})
 }
 
+// listTeamMembers lists team members.
 func (handler *ResourceHandler) listTeamMembers(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, teamID, ok := handler.scoped(request, true)
 	if !ok || handler.teamTasks == nil {
@@ -108,6 +111,7 @@ func (handler *ResourceHandler) listTeamMembers(writer http.ResponseWriter, requ
 	}{items})
 }
 
+// addTeamMember adds team member.
 func (handler *ResourceHandler) addTeamMember(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, teamID, ok := handler.scoped(request, true)
 	var input invitationRequest
@@ -128,11 +132,13 @@ func (handler *ResourceHandler) addTeamMember(writer http.ResponseWriter, reques
 	_ = httpx.WriteJSON(writer, http.StatusCreated, member)
 }
 
+// invitationToken invitations token.
 func invitationToken(request *http.Request) (string, bool) {
 	values := request.Header.Values("X-Invitation-Token")
 	return first(values), len(values) == 1 && values[0] != ""
 }
 
+// first handles the first operation.
 func first(values []string) string {
 	if len(values) == 0 {
 		return ""
@@ -140,6 +146,7 @@ func first(values []string) string {
 	return values[0]
 }
 
+// listInvitations lists invitations.
 func (handler *ResourceHandler) listInvitations(writer http.ResponseWriter, request *http.Request) {
 	auth, ok := authenticationFrom(request)
 	orgID, valid := routeUUID(request, "org_id")
@@ -157,6 +164,7 @@ func (handler *ResourceHandler) listInvitations(writer http.ResponseWriter, requ
 	}{items})
 }
 
+// createInvitation creates invitation.
 func (handler *ResourceHandler) createInvitation(writer http.ResponseWriter, request *http.Request) {
 	auth, ok := authenticationFrom(request)
 	orgID, valid := routeUUID(request, "org_id")
@@ -178,6 +186,7 @@ func (handler *ResourceHandler) createInvitation(writer http.ResponseWriter, req
 	_ = httpx.WriteJSON(writer, http.StatusCreated, created)
 }
 
+// revokeInvitation revokes invitation.
 func (handler *ResourceHandler) revokeInvitation(writer http.ResponseWriter, request *http.Request) {
 	auth, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -193,6 +202,7 @@ func (handler *ResourceHandler) revokeInvitation(writer http.ResponseWriter, req
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// previewInvitation previews invitation.
 func (handler *ResourceHandler) previewInvitation(writer http.ResponseWriter, request *http.Request) {
 	token, ok := invitationToken(request)
 	if !ok || handler.invitations == nil {
@@ -207,12 +217,17 @@ func (handler *ResourceHandler) previewInvitation(writer http.ResponseWriter, re
 	_ = httpx.WriteJSON(writer, http.StatusOK, preview)
 }
 
+// acceptInvitation accepts invitation.
 func (handler *ResourceHandler) acceptInvitation(writer http.ResponseWriter, request *http.Request) {
 	handler.consumeInvitation(writer, request, true)
 }
+
+// declineInvitation declines invitation.
 func (handler *ResourceHandler) declineInvitation(writer http.ResponseWriter, request *http.Request) {
 	handler.consumeInvitation(writer, request, false)
 }
+
+// consumeInvitation consumes invitation.
 func (handler *ResourceHandler) consumeInvitation(writer http.ResponseWriter, request *http.Request, accept bool) {
 	auth, authenticated := authenticationFrom(request)
 	token, valid := invitationToken(request)
@@ -233,6 +248,7 @@ func (handler *ResourceHandler) consumeInvitation(writer http.ResponseWriter, re
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// listOrganizations lists organizations.
 func (handler *ResourceHandler) listOrganizations(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	parameters, err := pagination.Parse(request.URL.Query())
@@ -248,6 +264,7 @@ func (handler *ResourceHandler) listOrganizations(writer http.ResponseWriter, re
 	_ = httpx.WriteJSON(writer, http.StatusOK, page)
 }
 
+// createOrganization creates organization.
 func (handler *ResourceHandler) createOrganization(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	var input nameRequest
@@ -264,6 +281,7 @@ func (handler *ResourceHandler) createOrganization(writer http.ResponseWriter, r
 	_ = httpx.WriteJSON(writer, http.StatusCreated, organization)
 }
 
+// getOrganization gets organization.
 func (handler *ResourceHandler) getOrganization(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	organizationID, validID := routeUUID(request, "org_id")
@@ -279,6 +297,7 @@ func (handler *ResourceHandler) getOrganization(writer http.ResponseWriter, requ
 	_ = httpx.WriteJSON(writer, http.StatusOK, organization)
 }
 
+// updateOrganization updates organization.
 func (handler *ResourceHandler) updateOrganization(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	organizationID, validID := routeUUID(request, "org_id")
@@ -300,6 +319,7 @@ func (handler *ResourceHandler) updateOrganization(writer http.ResponseWriter, r
 	_ = httpx.WriteJSON(writer, http.StatusOK, organization)
 }
 
+// deleteOrganization deletes organization.
 func (handler *ResourceHandler) deleteOrganization(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	organizationID, validID := routeUUID(request, "org_id")
@@ -314,6 +334,7 @@ func (handler *ResourceHandler) deleteOrganization(writer http.ResponseWriter, r
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// restoreOrganization restores organization.
 func (handler *ResourceHandler) restoreOrganization(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	organizationID, validID := routeUUID(request, "org_id")
@@ -329,6 +350,7 @@ func (handler *ResourceHandler) restoreOrganization(writer http.ResponseWriter, 
 	_ = httpx.WriteJSON(writer, http.StatusOK, organization)
 }
 
+// listTeams lists teams.
 func (handler *ResourceHandler) listTeams(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, _, ok := handler.scoped(request, false)
 	parameters, err := pagination.Parse(request.URL.Query())
@@ -344,6 +366,7 @@ func (handler *ResourceHandler) listTeams(writer http.ResponseWriter, request *h
 	_ = httpx.WriteJSON(writer, http.StatusOK, page)
 }
 
+// createTeam creates team.
 func (handler *ResourceHandler) createTeam(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, _, ok := handler.scoped(request, false)
 	var input createTeamRequest
@@ -364,6 +387,7 @@ func (handler *ResourceHandler) createTeam(writer http.ResponseWriter, request *
 	_ = httpx.WriteJSON(writer, http.StatusCreated, team)
 }
 
+// listTasks lists tasks.
 func (handler *ResourceHandler) listTasks(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, teamID, ok := handler.scoped(request, true)
 	parameters, err := pagination.Parse(request.URL.Query())
@@ -379,6 +403,7 @@ func (handler *ResourceHandler) listTasks(writer http.ResponseWriter, request *h
 	_ = httpx.WriteJSON(writer, http.StatusOK, page)
 }
 
+// createTask creates task.
 func (handler *ResourceHandler) createTask(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, teamID, ok := handler.scoped(request, true)
 	input, err := decodeTask(request)
@@ -399,6 +424,7 @@ func (handler *ResourceHandler) createTask(writer http.ResponseWriter, request *
 	_ = httpx.WriteJSON(writer, http.StatusCreated, task)
 }
 
+// updateTask updates task.
 func (handler *ResourceHandler) updateTask(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, teamID, ok := handler.scoped(request, true)
 	taskID, validTask := routeUUID(request, "task_id")
@@ -420,6 +446,7 @@ func (handler *ResourceHandler) updateTask(writer http.ResponseWriter, request *
 	_ = httpx.WriteJSON(writer, http.StatusOK, task)
 }
 
+// deleteTask deletes task.
 func (handler *ResourceHandler) deleteTask(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, teamID, ok := handler.scoped(request, true)
 	taskID, validTask := routeUUID(request, "task_id")
@@ -435,6 +462,7 @@ func (handler *ResourceHandler) deleteTask(writer http.ResponseWriter, request *
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// scoped handles the scoped operation.
 func (handler *ResourceHandler) scoped(request *http.Request, requireTeam bool) (session.Authentication, uuid.UUID, uuid.UUID, bool) {
 	authentication, ok := authenticationFrom(request)
 	organizationID, validOrganization := routeUUID(request, "org_id")
@@ -448,17 +476,20 @@ func (handler *ResourceHandler) scoped(request *http.Request, requireTeam bool) 
 	return authentication, organizationID, teamID, validTeam
 }
 
+// routeUUID routes uuid.
 func routeUUID(request *http.Request, name string) (uuid.UUID, bool) {
 	value, err := uuid.Parse(chi.URLParam(request, name))
 	return value, err == nil && value != uuid.Nil
 }
 
+// decodeTask decodes task.
 func decodeTask(request *http.Request) (taskRequest, error) {
 	var input taskRequest
 	err := httpx.DecodeJSON(request, &input, maximumResourceBodyBytes)
 	return input, err
 }
 
+// problem writes an HTTP problem response.
 func (handler *ResourceHandler) problem(writer http.ResponseWriter, request *http.Request, err error) {
 	kind := httpx.ProblemDependencyUnavailable
 	switch {
@@ -476,6 +507,7 @@ func (handler *ResourceHandler) problem(writer http.ResponseWriter, request *htt
 	writeProblem(writer, request, kind, err)
 }
 
+// firstError firsts error.
 func firstError(preferred, fallback error) error {
 	if preferred != nil {
 		return preferred

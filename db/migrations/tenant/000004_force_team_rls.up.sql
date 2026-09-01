@@ -17,9 +17,6 @@ ALTER TABLE team_members FORCE ROW LEVEL SECURITY;
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tasks FORCE ROW LEVEL SECURITY;
 
--- This compatibility helper accepts D03's temporary internal user setting and
--- D04's public UUID setting. The internal-ID branch is removed with the trusted
--- context cutover in the following commit.
 CREATE FUNCTION synodus_app_user_public_id()
 RETURNS UUID
 LANGUAGE plpgsql

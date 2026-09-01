@@ -16,6 +16,7 @@ type OrganizationCreator struct {
 	pool *pgxpool.Pool
 }
 
+// NewOrganizationCreator creates an organization creator.
 func NewOrganizationCreator(pool *pgxpool.Pool) *OrganizationCreator {
 	return &OrganizationCreator{pool: pool}
 }

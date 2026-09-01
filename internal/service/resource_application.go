@@ -20,6 +20,8 @@ import (
 
 var resourceCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9._-]{0,63}$`)
 
+const maximumListResults int32 = 1000
+
 type AvailabilityWindow struct {
 	Weekday int    `json:"weekday"`
 	Start   string `json:"start"`
@@ -83,14 +85,16 @@ type ResourceApplication struct {
 	now        func() time.Time
 }
 
+// NewResourceApplication creates a resource application.
 func NewResourceApplication(authorizer applicationAuthorizer) *ResourceApplication {
 	return &ResourceApplication{authorizer: authorizer, now: time.Now}
 }
 
+// List lists the requested resources.
 func (a *ResourceApplication) List(ctx context.Context, p session.Principal, org uuid.UUID) ([]ResourceView, error) {
 	items := []ResourceView{}
 	err := a.authorizer.WithinOrganization(ctx, p, org, authorization.PermissionResourceRead, func(q *tenantdb.Queries) error {
-		rows, err := q.ListResources(ctx)
+		rows, err := q.ListResources(ctx, maximumListResults)
 		if err != nil {
 			return err
 		}
@@ -106,6 +110,7 @@ func (a *ResourceApplication) List(ctx context.Context, p session.Principal, org
 	return items, err
 }
 
+// Create creates the requested resource.
 func (a *ResourceApplication) Create(ctx context.Context, p session.Principal, org uuid.UUID, input ResourceWrite) (ResourceView, error) {
 	input, availability, err := validateResource(input)
 	if err != nil {
@@ -122,6 +127,7 @@ func (a *ResourceApplication) Create(ctx context.Context, p session.Principal, o
 	return resourceView(row)
 }
 
+// Update updates the requested resource.
 func (a *ResourceApplication) Update(ctx context.Context, p session.Principal, org, id uuid.UUID, patch ResourcePatch) (ResourceView, error) {
 	if patch.Name == nil && patch.Code == nil && patch.Kind == nil && patch.Location == nil && patch.Enabled == nil && patch.Availability == nil {
 		return ResourceView{}, ErrInvalidInput
@@ -169,6 +175,7 @@ func (a *ResourceApplication) Update(ctx context.Context, p session.Principal, o
 	return result, err
 }
 
+// Delete deletes the requested resource.
 func (a *ResourceApplication) Delete(ctx context.Context, p session.Principal, org, id uuid.UUID) error {
 	return a.authorizer.WithinOrganization(ctx, p, org, authorization.PermissionResourceManage, func(q *tenantdb.Queries) error {
 		count, err := q.DeleteResource(ctx, id)
@@ -182,10 +189,11 @@ func (a *ResourceApplication) Delete(ctx context.Context, p session.Principal, o
 	})
 }
 
+// ListBookings lists bookings.
 func (a *ResourceApplication) ListBookings(ctx context.Context, p session.Principal, org uuid.UUID) ([]BookingView, error) {
 	items := []BookingView{}
 	err := a.authorizer.WithinOrganization(ctx, p, org, authorization.PermissionResourceRead, func(q *tenantdb.Queries) error {
-		rows, err := q.ListBookings(ctx)
+		rows, err := q.ListBookings(ctx, maximumListResults)
 		if err != nil {
 			return err
 		}
@@ -204,6 +212,7 @@ func (a *ResourceApplication) ListBookings(ctx context.Context, p session.Princi
 	return items, err
 }
 
+// Request handles the request operation.
 func (a *ResourceApplication) Request(ctx context.Context, p session.Principal, org, resourceID, teamID uuid.UUID, start, end time.Time, purpose string) (ResourceRequestView, error) {
 	purpose = strings.TrimSpace(purpose)
 	if resourceID == uuid.Nil || teamID == uuid.Nil || !validInterval(start, end, a.now()) || purpose == "" || utf8.RuneCountInString(purpose) > 1000 {
@@ -242,10 +251,11 @@ func (a *ResourceApplication) Request(ctx context.Context, p session.Principal, 
 	return a.getRequest(ctx, p, org, createdID, authorization.PermissionResourceRead)
 }
 
+// ListRequests lists requests.
 func (a *ResourceApplication) ListRequests(ctx context.Context, p session.Principal, org uuid.UUID) ([]ResourceRequestView, error) {
 	items := []ResourceRequestView{}
 	err := a.authorizer.WithinOrganization(ctx, p, org, authorization.PermissionResourceRead, func(q *tenantdb.Queries) error {
-		rows, err := q.ListResourceRequests(ctx)
+		rows, err := q.ListResourceRequests(ctx, maximumListResults)
 		if err != nil {
 			return err
 		}
@@ -257,6 +267,7 @@ func (a *ResourceApplication) ListRequests(ctx context.Context, p session.Princi
 	return items, err
 }
 
+// Decide handles the decide operation.
 func (a *ResourceApplication) Decide(ctx context.Context, p session.Principal, org, id uuid.UUID, status string) (ResourceRequestView, error) {
 	if status != "approved" && status != "rejected" {
 		return ResourceRequestView{}, ErrInvalidInput
@@ -307,6 +318,7 @@ func (a *ResourceApplication) Decide(ctx context.Context, p session.Principal, o
 	return result, err
 }
 
+// getRequest gets request.
 func (a *ResourceApplication) getRequest(ctx context.Context, p session.Principal, org, id uuid.UUID, permission authorization.Permission) (ResourceRequestView, error) {
 	var result ResourceRequestView
 	err := a.authorizer.WithinOrganization(ctx, p, org, permission, func(q *tenantdb.Queries) error {
@@ -320,6 +332,7 @@ func (a *ResourceApplication) getRequest(ctx context.Context, p session.Principa
 	return result, err
 }
 
+// validateResource validates resource.
 func validateResource(input ResourceWrite) (ResourceWrite, []byte, error) {
 	input.Name = strings.TrimSpace(input.Name)
 	input.Code = strings.ToUpper(strings.TrimSpace(input.Code))
@@ -341,16 +354,23 @@ func validateResource(input ResourceWrite) (ResourceWrite, []byte, error) {
 	return input, encoded, nil
 }
 
+// validKind checks whether kind is valid.
 func validKind(kind string) bool {
 	return kind == "gpu" || kind == "instrument" || kind == "room" || kind == "workstation"
 }
+
+// validClock checks whether clock is valid.
 func validClock(value string) bool {
 	parsed, err := time.Parse("15:04", value)
 	return err == nil && parsed.Format("15:04") == value
 }
+
+// validInterval checks whether interval is valid.
 func validInterval(start, end, now time.Time) bool {
 	return !start.IsZero() && !end.IsZero() && start.Before(end) && !start.Before(now.UTC())
 }
+
+// withinAvailability withins availability.
 func withinAvailability(start, end time.Time, windows []AvailabilityWindow) bool {
 	start = start.UTC()
 	end = end.UTC()
@@ -365,11 +385,15 @@ func withinAvailability(start, end time.Time, windows []AvailabilityWindow) bool
 	}
 	return false
 }
+
+// decodeAvailability decodes availability.
 func decodeAvailability(data []byte) ([]AvailabilityWindow, error) {
 	var windows []AvailabilityWindow
 	err := json.Unmarshal(data, &windows)
 	return windows, err
 }
+
+// resourceView resources view.
 func resourceView(row tenantdb.Resource) (ResourceView, error) {
 	windows, err := decodeAvailability(row.Availability)
 	if err != nil {
@@ -377,6 +401,8 @@ func resourceView(row tenantdb.Resource) (ResourceView, error) {
 	}
 	return ResourceView{ID: row.PublicID, ResourceWrite: ResourceWrite{Name: row.Name, Code: row.Code, Kind: row.Kind, Location: row.Location, Enabled: row.Enabled, Availability: windows}}, nil
 }
+
+// decidedAt decideds at.
 func decidedAt(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -384,12 +410,18 @@ func decidedAt(value pgtype.Timestamptz) *time.Time {
 	timestamp := value.Time
 	return &timestamp
 }
+
+// requestListView requests list view.
 func requestListView(row tenantdb.ListResourceRequestsRow) ResourceRequestView {
 	return ResourceRequestView{ID: row.PublicID, ResourceID: row.ResourcePublicID, ResourceName: row.ResourceName, TeamPublicID: row.TeamPublicID, TeamName: row.TeamName, RequestedBy: row.RequestedBy, RequestedByName: row.RequestedByName, StartTime: row.StartTime, EndTime: row.EndTime, Purpose: row.Purpose, Status: row.Status, CreatedAt: row.CreatedAt, DecidedAt: decidedAt(row.DecidedAt)}
 }
+
+// requestView requests view.
 func requestView(row tenantdb.GetResourceRequestRow) ResourceRequestView {
 	return ResourceRequestView{ID: row.PublicID, ResourceID: row.ResourcePublicID, ResourceName: row.ResourceName, TeamPublicID: row.TeamPublicID, TeamName: row.TeamName, RequestedBy: row.RequestedBy, RequestedByName: row.RequestedByName, StartTime: row.StartTime, EndTime: row.EndTime, Purpose: row.Purpose, Status: row.Status, CreatedAt: row.CreatedAt, DecidedAt: decidedAt(row.DecidedAt)}
 }
+
+// classifyResourceError classifys resource error.
 func classifyResourceError(err error) error {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return authorization.ErrResourceNotFound

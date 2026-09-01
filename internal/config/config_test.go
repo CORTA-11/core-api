@@ -1,6 +1,9 @@
 package config
 
 import (
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +11,40 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRuntimeLookupBuildsDatabaseURLFromSecretFile(t *testing.T) {
+	secretDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(secretDir, "db_runtime_password.txt"), []byte("p@ss/word\n"), 0o600))
+	values := map[string]string{
+		"LOCAL_SECRETS_DIR": secretDir,
+		"DB_HOST":           "localhost",
+		"DB_PORT":           "5432",
+		"DB_NAME":           "appdb",
+	}
+	lookup := runtimeLookup(func(name string) (string, bool) { value, ok := values[name]; return value, ok })
+
+	raw, ok := lookup("DATABASE_URL")
+	require.True(t, ok)
+	parsed, err := url.Parse(raw)
+	require.NoError(t, err)
+	password, ok := parsed.User.Password()
+	require.True(t, ok)
+	assert.Equal(t, "synodus_runtime", parsed.User.Username())
+	assert.Equal(t, "p@ss/word", password)
+}
+
+func TestRuntimeLookupPrefersExplicitDatabaseURL(t *testing.T) {
+	lookup := runtimeLookup(func(name string) (string, bool) {
+		if name == "DATABASE_URL" {
+			return "postgres://explicit/db", true
+		}
+		return "", false
+	})
+
+	raw, ok := lookup("DATABASE_URL")
+	require.True(t, ok)
+	assert.Equal(t, "postgres://explicit/db", raw)
+}
 
 func validEnvironment() map[string]string {
 	return map[string]string{

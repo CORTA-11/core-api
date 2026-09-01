@@ -23,14 +23,17 @@ import (
 
 var errFleetNotCurrent = errors.New("requested tenant fleet is not current")
 
+// main runs the command.
 func main() { os.Exit(realMain()) }
 
+// realMain runs the command and returns its exit status.
 func realMain() int {
 	_ = godotenv.Load()
+	lookup := tenancy.RuntimeLookup(os.LookupEnv)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	result := make(chan error, 1)
-	go func() { result <- execute(ctx, os.Args[1:], os.LookupEnv, os.Stdout) }()
+	go func() { result <- execute(ctx, os.Args[1:], lookup, os.Stdout) }()
 	var err error
 	// Cancellation first asks database work to stop, then bounds how long the
 	// process waits for advisory-lock cleanup and failure-state persistence.
@@ -38,7 +41,7 @@ func realMain() int {
 	case err = <-result:
 	case <-ctx.Done():
 		shutdownTimeout := 10 * time.Second
-		if cfg, configErr := tenancy.LoadConfig(os.LookupEnv); configErr == nil {
+		if cfg, configErr := tenancy.LoadConfig(lookup); configErr == nil {
 			shutdownTimeout = cfg.ShutdownTimeout
 		}
 		timer := time.NewTimer(shutdownTimeout)
@@ -59,6 +62,7 @@ func realMain() int {
 	return 0
 }
 
+// execute executes the requested command.
 func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, output io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("usage: provisioner run|reconcile|status|retry")
@@ -167,6 +171,7 @@ func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, outp
 	}
 }
 
+// parseSelection parses selection.
 func parseSelection(command string, args []string, defaultConcurrency int, allowConcurrency bool) (*uuid.UUID, bool, int, error) {
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)

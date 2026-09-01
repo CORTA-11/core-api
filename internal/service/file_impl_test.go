@@ -38,6 +38,11 @@ func TestFileService_UploadValidation(t *testing.T) {
 		assert.ErrorIs(t, err, ErrInvalidInput)
 	})
 
+	t.Run("oversized file", func(t *testing.T) {
+		_, err := svc.UploadFile(context.Background(), p, orgID, teamID, "file.txt", "text/plain", strings.NewReader("data"), MaxFileUploadBytes+1, []byte("iv-bytes"), 1)
+		assert.ErrorIs(t, err, ErrInvalidInput)
+	})
+
 	t.Run("missing iv", func(t *testing.T) {
 		_, err := svc.UploadFile(context.Background(), p, orgID, teamID, "file.txt", "text/plain", strings.NewReader("data"), 4, nil, 1)
 		assert.ErrorIs(t, err, ErrInvalidInput)
@@ -68,7 +73,7 @@ func TestFileService_ListFiles(t *testing.T) {
 			WillReturnRows(pgxmock.NewRows([]string{"id", "public_id"}).AddRow(internalTeamID, teamID))
 
 		mockPool.ExpectQuery(`(?s)ListFilesForTeam.*SELECT`).
-			WithArgs(internalTeamID).
+			WithArgs(internalTeamID, maximumListResults).
 			WillReturnRows(pgxmock.NewRows([]string{
 				"id", "public_id", "team_id", "name", "size", "content_type", "object_key", "iv", "key_version", "uploaded_by", "created_at", "updated_at", "deleted_at",
 			}).AddRow(int64(1), uuid.New(), internalTeamID, "doc.pdf", int64(1024), "application/pdf", "key", []byte("iv"), int32(1), p.UserID, now, now, nil))

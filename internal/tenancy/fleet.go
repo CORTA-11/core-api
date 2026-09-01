@@ -124,6 +124,7 @@ func (r *Reconciler) Run(ctx context.Context, emit func(Result)) error {
 	}
 }
 
+// scan handles the scan operation.
 func (r *Reconciler) scan(ctx context.Context, emit func(Result)) error {
 	// Drain full batches before sleeping so backlog throughput is bounded by
 	// worker concurrency rather than the polling interval.

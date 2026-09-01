@@ -56,6 +56,7 @@ type credentialVerifier struct {
 	dummyHash     string
 }
 
+// NewCredentialVerifier creates a credential verifier.
 func NewCredentialVerifier(ctx context.Context, store CredentialStore, hasher PasswordHasher) (CredentialVerifier, error) {
 	if store == nil || hasher == nil {
 		return nil, ErrCredentialDependency
@@ -71,6 +72,7 @@ func NewCredentialVerifier(ctx context.Context, store CredentialStore, hasher Pa
 	}, nil
 }
 
+// Verify handles the verify operation.
 func (verifier *credentialVerifier) Verify(
 	ctx context.Context,
 	email string,
@@ -118,6 +120,7 @@ func (verifier *credentialVerifier) Verify(
 	return CredentialPrincipal{UserPublicID: credential.UserPublicID}, nil
 }
 
+// upgradeCredential upgrades credential.
 func (verifier *credentialVerifier) upgradeCredential(
 	ctx context.Context,
 	credential StoredCredential,
@@ -167,6 +170,7 @@ func (verifier *credentialVerifier) upgradeCredential(
 	return CredentialPrincipal{UserPublicID: credential.UserPublicID}, nil
 }
 
+// denyWithDummy denys with dummy.
 func (verifier *credentialVerifier) denyWithDummy(ctx context.Context) (CredentialPrincipal, error) {
 	if _, err := verifier.hasher.Verify(ctx, dummyCredentialInput, verifier.dummyHash); err != nil {
 		return CredentialPrincipal{}, err

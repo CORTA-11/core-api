@@ -267,6 +267,7 @@ LEFT JOIN team_members AS team_member ON team_member.team_id = request.team_id
     AND team_member.user_public_id = synodus_app_user_public_id()
 WHERE request.status = 'approved'
 ORDER BY request.start_time, request.public_id
+LIMIT $1
 `
 
 type ListBookingsRow struct {
@@ -282,8 +283,8 @@ type ListBookingsRow struct {
 	Purpose          string    `json:"purpose"`
 }
 
-func (q *Queries) ListBookings(ctx context.Context) ([]ListBookingsRow, error) {
-	rows, err := q.db.Query(ctx, listBookings)
+func (q *Queries) ListBookings(ctx context.Context, limit int32) ([]ListBookingsRow, error) {
+	rows, err := q.db.Query(ctx, listBookings, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -325,6 +326,7 @@ LEFT JOIN team_members AS team_member ON team_member.team_id = request.team_id
     AND team_member.user_public_id = synodus_app_user_public_id()
 WHERE synodus_current_organization_role() IN ('owner', 'administrator') OR team_member.user_public_id IS NOT NULL
 ORDER BY request.created_at DESC, request.public_id
+LIMIT $1
 `
 
 type ListResourceRequestsRow struct {
@@ -343,8 +345,8 @@ type ListResourceRequestsRow struct {
 	DecidedAt        pgtype.Timestamptz `json:"decided_at"`
 }
 
-func (q *Queries) ListResourceRequests(ctx context.Context) ([]ListResourceRequestsRow, error) {
-	rows, err := q.db.Query(ctx, listResourceRequests)
+func (q *Queries) ListResourceRequests(ctx context.Context, limit int32) ([]ListResourceRequestsRow, error) {
+	rows, err := q.db.Query(ctx, listResourceRequests, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -380,10 +382,11 @@ func (q *Queries) ListResourceRequests(ctx context.Context) ([]ListResourceReque
 const listResources = `-- name: ListResources :many
 SELECT id, public_id, name, code, kind, location, enabled, availability, created_at, updated_at
 FROM resources ORDER BY name, public_id
+LIMIT $1
 `
 
-func (q *Queries) ListResources(ctx context.Context) ([]Resource, error) {
-	rows, err := q.db.Query(ctx, listResources)
+func (q *Queries) ListResources(ctx context.Context, limit int32) ([]Resource, error) {
+	rows, err := q.db.Query(ctx, listResources, limit)
 	if err != nil {
 		return nil, err
 	}

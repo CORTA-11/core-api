@@ -13,10 +13,12 @@ type PostgresCredentialStore struct {
 	queries *publicdb.Queries
 }
 
+// NewPostgresCredentialStore creates a postgres credential store.
 func NewPostgresCredentialStore(queries *publicdb.Queries) *PostgresCredentialStore {
 	return &PostgresCredentialStore{queries: queries}
 }
 
+// CredentialByCanonicalEmail credentials by canonical email.
 func (store *PostgresCredentialStore) CredentialByCanonicalEmail(
 	ctx context.Context,
 	canonicalEmail string,
@@ -36,6 +38,7 @@ func (store *PostgresCredentialStore) CredentialByCanonicalEmail(
 	}, nil
 }
 
+// CompareAndSwapCredential compares and swap credential.
 func (store *PostgresCredentialStore) CompareAndSwapCredential(
 	ctx context.Context,
 	update CredentialCompareAndSwap,
@@ -53,6 +56,7 @@ func (store *PostgresCredentialStore) CompareAndSwapCredential(
 	return rowsAffected == 1, nil
 }
 
+// CurrentCredentialByUserID currents credential by user id.
 func (store *PostgresCredentialStore) CurrentCredentialByUserID(
 	ctx context.Context,
 	userID uuid.UUID,

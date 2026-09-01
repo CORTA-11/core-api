@@ -39,6 +39,7 @@ func CheckSchemaBoundary(path string, source []byte) []Issue {
 	return []Issue{{Path: path, Query: "production source", Message: "direct tenant schema operation is outside the explicit allowlist"}}
 }
 
+// Error returns the error message.
 func (i Issue) Error() string {
 	return fmt.Sprintf("%s: query %s: %s", i.Path, i.Query, i.Message)
 }

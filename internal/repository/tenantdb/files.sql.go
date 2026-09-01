@@ -119,11 +119,17 @@ const listFilesForTeam = `-- name: ListFilesForTeam :many
 SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at
 FROM files
 WHERE team_id = $1 AND deleted_at IS NULL
-ORDER BY created_at DESC
+ORDER BY created_at DESC, public_id
+LIMIT $2
 `
 
-func (q *Queries) ListFilesForTeam(ctx context.Context, teamID int64) ([]File, error) {
-	rows, err := q.db.Query(ctx, listFilesForTeam, teamID)
+type ListFilesForTeamParams struct {
+	TeamID int64 `json:"team_id"`
+	Limit  int32 `json:"limit"`
+}
+
+func (q *Queries) ListFilesForTeam(ctx context.Context, arg ListFilesForTeamParams) ([]File, error) {
+	rows, err := q.db.Query(ctx, listFilesForTeam, arg.TeamID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -161,15 +167,17 @@ SELECT team_id, user_id, encrypted_key, key_version, created_at
 FROM team_shared_keys
 WHERE team_id = $1 AND user_id = $2
 ORDER BY key_version DESC
+LIMIT $3
 `
 
 type ListTeamSharedKeysForUserParams struct {
 	TeamID int64     `json:"team_id"`
 	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
 }
 
 func (q *Queries) ListTeamSharedKeysForUser(ctx context.Context, arg ListTeamSharedKeysForUserParams) ([]TeamSharedKey, error) {
-	rows, err := q.db.Query(ctx, listTeamSharedKeysForUser, arg.TeamID, arg.UserID)
+	rows, err := q.db.Query(ctx, listTeamSharedKeysForUser, arg.TeamID, arg.UserID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

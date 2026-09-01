@@ -25,6 +25,7 @@ func NewKeyService(pool pgxPool, authorizer applicationAuthorizer) KeyService {
 	}
 }
 
+// UpsertPublicKey upserts public key.
 func (s *keyService) UpsertPublicKey(ctx context.Context, p session.Principal, publicKey string) (*UserPublicKey, error) {
 	if p.UserID == uuid.Nil {
 		return nil, authorization.ErrUnauthenticated
@@ -54,6 +55,7 @@ func (s *keyService) UpsertPublicKey(ctx context.Context, p session.Principal, p
 	}, tx.Commit(ctx)
 }
 
+// GetPublicKey gets public key.
 func (s *keyService) GetPublicKey(ctx context.Context, p session.Principal, userID uuid.UUID) (*UserPublicKey, error) {
 	if p.UserID == uuid.Nil {
 		return nil, authorization.ErrUnauthenticated
@@ -80,6 +82,7 @@ func (s *keyService) GetPublicKey(ctx context.Context, p session.Principal, user
 	}, tx.Commit(ctx)
 }
 
+// GetPublicKeysForTeam gets public keys for team.
 func (s *keyService) GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]UserPublicKey, error) {
 	var memberUUIDs []uuid.UUID
 	err := s.authorizer.WithinTeam(ctx, p, orgID, teamID, authorization.PermissionTeamRead, func(queries *tenantdb.Queries) error {
@@ -104,7 +107,10 @@ func (s *keyService) GetPublicKeysForTeam(ctx context.Context, p session.Princip
 	defer func() { _ = tx.Rollback(context.Background()) }()
 
 	publicdbQueries := publicdb.New(tx)
-	rows, err := publicdbQueries.GetUserPublicKeys(ctx, memberUUIDs)
+	rows, err := publicdbQueries.GetUserPublicKeys(ctx, publicdb.GetUserPublicKeysParams{
+		UserIds: memberUUIDs,
+		Limit:   maximumListResults,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +127,7 @@ func (s *keyService) GetPublicKeysForTeam(ctx context.Context, p session.Princip
 	return views, tx.Commit(ctx)
 }
 
+// UpsertTeamSharedKeys upserts team shared keys.
 func (s *keyService) UpsertTeamSharedKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, keys []TeamSharedKey) error {
 	return s.authorizer.WithinTeam(ctx, p, orgID, teamID, authorization.PermissionFileUpload, func(queries *tenantdb.Queries) error {
 		resolvedTeam, err := queries.ResolveTeamContext(ctx, tenantdb.ResolveTeamContextParams{
@@ -146,6 +153,7 @@ func (s *keyService) UpsertTeamSharedKeys(ctx context.Context, p session.Princip
 	})
 }
 
+// GetTeamSharedKeyForUser gets team shared key for user.
 func (s *keyService) GetTeamSharedKeyForUser(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, userID uuid.UUID, version int32) (*TeamSharedKey, error) {
 	var key tenantdb.TeamSharedKey
 	err := s.authorizer.WithinTeam(ctx, p, orgID, teamID, authorization.PermissionTeamRead, func(queries *tenantdb.Queries) error {
@@ -180,6 +188,7 @@ func (s *keyService) GetTeamSharedKeyForUser(ctx context.Context, p session.Prin
 	}, nil
 }
 
+// ListTeamSharedKeysForUser lists team shared keys for user.
 func (s *keyService) ListTeamSharedKeysForUser(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, userID uuid.UUID) ([]TeamSharedKey, error) {
 	var rows []tenantdb.TeamSharedKey
 	err := s.authorizer.WithinTeam(ctx, p, orgID, teamID, authorization.PermissionTeamRead, func(queries *tenantdb.Queries) error {
@@ -194,6 +203,7 @@ func (s *keyService) ListTeamSharedKeysForUser(ctx context.Context, p session.Pr
 		rows, err = queries.ListTeamSharedKeysForUser(ctx, tenantdb.ListTeamSharedKeysForUserParams{
 			TeamID: resolvedTeam.ID,
 			UserID: userID,
+			Limit:  maximumListResults,
 		})
 		return err
 	})

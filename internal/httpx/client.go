@@ -26,6 +26,7 @@ type TrustedProxies struct{ prefixes []netip.Prefix }
 
 type clientContextKey struct{}
 
+// ParseTrustedProxies parses trusted proxies.
 func ParseTrustedProxies(raw string) (TrustedProxies, error) {
 	var policy TrustedProxies
 	if strings.TrimSpace(raw) == "" {
@@ -47,6 +48,7 @@ func ParseTrustedProxies(raw string) (TrustedProxies, error) {
 	return policy, nil
 }
 
+// CIDRs handles the cidrs operation.
 func (policy TrustedProxies) CIDRs() []string {
 	result := make([]string, len(policy.prefixes))
 	for index, prefix := range policy.prefixes {
@@ -55,6 +57,7 @@ func (policy TrustedProxies) CIDRs() []string {
 	return result
 }
 
+// Middleware handles the middleware operation.
 func (policy TrustedProxies) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		client, err := policy.Derive(request)
@@ -67,11 +70,13 @@ func (policy TrustedProxies) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// ClientFromContext clients from context.
 func ClientFromContext(ctx context.Context) (Client, bool) {
 	client, ok := ctx.Value(clientContextKey{}).(Client)
 	return client, ok
 }
 
+// Derive handles the derive operation.
 func (policy TrustedProxies) Derive(request *http.Request) (Client, error) {
 	peer, err := parseAddress(request.RemoteAddr)
 	if err != nil {
@@ -101,6 +106,7 @@ type forwardedHop struct {
 	host    string
 }
 
+// deriveForwarded derives forwarded.
 func (policy TrustedProxies) deriveForwarded(base Client, raw string) (Client, error) {
 	parts := strings.Split(raw, ",")
 	if len(parts) == 0 || len(parts) > maximumForwardedHops {
@@ -151,6 +157,7 @@ func (policy TrustedProxies) deriveForwarded(base Client, raw string) (Client, e
 	return base, nil
 }
 
+// deriveXForwarded derives xfo rwarded.
 func (policy TrustedProxies) deriveXForwarded(base Client, header http.Header) (Client, error) {
 	rawAddresses := strings.Join(header.Values("X-Forwarded-For"), ",")
 	parts := strings.Split(rawAddresses, ",")
@@ -180,6 +187,7 @@ func (policy TrustedProxies) deriveXForwarded(base Client, header http.Header) (
 	return base, nil
 }
 
+// clientAddress clients address.
 func (policy TrustedProxies) clientAddress(chain []netip.Addr, direct netip.Addr) netip.Addr {
 	selected := direct
 	for index := len(chain) - 1; index >= 0 && policy.contains(selected); index-- {
@@ -188,11 +196,13 @@ func (policy TrustedProxies) clientAddress(chain []netip.Addr, direct netip.Addr
 	return selected
 }
 
+// contains handles the contains operation.
 func (policy TrustedProxies) contains(address netip.Addr) bool {
 	address = address.Unmap()
 	return slices.ContainsFunc(policy.prefixes, func(prefix netip.Prefix) bool { return prefix.Contains(address) })
 }
 
+// normalizePrefix normalizes prefix.
 func normalizePrefix(prefix netip.Prefix) netip.Prefix {
 	if prefix.Addr().Is4In6() && prefix.Bits() >= 96 {
 		return netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96).Masked()
@@ -200,6 +210,7 @@ func normalizePrefix(prefix netip.Prefix) netip.Prefix {
 	return prefix.Masked()
 }
 
+// parseAddress parses address.
 func parseAddress(value string) (netip.Addr, error) {
 	value = strings.Trim(strings.TrimSpace(value), `"`)
 	if address, err := netip.ParseAddr(value); err == nil {
@@ -216,6 +227,7 @@ func parseAddress(value string) (netip.Addr, error) {
 	return address.Unmap(), err
 }
 
+// requestScheme requests scheme.
 func requestScheme(request *http.Request) string {
 	if request.TLS != nil {
 		return "https"
@@ -223,10 +235,12 @@ func requestScheme(request *http.Request) string {
 	return "http"
 }
 
+// hasXForwarding checks whether xfo rwarding exists.
 func hasXForwarding(header http.Header) bool {
 	return header.Get("X-Forwarded-For") != "" || header.Get("X-Forwarded-Proto") != "" || header.Get("X-Forwarded-Host") != ""
 }
 
+// singleForwardedValue singles forwarded value.
 func singleForwardedValue(header http.Header, name string) string {
 	values := header.Values(name)
 	if len(values) > 1 || (len(values) == 1 && strings.Contains(values[0], ",")) {
@@ -238,6 +252,7 @@ func singleForwardedValue(header http.Header, name string) string {
 	return strings.TrimSpace(values[0])
 }
 
+// validForwardedMetadata checks whether forwarded metadata is valid.
 func validForwardedMetadata(proto, host string) bool {
 	if proto != "" && proto != "http" && proto != "https" {
 		return false
@@ -249,6 +264,7 @@ func validForwardedMetadata(proto, host string) bool {
 	return err == nil && parsed.Host == host && parsed.Hostname() != "" && parsed.User == nil && !strings.ContainsAny(host, "\x00/@?#")
 }
 
+// hopAddresses hops addresses.
 func hopAddresses(hops []forwardedHop) []netip.Addr {
 	addresses := make([]netip.Addr, len(hops))
 	for index := range hops {

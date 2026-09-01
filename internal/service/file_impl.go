@@ -20,6 +20,9 @@ type fileService struct {
 	authorizer  applicationAuthorizer
 }
 
+// MaxFileUploadBytes bounds both HTTP and service-level file ingestion.
+const MaxFileUploadBytes int64 = 10 << 20
+
 // NewFileService creates a new instance of FileService.
 func NewFileService(minioClient *miniogo.Client, bucket string, authorizer applicationAuthorizer) FileService {
 	return &fileService{
@@ -29,6 +32,7 @@ func NewFileService(minioClient *miniogo.Client, bucket string, authorizer appli
 	}
 }
 
+// UploadFile uploads file.
 func (s *fileService) UploadFile(
 	ctx context.Context,
 	p session.Principal,
@@ -47,7 +51,7 @@ func (s *fileService) UploadFile(
 	if len(iv) == 0 || len(iv) > 64 {
 		return nil, ErrInvalidInput
 	}
-	if size <= 0 {
+	if size <= 0 || size > MaxFileUploadBytes {
 		return nil, ErrInvalidInput
 	}
 
@@ -95,11 +99,12 @@ func (s *fileService) UploadFile(
 		IV:          row.Iv,
 		KeyVersion:  row.KeyVersion,
 		UploadedBy:  row.UploadedBy,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
 	}, nil
 }
 
+// DownloadFile downloads file.
 func (s *fileService) DownloadFile(
 	ctx context.Context,
 	p session.Principal,
@@ -144,13 +149,14 @@ func (s *fileService) DownloadFile(
 		IV:          row.Iv,
 		KeyVersion:  row.KeyVersion,
 		UploadedBy:  row.UploadedBy,
-		CreatedAt:    row.CreatedAt,
-		UpdatedAt:    row.UpdatedAt,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
 	}
 
 	return view, object, nil
 }
 
+// ListFiles lists files.
 func (s *fileService) ListFiles(
 	ctx context.Context,
 	p session.Principal,
@@ -168,7 +174,10 @@ func (s *fileService) ListFiles(
 		}
 
 		var listErr error
-		rows, listErr = queries.ListFilesForTeam(ctx, resolvedTeam.ID)
+		rows, listErr = queries.ListFilesForTeam(ctx, tenantdb.ListFilesForTeamParams{
+			TeamID: resolvedTeam.ID,
+			Limit:  maximumListResults,
+		})
 		return listErr
 	})
 	if err != nil {
@@ -185,13 +194,14 @@ func (s *fileService) ListFiles(
 			IV:          row.Iv,
 			KeyVersion:  row.KeyVersion,
 			UploadedBy:  row.UploadedBy,
-			CreatedAt:    row.CreatedAt,
-			UpdatedAt:    row.UpdatedAt,
+			CreatedAt:   row.CreatedAt,
+			UpdatedAt:   row.UpdatedAt,
 		}
 	}
 	return views, nil
 }
 
+// DeleteFile deletes file.
 func (s *fileService) DeleteFile(
 	ctx context.Context,
 	p session.Principal,

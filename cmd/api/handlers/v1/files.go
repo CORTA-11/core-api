@@ -10,6 +10,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/service"
 )
 
+// getPublicKeysForTeam gets public keys for team.
 func (handler *ResourceHandler) getPublicKeysForTeam(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -28,6 +29,7 @@ func (handler *ResourceHandler) getPublicKeysForTeam(writer http.ResponseWriter,
 	_ = httpx.WriteJSON(writer, http.StatusOK, keys)
 }
 
+// upsertTeamSharedKeys upserts team shared keys.
 func (handler *ResourceHandler) upsertTeamSharedKeys(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -52,6 +54,7 @@ func (handler *ResourceHandler) upsertTeamSharedKeys(writer http.ResponseWriter,
 	writer.WriteHeader(http.StatusNoContent)
 }
 
+// listTeamSharedKeysForUser lists team shared keys for user.
 func (handler *ResourceHandler) listTeamSharedKeysForUser(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -70,6 +73,7 @@ func (handler *ResourceHandler) listTeamSharedKeysForUser(writer http.ResponseWr
 	_ = httpx.WriteJSON(writer, http.StatusOK, keys)
 }
 
+// uploadFile uploads file.
 func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -79,7 +83,9 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 		return
 	}
 
-	err := request.ParseMultipartForm(10 << 20) // 10 MB limit
+	// Allow bounded multipart framing overhead in addition to the file itself.
+	request.Body = http.MaxBytesReader(writer, request.Body, service.MaxFileUploadBytes+(1<<20))
+	err := request.ParseMultipartForm(1 << 20) // #nosec G120 -- MaxBytesReader above bounds the entire request body.
 	if err != nil {
 		handler.problem(writer, request, service.ErrInvalidInput)
 		return
@@ -89,7 +95,7 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 	keyVersionStr := request.FormValue("key_version")
 	ivStr := request.FormValue("iv")
 
-	keyVersion, err := strconv.Atoi(keyVersionStr)
+	parsedKeyVersion, err := strconv.ParseInt(keyVersionStr, 10, 32)
 	if err != nil {
 		handler.problem(writer, request, service.ErrInvalidInput)
 		return
@@ -103,6 +109,11 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 		return
 	}
 	defer func() { _ = file.Close() }()
+	if fileHeader.Size > service.MaxFileUploadBytes {
+		handler.problem(writer, request, service.ErrInvalidInput)
+		return
+	}
+	keyVersion := int32(parsedKeyVersion) // #nosec G115 -- ParseInt above enforces the int32 range.
 
 	metadata, err := handler.files.UploadFile(
 		request.Context(),
@@ -114,7 +125,7 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 		file,
 		fileHeader.Size,
 		iv,
-		int32(keyVersion),
+		keyVersion,
 	)
 	if err != nil {
 		handler.problem(writer, request, err)
@@ -124,6 +135,7 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 	_ = httpx.WriteJSON(writer, http.StatusCreated, metadata)
 }
 
+// listFiles lists files.
 func (handler *ResourceHandler) listFiles(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -142,6 +154,7 @@ func (handler *ResourceHandler) listFiles(writer http.ResponseWriter, request *h
 	_ = httpx.WriteJSON(writer, http.StatusOK, files)
 }
 
+// downloadFile downloads file.
 func (handler *ResourceHandler) downloadFile(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -170,6 +183,7 @@ func (handler *ResourceHandler) downloadFile(writer http.ResponseWriter, request
 	_, _ = io.Copy(writer, stream)
 }
 
+// deleteFile deletes file.
 func (handler *ResourceHandler) deleteFile(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")

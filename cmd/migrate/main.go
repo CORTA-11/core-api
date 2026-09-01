@@ -23,6 +23,7 @@ type migrator interface {
 
 type migratorFactory func(sourceURL, databaseURL string) (migrator, error)
 
+// main runs the command.
 func main() {
 	if err := run(os.Args[1:], os.Getenv, newMigrator); err != nil {
 		log.Printf("migration failed: %v", err)
@@ -30,10 +31,12 @@ func main() {
 	}
 }
 
+// newMigrator news migrator.
 func newMigrator(sourceURL, databaseURL string) (migrator, error) {
 	return migrate.New(sourceURL, databaseURL)
 }
 
+// run runs the command workflow.
 func run(args []string, getenv func(string) string, factory migratorFactory) error {
 	if len(args) != 1 {
 		return errors.New("usage: migrate [up|up-all|down|down-all|status]")

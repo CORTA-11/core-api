@@ -21,6 +21,7 @@ type Database interface {
 
 type Option func(*Manager)
 
+// WithClock configures clock.
 func WithClock(clock Clock) Option {
 	return func(manager *Manager) {
 		if clock != nil {
@@ -29,6 +30,7 @@ func WithClock(clock Clock) Option {
 	}
 }
 
+// WithRandom configures random.
 func WithRandom(random io.Reader) Option {
 	return func(manager *Manager) {
 		if random != nil {
@@ -45,6 +47,7 @@ type Manager struct {
 	clock    Clock
 }
 
+// NewManager creates a manager.
 func NewManager(database Database, csrfSecret []byte, options ...Option) (*Manager, error) {
 	if database == nil {
 		return nil, ErrSessionDependency
@@ -66,10 +69,12 @@ func NewManager(database Database, csrfSecret []byte, options ...Option) (*Manag
 	return manager, nil
 }
 
+// Issue handles the issue operation.
 func (manager *Manager) Issue(ctx context.Context, userID uuid.UUID, userAgent string) (IssuedSession, error) {
 	return manager.issueWithQueries(ctx, manager.queries, userID, userAgent)
 }
 
+// Rotate handles the rotate operation.
 func (manager *Manager) Rotate(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -152,6 +157,7 @@ func (manager *Manager) Register(
 	return issued, nil
 }
 
+// issueWithQueries issues with queries.
 func (manager *Manager) issueWithQueries(
 	ctx context.Context,
 	queries *publicdb.Queries,
@@ -165,6 +171,7 @@ func (manager *Manager) issueWithQueries(
 	return manager.issuePreparedWithQueries(ctx, queries, userID, userAgent, token, raw)
 }
 
+// issuePreparedWithQueries issues prepared with queries.
 func (manager *Manager) issuePreparedWithQueries(
 	ctx context.Context,
 	queries *publicdb.Queries,
@@ -205,6 +212,7 @@ func (manager *Manager) issuePreparedWithQueries(
 	}, nil
 }
 
+// Authenticate handles the authenticate operation.
 func (manager *Manager) Authenticate(ctx context.Context, token string) (Authentication, error) {
 	raw, err := parseToken(token)
 	if err != nil {
@@ -244,24 +252,29 @@ func (manager *Manager) Authenticate(ctx context.Context, token string) (Authent
 	}, nil
 }
 
+// ValidCSRF checks whether csrf is valid.
 func (manager *Manager) ValidCSRF(authentication Authentication, candidate string) bool {
 	return manager.csrf.Valid(authentication.rawToken, candidate)
 }
 
+// ValidTokenCSRF checks whether token csrf is valid.
 func (manager *Manager) ValidTokenCSRF(token string, candidate string) bool {
 	raw, err := parseToken(token)
 	return err == nil && manager.csrf.Valid(raw, candidate)
 }
 
+// ParseableToken parseables token.
 func ParseableToken(token string) bool {
 	_, err := parseToken(token)
 	return err == nil
 }
 
+// CSRFToken csrftos ken.
 func (manager *Manager) CSRFToken(authentication Authentication) string {
 	return manager.csrf.Derive(authentication.rawToken)
 }
 
+// List lists the requested resources.
 func (manager *Manager) List(ctx context.Context, principal Principal) ([]Metadata, error) {
 	now := manager.now()
 	rows, err := manager.queries.ListUserSessions(ctx, publicdb.ListUserSessionsParams{
@@ -280,6 +293,7 @@ func (manager *Manager) List(ctx context.Context, principal Principal) ([]Metada
 	return result, nil
 }
 
+// RevokeCurrent revokes current.
 func (manager *Manager) RevokeCurrent(ctx context.Context, token string) error {
 	raw, err := parseToken(token)
 	if err != nil {
@@ -295,6 +309,7 @@ func (manager *Manager) RevokeCurrent(ctx context.Context, token string) error {
 	return nil
 }
 
+// Revoke handles the revoke operation.
 func (manager *Manager) Revoke(ctx context.Context, principal Principal, sessionID uuid.UUID) error {
 	rows, err := manager.queries.RevokeUserSession(ctx, publicdb.RevokeUserSessionParams{
 		Now: pgTimestamp(manager.now()), UserPublicID: principal.UserID, SessionPublicID: sessionID,
@@ -308,6 +323,7 @@ func (manager *Manager) Revoke(ctx context.Context, principal Principal, session
 	return nil
 }
 
+// RevokeAll revokes all.
 func (manager *Manager) RevokeAll(ctx context.Context, principal Principal) error {
 	if err := manager.queries.RevokeAllUserSessions(ctx, publicdb.RevokeAllUserSessionsParams{
 		Now: pgTimestamp(manager.now()), UserPublicID: principal.UserID,
@@ -317,6 +333,7 @@ func (manager *Manager) RevokeAll(ctx context.Context, principal Principal) erro
 	return nil
 }
 
+// Cleanup handles the cleanup operation.
 func (manager *Manager) Cleanup(ctx context.Context, batchSize int) (CleanupResult, error) {
 	if batchSize == 0 {
 		batchSize = DefaultBatchSize
@@ -357,8 +374,10 @@ func (manager *Manager) Cleanup(ctx context.Context, batchSize int) (CleanupResu
 	return result, nil
 }
 
+// now returns the current UTC time.
 func (manager *Manager) now() time.Time { return manager.clock().UTC() }
 
+// metadata builds session metadata.
 func metadata(
 	id uuid.UUID,
 	userAgent string,
@@ -379,6 +398,7 @@ func metadata(
 	}
 }
 
+// timestampPointer timestamps pointer.
 func timestampPointer(value pgtype.Timestamptz) *time.Time {
 	if !value.Valid {
 		return nil
@@ -387,6 +407,7 @@ func timestampPointer(value pgtype.Timestamptz) *time.Time {
 	return &timestamp
 }
 
+// pgTimestamp pgs timestamp.
 func pgTimestamp(value time.Time) pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: value, Valid: true}
 }

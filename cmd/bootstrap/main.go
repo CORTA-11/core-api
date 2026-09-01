@@ -9,6 +9,7 @@ import (
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 )
 
+// main runs the command.
 func main() {
 	if err := run(context.Background()); err != nil {
 		log.Printf("bootstrap failed: %v", err)
@@ -16,6 +17,7 @@ func main() {
 	}
 }
 
+// run runs the command workflow.
 func run(ctx context.Context) error {
 	cfg, err := config.Load()
 	if err != nil {

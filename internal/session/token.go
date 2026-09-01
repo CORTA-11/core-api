@@ -21,6 +21,7 @@ type tokenCodec struct {
 	random io.Reader
 }
 
+// issue handles the issue operation.
 func (codec tokenCodec) issue() (string, []byte, error) {
 	random := codec.random
 	if random == nil {
@@ -33,6 +34,7 @@ func (codec tokenCodec) issue() (string, []byte, error) {
 	return base64.RawURLEncoding.EncodeToString(raw), raw, nil
 }
 
+// parseToken parses token.
 func parseToken(encoded string) ([]byte, error) {
 	if len(encoded) != encodedTokenBytes {
 		return nil, ErrInvalidToken
@@ -44,6 +46,7 @@ func parseToken(encoded string) ([]byte, error) {
 	return raw, nil
 }
 
+// hashToken hashes token.
 func hashToken(raw []byte) [tokenHashBytes]byte {
 	return sha256.Sum256(raw)
 }

@@ -11,6 +11,7 @@ const RequestIDHeader = "X-Request-ID"
 
 type requestIDKey struct{}
 
+// RequestID requests id.
 func RequestID(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		requestID := uuid.NewString()
@@ -20,6 +21,7 @@ func RequestID(next http.Handler) http.Handler {
 	})
 }
 
+// RequestIDFromContext requests idfr om context.
 func RequestIDFromContext(ctx context.Context) string {
 	requestID, _ := ctx.Value(requestIDKey{}).(string)
 	return requestID

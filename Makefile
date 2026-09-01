@@ -10,7 +10,7 @@ export GOCACHE GOLANGCI_LINT_CACHE GOFLAGS
 
 include tools.mk
 
-.PHONY: check build fmt fmt-check mod-check static vet lint diagnostics sec secrets migrations-check queries-check contract-check \
+.PHONY: check build image fmt fmt-check mod-check static vet lint diagnostics sec secrets migrations-check queries-check contract-check \
 	test test-unit test-race test-integration test-isolation test-contract generate generate-check \
 	bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status seed run provisioner bootstrap assign-org-owner verify-org-owners tools clean-tools
 
@@ -18,6 +18,9 @@ check: fmt-check mod-check build generate-check migrations-check queries-check c
 
 build:
 	go build ./...
+
+image:
+	docker build -t core-api:local .
 
 test: test-unit
 
@@ -114,6 +117,24 @@ clean-tools:
 RUNTIME_GOALS := run provisioner seed bootstrap bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status assign-org-owner verify-org-owners
 ifneq ($(filter $(RUNTIME_GOALS),$(MAKECMDGOALS)),)
 -include .env
+
+# Keep credentials out of .env while retaining the environment-based config
+# contract used by the Go commands. $(file <...) removes the trailing newline
+# Docker secret files conventionally contain.
+LOCAL_SECRETS_DIR ?= $(CURDIR)/.local_secrets
+read_secret = $(if $(wildcard $(LOCAL_SECRETS_DIR)/$(1)),$(file <$(LOCAL_SECRETS_DIR)/$(1)),$(error missing secret file: $(LOCAL_SECRETS_DIR)/$(1)))
+
+DB_USER := $(call read_secret,db_admin_user.txt)
+DB_PASSWORD := $(call read_secret,db_admin_password.txt)
+DB_RUNTIME_PASSWORD := $(call read_secret,db_runtime_password.txt)
+DB_MIGRATOR_PASSWORD := $(call read_secret,db_migrator_password.txt)
+DB_PROVISIONER_PASSWORD := $(call read_secret,db_provisioner_password.txt)
+MINIO_ACCESS_KEY := $(call read_secret,minio_access_key)
+MINIO_SECRET_KEY := $(call read_secret,minio_secret_key.txt)
+RATE_LIMIT_SECRET := $(call read_secret,redis_limit_secret.txt)
+INVITATION_BINDING_SECRET := $(call read_secret,redis_invitation_binding_secret.txt)
+CSRF_SECRET := $(call read_secret,csrf_secret.txt)
+
 DATABASE_URL ?= postgres://synodus_runtime:$(DB_RUNTIME_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 MIGRATION_DATABASE_URL ?= postgres://synodus_migrator:$(DB_MIGRATOR_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
 PROVISIONING_DATABASE_URL ?= postgres://synodus_provisioner:$(DB_PROVISIONER_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=disable
@@ -127,6 +148,7 @@ export PROVISIONER_POLL_INTERVAL PROVISIONER_RETRY_INITIAL PROVISIONER_RETRY_MAX
 export PROVISIONER_MAX_ATTEMPTS PROVISIONER_CONCURRENCY PROVISIONER_OPERATION_TIMEOUT
 export PROVISIONER_SHUTDOWN_TIMEOUT
 export REDIS_URL RATE_LIMIT_SECRET RATE_LIMIT_TIMEOUT RATE_LIMIT_LOGIN_IP_LIMIT RATE_LIMIT_LOGIN_IP_WINDOW RATE_LIMIT_LOGIN_IP_BURST
+export INVITATION_BINDING_SECRET
 export RATE_LIMIT_REGISTRATION_IP_LIMIT RATE_LIMIT_REGISTRATION_IP_WINDOW RATE_LIMIT_REGISTRATION_IP_BURST
 export RATE_LIMIT_ACCOUNT_FAILURE_LIMIT RATE_LIMIT_ACCOUNT_FAILURE_WINDOW RATE_LIMIT_ACCOUNT_FAILURE_BURST
 export RATE_LIMIT_ADMIN_LIMIT RATE_LIMIT_ADMIN_WINDOW RATE_LIMIT_ADMIN_BURST CSRF_SECRET CURSOR_KEY_ID CURSOR_SECRET

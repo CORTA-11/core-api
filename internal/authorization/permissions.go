@@ -1,5 +1,6 @@
 package authorization
 
+// OrganizationAllows organizations allows.
 func OrganizationAllows(role OrganizationRole, permission Permission) bool {
 	if !ValidOrganizationRole(role) || !ValidPermission(permission) {
 		return false
@@ -25,6 +26,7 @@ func OrganizationAllows(role OrganizationRole, permission Permission) bool {
 	return false
 }
 
+// TeamAllows teams allows.
 func TeamAllows(role TeamRole, permission Permission) bool {
 	if !ValidTeamRole(role) || !ValidPermission(permission) {
 		return false

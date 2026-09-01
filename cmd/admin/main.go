@@ -57,8 +57,10 @@ type terminalAccess interface {
 
 type systemTerminal struct{}
 
+// IsTerminal checks whether terminal.
 func (systemTerminal) IsTerminal(fd uintptr) bool { return term.IsTerminal(int(fd)) }
 
+// ReadPassword reads password.
 func (systemTerminal) ReadPassword(fd uintptr) ([]byte, error) {
 	return term.ReadPassword(int(fd))
 }
@@ -71,6 +73,7 @@ type accountCreateFunc func(
 	string,
 ) (uuid.UUID, error)
 
+// main runs the command.
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -80,6 +83,7 @@ func main() {
 	}
 }
 
+// run runs the command workflow.
 func run(
 	ctx context.Context,
 	args []string,
@@ -153,6 +157,7 @@ func run(
 
 type ownerVerifyFunc func(context.Context, string) ([]uuid.UUID, error)
 
+// runOwnerVerify runs owner verify.
 func runOwnerVerify(
 	ctx context.Context,
 	args []string,
@@ -183,6 +188,7 @@ func runOwnerVerify(
 	return nil
 }
 
+// verifyOrganizationOwners verifies organization owners.
 func verifyOrganizationOwners(ctx context.Context, databaseURL string) ([]uuid.UUID, error) {
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
@@ -198,6 +204,7 @@ func verifyOrganizationOwners(ctx context.Context, databaseURL string) ([]uuid.U
 
 type ownerAssignFunc func(context.Context, string, uuid.UUID, uuid.UUID) error
 
+// runOwnerAssign runs owner assign.
 func runOwnerAssign(
 	ctx context.Context,
 	args []string,
@@ -231,6 +238,7 @@ func runOwnerAssign(
 	return nil
 }
 
+// assignOrganizationOwner assigns organization owner.
 func assignOrganizationOwner(
 	ctx context.Context,
 	databaseURL string,
@@ -260,6 +268,7 @@ func assignOrganizationOwner(
 	return nil
 }
 
+// runSessionCleanup runs session cleanup.
 func runSessionCleanup(ctx context.Context, args []string, getenv func(string) string, output io.Writer) error {
 	flags := flag.NewFlagSet("session cleanup", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -293,6 +302,7 @@ func runSessionCleanup(ctx context.Context, args []string, getenv func(string) s
 	return nil
 }
 
+// readPassword reads password.
 func readPassword(input fileInput, output io.Writer, terminal terminalAccess, fromStdin bool) ([]byte, error) {
 	if fromStdin {
 		if terminal.IsTerminal(input.Fd()) {
@@ -324,6 +334,7 @@ func readPassword(input fileInput, output io.Writer, terminal terminalAccess, fr
 	return first, nil
 }
 
+// readPasswordLine reads password line.
 func readPasswordLine(input io.Reader) ([]byte, error) {
 	value, err := io.ReadAll(io.LimitReader(input, maximumCLIInputBytes+2))
 	if err != nil || len(value) > maximumCLIInputBytes+1 {
@@ -343,12 +354,14 @@ func readPasswordLine(input io.Reader) ([]byte, error) {
 	return value, nil
 }
 
+// clearBytes clears bytes.
 func clearBytes(value []byte) {
 	for index := range value {
 		value[index] = 0
 	}
 }
 
+// createAccount creates account.
 func createAccount(
 	ctx context.Context,
 	databaseURL string,

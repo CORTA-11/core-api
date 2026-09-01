@@ -15,6 +15,7 @@ type OriginPolicy struct {
 	allowed map[string]struct{}
 }
 
+// ParseOriginPolicy parses origin policy.
 func ParseOriginPolicy(raw, environment string) (OriginPolicy, error) {
 	if strings.TrimSpace(raw) == "" {
 		raw = defaultAllowedOrigins
@@ -47,13 +48,16 @@ func ParseOriginPolicy(raw, environment string) (OriginPolicy, error) {
 	return policy, nil
 }
 
+// Allows handles the allows operation.
 func (policy OriginPolicy) Allows(origin string) bool {
 	_, ok := policy.allowed[origin]
 	return ok && origin != ""
 }
 
+// Values handles the values operation.
 func (policy OriginPolicy) Values() []string { return slices.Clone(policy.values) }
 
+// validOriginHost checks whether origin host is valid.
 func validOriginHost(origin *url.URL) bool {
 	hostname := origin.Hostname()
 	if hostname == "" || strings.ContainsAny(hostname, "*%") {
@@ -67,6 +71,7 @@ func validOriginHost(origin *url.URL) bool {
 	return true
 }
 
+// isLoopbackHostname checks whether loopback hostname.
 func isLoopbackHostname(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true

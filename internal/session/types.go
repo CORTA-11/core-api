@@ -69,6 +69,7 @@ type CleanupResult struct {
 	IdleExpiredDeleted     int64
 }
 
+// Total handles the total operation.
 func (result CleanupResult) Total() int64 {
 	return result.RevokedDeleted + result.AbsoluteExpiredDeleted + result.IdleExpiredDeleted
 }

@@ -24,6 +24,7 @@ func Recover(next http.Handler) http.Handler {
 	})
 }
 
+// copyHeader copies header.
 func copyHeader(destination, source http.Header) {
 	for name, values := range source {
 		destination[name] = append([]string(nil), values...)

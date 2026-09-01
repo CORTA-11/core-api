@@ -11,7 +11,6 @@ DECLARE
     created_team teams%ROWTYPE;
 BEGIN
     creator := synodus_app_user_public_id();
-    -- Validate creator has active org membership
     IF creator IS NULL OR NOT EXISTS (
         SELECT 1
         FROM public.users AS app_user
@@ -29,7 +28,6 @@ BEGIN
             USING ERRCODE = 'insufficient_privilege';
     END IF;
 
-    -- Resolve the leader email to their UUID
     SELECT app_user.user_id INTO leader_id
     FROM public.users AS app_user
     JOIN public.org_user AS membership ON membership.user_id = app_user.id
@@ -44,12 +42,10 @@ BEGIN
         RAISE EXCEPTION 'team leader not found' USING ERRCODE = 'no_data_found';
     END IF;
 
-    -- Insert the team
     INSERT INTO teams (name, slug)
     VALUES (team_name, team_slug)
     RETURNING * INTO created_team;
 
-    -- Insert the selected leader as team_admin (leader)
     INSERT INTO team_members (team_id, user_public_id, role)
     VALUES (created_team.id, leader_id, 'team_admin');
 

@@ -13,4 +13,6 @@ RETURNING user_id, public_key, created_at;
 -- name: GetUserPublicKeys :many
 SELECT user_id, public_key, created_at
 FROM public.user_public_keys
-WHERE user_id = ANY($1::uuid[]);
+WHERE user_id = ANY(sqlc.arg('user_ids')::uuid[])
+ORDER BY user_id
+LIMIT sqlc.arg('limit');
