@@ -171,7 +171,10 @@ func (s *fileService) ListFiles(
 		}
 
 		var listErr error
-		rows, listErr = queries.ListFilesForTeam(ctx, resolvedTeam.ID)
+		rows, listErr = queries.ListFilesForTeam(ctx, tenantdb.ListFilesForTeamParams{
+			TeamID: resolvedTeam.ID,
+			Limit:  maximumListResults,
+		})
 		return listErr
 	})
 	if err != nil {

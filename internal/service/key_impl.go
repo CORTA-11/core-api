@@ -107,7 +107,10 @@ func (s *keyService) GetPublicKeysForTeam(ctx context.Context, p session.Princip
 	defer func() { _ = tx.Rollback(context.Background()) }()
 
 	publicdbQueries := publicdb.New(tx)
-	rows, err := publicdbQueries.GetUserPublicKeys(ctx, memberUUIDs)
+	rows, err := publicdbQueries.GetUserPublicKeys(ctx, publicdb.GetUserPublicKeysParams{
+		UserIds: memberUUIDs,
+		Limit:   maximumListResults,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -200,6 +203,7 @@ func (s *keyService) ListTeamSharedKeysForUser(ctx context.Context, p session.Pr
 		rows, err = queries.ListTeamSharedKeysForUser(ctx, tenantdb.ListTeamSharedKeysForUserParams{
 			TeamID: resolvedTeam.ID,
 			UserID: userID,
+			Limit:  maximumListResults,
 		})
 		return err
 	})

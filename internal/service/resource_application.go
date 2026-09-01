@@ -20,6 +20,8 @@ import (
 
 var resourceCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9._-]{0,63}$`)
 
+const maximumListResults int32 = 1000
+
 type AvailabilityWindow struct {
 	Weekday int    `json:"weekday"`
 	Start   string `json:"start"`
@@ -92,7 +94,7 @@ func NewResourceApplication(authorizer applicationAuthorizer) *ResourceApplicati
 func (a *ResourceApplication) List(ctx context.Context, p session.Principal, org uuid.UUID) ([]ResourceView, error) {
 	items := []ResourceView{}
 	err := a.authorizer.WithinOrganization(ctx, p, org, authorization.PermissionResourceRead, func(q *tenantdb.Queries) error {
-		rows, err := q.ListResources(ctx)
+		rows, err := q.ListResources(ctx, maximumListResults)
 		if err != nil {
 			return err
 		}
@@ -191,7 +193,7 @@ func (a *ResourceApplication) Delete(ctx context.Context, p session.Principal, o
 func (a *ResourceApplication) ListBookings(ctx context.Context, p session.Principal, org uuid.UUID) ([]BookingView, error) {
 	items := []BookingView{}
 	err := a.authorizer.WithinOrganization(ctx, p, org, authorization.PermissionResourceRead, func(q *tenantdb.Queries) error {
-		rows, err := q.ListBookings(ctx)
+		rows, err := q.ListBookings(ctx, maximumListResults)
 		if err != nil {
 			return err
 		}
@@ -253,7 +255,7 @@ func (a *ResourceApplication) Request(ctx context.Context, p session.Principal, 
 func (a *ResourceApplication) ListRequests(ctx context.Context, p session.Principal, org uuid.UUID) ([]ResourceRequestView, error) {
 	items := []ResourceRequestView{}
 	err := a.authorizer.WithinOrganization(ctx, p, org, authorization.PermissionResourceRead, func(q *tenantdb.Queries) error {
-		rows, err := q.ListResourceRequests(ctx)
+		rows, err := q.ListResourceRequests(ctx, maximumListResults)
 		if err != nil {
 			return err
 		}

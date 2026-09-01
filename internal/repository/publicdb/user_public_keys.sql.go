@@ -28,10 +28,17 @@ const getUserPublicKeys = `-- name: GetUserPublicKeys :many
 SELECT user_id, public_key, created_at
 FROM public.user_public_keys
 WHERE user_id = ANY($1::uuid[])
+ORDER BY user_id
+LIMIT $2
 `
 
-func (q *Queries) GetUserPublicKeys(ctx context.Context, dollar_1 []uuid.UUID) ([]UserPublicKey, error) {
-	rows, err := q.db.Query(ctx, getUserPublicKeys, dollar_1)
+type GetUserPublicKeysParams struct {
+	UserIds []uuid.UUID `json:"user_ids"`
+	Limit   int32       `json:"limit"`
+}
+
+func (q *Queries) GetUserPublicKeys(ctx context.Context, arg GetUserPublicKeysParams) ([]UserPublicKey, error) {
+	rows, err := q.db.Query(ctx, getUserPublicKeys, arg.UserIds, arg.Limit)
 	if err != nil {
 		return nil, err
 	}

@@ -14,7 +14,8 @@ WHERE team_id = $1 AND user_id = $2 AND key_version = $3;
 SELECT team_id, user_id, encrypted_key, key_version, created_at
 FROM team_shared_keys
 WHERE team_id = $1 AND user_id = $2
-ORDER BY key_version DESC;
+ORDER BY key_version DESC
+LIMIT sqlc.arg('limit');
 
 -- name: CreateFile :one
 INSERT INTO files (team_id, name, size, content_type, object_key, iv, key_version, uploaded_by)
@@ -30,7 +31,8 @@ WHERE team_id = $1 AND public_id = $2 AND deleted_at IS NULL;
 SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at
 FROM files
 WHERE team_id = $1 AND deleted_at IS NULL
-ORDER BY created_at DESC;
+ORDER BY created_at DESC, public_id
+LIMIT sqlc.arg('limit');
 
 -- name: SoftDeleteFile :one
 UPDATE files

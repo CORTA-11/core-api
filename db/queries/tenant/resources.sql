@@ -1,6 +1,7 @@
 -- name: ListResources :many
 SELECT id, public_id, name, code, kind, location, enabled, availability, created_at, updated_at
-FROM resources ORDER BY name, public_id;
+FROM resources ORDER BY name, public_id
+LIMIT sqlc.arg('limit');
 
 -- name: GetResource :one
 SELECT id, public_id, name, code, kind, location, enabled, availability, created_at, updated_at
@@ -46,7 +47,8 @@ JOIN teams AS team ON team.id = request.team_id
 LEFT JOIN team_members AS team_member ON team_member.team_id = request.team_id
     AND team_member.user_public_id = synodus_app_user_public_id()
 WHERE request.status = 'approved'
-ORDER BY request.start_time, request.public_id;
+ORDER BY request.start_time, request.public_id
+LIMIT sqlc.arg('limit');
 
 -- name: ListResourceRequests :many
 SELECT request.public_id, resource.public_id AS resource_public_id, resource.name AS resource_name,
@@ -59,7 +61,8 @@ JOIN teams AS team ON team.id = request.team_id
 LEFT JOIN team_members AS team_member ON team_member.team_id = request.team_id
     AND team_member.user_public_id = synodus_app_user_public_id()
 WHERE synodus_current_organization_role() IN ('owner', 'administrator') OR team_member.user_public_id IS NOT NULL
-ORDER BY request.created_at DESC, request.public_id;
+ORDER BY request.created_at DESC, request.public_id
+LIMIT sqlc.arg('limit');
 
 -- name: GetResourceRequest :one
 SELECT request.id, request.public_id, request.resource_id, request.team_id, request.requested_by,
