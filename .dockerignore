@@ -1,0 +1,12 @@
+.git
+.github
+.cache
+.env
+.local_secrets
+.idea
+.vscode
+api-bin
+checks.txt
+Dockerfile*
+docker-compose*.yaml
+README.md

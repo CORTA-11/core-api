@@ -29,10 +29,11 @@ func main() { os.Exit(realMain()) }
 // realMain runs the command and returns its exit status.
 func realMain() int {
 	_ = godotenv.Load()
+	lookup := tenancy.RuntimeLookup(os.LookupEnv)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	result := make(chan error, 1)
-	go func() { result <- execute(ctx, os.Args[1:], os.LookupEnv, os.Stdout) }()
+	go func() { result <- execute(ctx, os.Args[1:], lookup, os.Stdout) }()
 	var err error
 	// Cancellation first asks database work to stop, then bounds how long the
 	// process waits for advisory-lock cleanup and failure-state persistence.
@@ -40,7 +41,7 @@ func realMain() int {
 	case err = <-result:
 	case <-ctx.Done():
 		shutdownTimeout := 10 * time.Second
-		if cfg, configErr := tenancy.LoadConfig(os.LookupEnv); configErr == nil {
+		if cfg, configErr := tenancy.LoadConfig(lookup); configErr == nil {
 			shutdownTimeout = cfg.ShutdownTimeout
 		}
 		timer := time.NewTimer(shutdownTimeout)

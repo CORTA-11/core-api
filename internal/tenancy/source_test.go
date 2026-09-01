@@ -1,6 +1,9 @@
 package tenancy
 
 import (
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -8,6 +11,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestRuntimeLookupBuildsProvisioningURLFromSecretFile(t *testing.T) {
+	secretDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(secretDir, "db_provisioner_password.txt"), []byte("p@ss/word\n"), 0o600))
+	values := map[string]string{
+		"LOCAL_SECRETS_DIR": secretDir,
+		"DB_HOST":           "postgres",
+		"DB_PORT":           "5432",
+		"DB_NAME":           "appdb",
+	}
+	lookup := RuntimeLookup(func(name string) (string, bool) { value, ok := values[name]; return value, ok })
+
+	raw, ok := lookup("PROVISIONING_DATABASE_URL")
+	require.True(t, ok)
+	parsed, err := url.Parse(raw)
+	require.NoError(t, err)
+	password, ok := parsed.User.Password()
+	require.True(t, ok)
+	assert.Equal(t, "synodus_provisioner", parsed.User.Username())
+	assert.Equal(t, "p@ss/word", password)
+}
 
 func TestEmbeddedMigrationsAreOrderedAndChecksummed(t *testing.T) {
 	first, err := EmbeddedMigrations()

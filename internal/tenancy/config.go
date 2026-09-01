@@ -3,6 +3,9 @@ package tenancy
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +42,43 @@ type Config struct {
 // LookupFunc abstracts environment lookup so configuration can be tested
 // without mutating process-wide state.
 type LookupFunc func(string) (string, bool)
+
+// RuntimeLookup preserves explicit environment values and otherwise builds the
+// provisioner connection URL from a mounted password secret.
+func RuntimeLookup(environment LookupFunc) LookupFunc {
+	return func(name string) (string, bool) {
+		if raw, ok := environment(name); ok && raw != "" {
+			return raw, true
+		}
+		if name != "PROVISIONING_DATABASE_URL" {
+			return "", false
+		}
+		secretDir := ".local_secrets"
+		if configured, ok := environment("LOCAL_SECRETS_DIR"); ok && configured != "" {
+			secretDir = configured
+		} else if _, err := os.Stat(secretDir); errors.Is(err, os.ErrNotExist) {
+			secretDir = "/run/secrets"
+		}
+		password, err := os.ReadFile(secretDir + string(os.PathSeparator) + "db_provisioner_password.txt")
+		if err != nil {
+			return "", false
+		}
+		host, hostOK := environment("DB_HOST")
+		port, portOK := environment("DB_PORT")
+		database, databaseOK := environment("DB_NAME")
+		if !hostOK || !portOK || !databaseOK {
+			return "", false
+		}
+		databaseURL := url.URL{
+			Scheme:   "postgres",
+			User:     url.UserPassword("synodus_provisioner", strings.TrimSuffix(strings.TrimSuffix(string(password), "\n"), "\r")),
+			Host:     net.JoinHostPort(host, port),
+			Path:     database,
+			RawQuery: "sslmode=disable",
+		}
+		return databaseURL.String(), true
+	}
+}
 
 // LoadConfig reads and validates provisioner settings. Validation errors name
 // configuration keys but never include their values, which may contain secrets.
