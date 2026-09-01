@@ -104,10 +104,11 @@ func TestTeamIdentityMigrationDownFailsSafely(t *testing.T) {
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { _, _ = migrator.Close() })
-	require.NoError(t, migrator.Up())
-	// The resource migration is reversible; the next historical migration is
-	// intentionally irreversible and must still fail safely.
-	err = migrator.Steps(-2)
+	require.NoError(t, migrator.Steps(3))
+	// Version 3 introduces durable team identities, membership, and quarantine
+	// state. Its down migration must remain a forward-only safety barrier even as
+	// newer tenant migrations are appended.
+	err = migrator.Steps(-1)
 	assert.Error(t, err)
 	assert.False(t, errors.Is(err, migrate.ErrNoChange))
 }
