@@ -55,7 +55,7 @@ func (application *ChatApplication) SendMessage(ctx context.Context, principal s
 		if !roster.containsAll(mentions) {
 			return ErrInvalidInput
 		}
-		row, err := queries.CreateChatMessage(ctx, tenantdb.CreateChatMessageParams{ReplyToPublicID: nullableUUID(replyTo), Mentions: mentions, Message: message})
+		row, err := queries.CreateChatMessage(ctx, tenantdb.CreateChatMessageParams{ReplyToPublicID: nullableUUID(replyTo), Mentions: nonNilUUIDs(mentions), Message: message})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrInvalidInput
 		}

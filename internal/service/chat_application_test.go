@@ -49,3 +49,12 @@ func TestChatViewMapsUUIDsToFrontendShape(t *testing.T) {
 	require.NotNil(t, view.DeletedAt)
 	assert.Equal(t, now.Add(time.Minute), *view.DeletedAt)
 }
+
+func TestNonNilUUIDsNormalizesOmittedMentions(t *testing.T) {
+	t.Parallel()
+	require.Empty(t, nonNilUUIDs(nil))
+	assert.NotNil(t, nonNilUUIDs(nil))
+
+	mention := uuid.New()
+	assert.Equal(t, []uuid.UUID{mention}, nonNilUUIDs([]uuid.UUID{mention}))
+}

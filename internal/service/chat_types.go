@@ -87,6 +87,13 @@ func nullableUUID(id *uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: *id, Valid: true}
 }
 
+func nonNilUUIDs(ids []uuid.UUID) []uuid.UUID {
+	if ids == nil {
+		return []uuid.UUID{}
+	}
+	return ids
+}
+
 func valueTime(value *time.Time) time.Time {
 	if value == nil {
 		return time.Time{}
