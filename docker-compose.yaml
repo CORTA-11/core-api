@@ -69,6 +69,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-development-socket-ticket-secret-change-me}
       REDIS_URL: redis://redis:6379/0
       REDIS_CHAT_CHANNEL: ${REDIS_CHAT_CHANNEL:-corta:chat:events}
+      SOCKET_ALLOWED_ORIGINS: ${SOCKET_ALLOWED_ORIGINS:-http://localhost:10000,http://127.0.0.1:10000,http://localhost:3000,http://127.0.0.1:3000}
     depends_on:
       redis:
         condition: service_healthy
