@@ -6,16 +6,13 @@ import (
 	"os"
 
 	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/redis/go-redis/v9"
 )
 
 const DefaultChatChannel = "corta:chat:events"
 
 type redisPublisher interface {
-	Publish(context.Context, string, any) publishCommand
-}
-
-type publishCommand interface {
-	Err() error
+	Publish(context.Context, string, any) *redis.IntCmd
 }
 
 type ChatPublisher struct {

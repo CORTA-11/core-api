@@ -7,23 +7,20 @@ import (
 
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type fakePublishCommand struct{ err error }
-
-func (command fakePublishCommand) Err() error { return command.err }
 
 type fakeRedisPublisher struct {
 	channel string
 	payload any
 }
 
-func (publisher *fakeRedisPublisher) Publish(_ context.Context, channel string, payload any) publishCommand {
+func (publisher *fakeRedisPublisher) Publish(_ context.Context, channel string, payload any) *redis.IntCmd {
 	publisher.channel = channel
 	publisher.payload = payload
-	return fakePublishCommand{}
+	return redis.NewIntResult(1, nil)
 }
 
 func TestChatPublisherPublishesJSONToConfiguredChannel(t *testing.T) {

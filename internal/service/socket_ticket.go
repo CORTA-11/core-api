@@ -70,7 +70,7 @@ func encodeSocketTicketPart(value any) (string, error) {
 	return base64.RawURLEncoding.EncodeToString(data), nil
 }
 
-func socketTicketSecret(secret string) []byte {
+func SocketTicketSecret(secret string) []byte {
 	secret = strings.TrimSpace(secret)
 	if secret == "" {
 		secret = "development-socket-ticket-secret-change-me"
