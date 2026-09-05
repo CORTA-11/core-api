@@ -14,12 +14,17 @@ import (
 )
 
 type ChatApplication struct {
-	authorizer applicationAuthorizer
-	publisher  ChatPublisher
+	authorizer   applicationAuthorizer
+	publisher    ChatPublisher
+	ticketSecret []byte
 }
 
-func NewChatApplication(authorizer applicationAuthorizer, publisher ChatPublisher) *ChatApplication {
-	return &ChatApplication{authorizer: authorizer, publisher: publisher}
+func NewChatApplication(authorizer applicationAuthorizer, publisher ChatPublisher, ticketSecret ...[]byte) *ChatApplication {
+	app := &ChatApplication{authorizer: authorizer, publisher: publisher}
+	if len(ticketSecret) > 0 {
+		app.ticketSecret = append([]byte(nil), ticketSecret[0]...)
+	}
+	return app
 }
 
 func (application *ChatApplication) ListMessages(ctx context.Context, principal session.Principal, orgID, teamID uuid.UUID, limit int32, before *time.Time) ([]ChatMessageView, error) {
