@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CORTA-11/core-api/internal/authorization"
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
@@ -76,12 +75,4 @@ func SocketTicketSecret(secret string) []byte {
 		secret = "development-socket-ticket-secret-change-me"
 	}
 	return []byte(secret)
-}
-
-func socketTicketForbidden(err error) error {
-	if errors.Is(err, authorization.ErrUnauthenticated) || errors.Is(err, authorization.ErrOperationDenied) ||
-		errors.Is(err, authorization.ErrResourceNotFound) {
-		return err
-	}
-	return err
 }
