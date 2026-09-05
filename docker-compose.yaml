@@ -18,7 +18,7 @@ services:
       HTTP_TRUSTED_PROXY_CIDRS: ${HTTP_TRUSTED_PROXY_CIDRS:-}
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_NAME: ${DB_NAME}
+      DB_NAME: ${DB_NAME:-appdb}
       REDIS_URL: redis://redis:6379/0
       REDIS_CHAT_CHANNEL: ${REDIS_CHAT_CHANNEL:-corta:chat:events}
       JWT_SECRET: ${JWT_SECRET:-development-socket-ticket-secret-change-me}
@@ -84,7 +84,7 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_NAME: ${DB_NAME}
+      DB_NAME: ${DB_NAME:-appdb}
       PROVISIONER_POLL_INTERVAL: ${PROVISIONER_POLL_INTERVAL:-5s}
       PROVISIONER_RETRY_INITIAL: ${PROVISIONER_RETRY_INITIAL:-5s}
       PROVISIONER_RETRY_MAXIMUM: ${PROVISIONER_RETRY_MAXIMUM:-5m}
@@ -109,7 +109,7 @@ services:
     environment:
       POSTGRES_USER_FILE: /run/secrets/db_admin_user
       POSTGRES_PASSWORD_FILE: /run/secrets/db_admin_password
-      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_DB: ${DB_NAME:-appdb}
     secrets:
       - db_admin_user
       - db_admin_password
