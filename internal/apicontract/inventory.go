@@ -99,4 +99,8 @@ var Routes = [...]Route{
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/files", "listFiles", AuthenticationRequired, CSRFNone, authorization.PermissionFileRead, BodyNone, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/files/{file_id}", "downloadFile", AuthenticationRequired, CSRFNone, authorization.PermissionFileRead, BodyNone, RateNone},
 	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/files/{file_id}", "deleteFile", AuthenticationRequired, CSRFRequired, authorization.PermissionFileDelete, BodyNone, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/chat/messages", "listChatMessages", AuthenticationRequired, CSRFNone, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/chat/messages", "createChatMessage", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyJSON, RateNone},
+	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/chat/messages/{message_id}", "deleteChatMessage", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/chat/socket-ticket", "issueChatSocketTicket", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
 }

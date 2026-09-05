@@ -280,6 +280,14 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.downloadFile)
 	case "deleteFile":
 		return http.HandlerFunc(router.resources.deleteFile)
+	case "listChatMessages":
+		return http.HandlerFunc(router.resources.listChatMessages)
+	case "createChatMessage":
+		return http.HandlerFunc(router.resources.createChatMessage)
+	case "deleteChatMessage":
+		return http.HandlerFunc(router.resources.deleteChatMessage)
+	case "issueChatSocketTicket":
+		return http.HandlerFunc(router.resources.issueChatSocketTicket)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -344,7 +352,9 @@ func isResourceOperation(operationID string) bool {
 		operationID == "upsertPublicKey" || operationID == "getPublicKeysForTeam" ||
 		operationID == "upsertTeamSharedKeys" || operationID == "listTeamSharedKeysForUser" ||
 		operationID == "uploadFile" || operationID == "listFiles" ||
-		operationID == "downloadFile" || operationID == "deleteFile"
+		operationID == "downloadFile" || operationID == "deleteFile" ||
+		operationID == "listChatMessages" || operationID == "createChatMessage" ||
+		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket"
 }
 
 // ready handles the ready operation.

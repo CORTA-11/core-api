@@ -11,6 +11,7 @@ tags:
   - name: Organizations
   - name: Teams
   - name: Tasks
+  - name: Chat
 paths:
   /api/v1/auth/register:
     post:
@@ -825,6 +826,87 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/chat/messages:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    get:
+      tags: [Chat]
+      operationId: listChatMessages
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 100}}
+        - {name: before, in: query, schema: {$ref: '#/components/schemas/Timestamp'}}
+      responses:
+        '200':
+          description: Recent chat messages
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatMessagePage'}
+              examples: {standard: {$ref: '#/components/examples/ChatMessagePage'}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+    post:
+      tags: [Chat]
+      operationId: createChatMessage
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChatMessageWrite'}
+            example: {message: I pushed the latest notes., mentions: [11111111-1111-4111-8111-111111111111]}
+      responses:
+        '201':
+          description: Chat message created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatMessage'}
+              examples: {standard: {$ref: '#/components/examples/ChatMessage'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/chat/messages/{message_id}:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+      - {$ref: '#/components/parameters/MessageID'}
+    delete:
+      tags: [Chat]
+      operationId: deleteChatMessage
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '200':
+          description: Chat message marked deleted
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ChatMessage'}
+              examples: {standard: {$ref: '#/components/examples/ChatMessage'}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/chat/socket-ticket:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Chat]
+      operationId: issueChatSocketTicket
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '200':
+          description: Short lived WebSocket ticket
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SocketTicket'}
+              example: {token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.signature}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
 components:
   securitySchemes:
     sessionCookie:
@@ -882,6 +964,11 @@ components:
       schema: {$ref: '#/components/schemas/PublicID'}
     RequestID:
       name: request_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/PublicID'}
+    MessageID:
+      name: message_id
       in: path
       required: true
       schema: {$ref: '#/components/schemas/PublicID'}
@@ -1068,6 +1155,50 @@ components:
         status: {type: string, enum: [todo, in_progress, done]}
         # Absent keeps the current assignee; null unassigns; a value reassigns.
         assignee_id: {type: [string, 'null'], format: uuid}
+    ChatSender:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        name: {type: string, minLength: 1, maxLength: 200}
+        avatar: {type: [string, 'null'], maxLength: 512}
+    ChatMessage:
+      type: object
+      additionalProperties: false
+      required: [id, team_id, sender, message, mentions, reactions, attachments, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        team_id: {$ref: '#/components/schemas/PublicID'}
+        sender: {$ref: '#/components/schemas/ChatSender'}
+        message: {type: string, minLength: 1, maxLength: 4000}
+        mentions: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/PublicID'}}
+        reactions: {type: array, maxItems: 0}
+        attachments: {type: array, maxItems: 0}
+        reply_to_id: {type: [string, 'null'], format: uuid}
+        deleted_at: {type: [string, 'null'], format: date-time}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    ChatMessageWrite:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message: {type: string, minLength: 1, maxLength: 4000}
+        reply_to_id: {type: [string, 'null'], format: uuid}
+        mentions: {type: array, maxItems: 32, items: {$ref: '#/components/schemas/PublicID'}}
+    ChatMessagePage:
+      type: object
+      additionalProperties: false
+      required: [messages]
+      properties:
+        messages: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ChatMessage'}}
+    SocketTicket:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token: {type: string, minLength: 32, maxLength: 4096}
     AvailabilityWindow:
       type: object
       additionalProperties: false
@@ -1215,6 +1346,10 @@ components:
       value: {id: 22222222-2222-4222-8222-222222222222, name: Reproducibility Group, slug: reproducibility-group, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
     Task:
       value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: 44444444-4444-4444-8444-444444444444, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+    ChatMessage:
+      value: {id: 66666666-6666-4666-8666-666666666666, team_id: 22222222-2222-4222-8222-222222222222, sender: {id: 11111111-1111-4111-8111-111111111111, name: Researcher, avatar: null}, message: I pushed the latest notes., mentions: [], reactions: [], attachments: [], reply_to_id: null, deleted_at: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+    ChatMessagePage:
+      value: {messages: [{id: 66666666-6666-4666-8666-666666666666, team_id: 22222222-2222-4222-8222-222222222222, sender: {id: 11111111-1111-4111-8111-111111111111, name: Researcher, avatar: null}, message: I pushed the latest notes., mentions: [], reactions: [], attachments: [], reply_to_id: null, deleted_at: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}]}
     InvalidRequestProblem:
       value: {type: /problems/invalid-request, title: Invalid request, status: 400, detail: The request is invalid., request_id: 55555555-5555-4555-8555-555555555555, violations: [{field: body, code: malformed, message: The request body must contain one valid JSON object.}]}
     UnauthenticatedProblem:
