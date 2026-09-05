@@ -156,6 +156,10 @@ curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/auth/session
 curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/orgs
 ```
 
+When using the shared Envoy entrypoint, open the app at
+`http://localhost:10000` and include `Origin: http://localhost:10000` on direct
+unsafe API calls. `HTTP_ALLOWED_ORIGINS` must include that exact origin.
+
 The seeds do not create teams. An organization owner or administrator can create
 one after the tenant provisioner reports the organization current:
 
@@ -220,6 +224,8 @@ issue short-lived socket tickets from
 `POST /api/v1/orgs/{org_id}/teams/{team_id}/chat/socket-ticket`; socket-server
 validates those tickets locally when the browser connects to
 `ws://localhost:8081/ws?token=<socket_ticket>&team_id=<team_uuid>`.
+Through Envoy, use
+`ws://localhost:10000/ws?token=<socket_ticket>&team_id=<team_uuid>` instead.
 
 Redis is still used for shared login and administrative rate limits. WebSockets
 alone are not enough once there can be more than one socket-server replica,
