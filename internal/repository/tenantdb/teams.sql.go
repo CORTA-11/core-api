@@ -82,6 +82,17 @@ func (q *Queries) CreateTeamWithCreator(ctx context.Context, arg CreateTeamWithC
 	return i, err
 }
 
+const getBoundTeamID = `-- name: GetBoundTeamID :one
+SELECT NULLIF(current_setting('app.team_id', true), '')::BIGINT AS team_id
+`
+
+func (q *Queries) GetBoundTeamID(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, getBoundTeamID)
+	var team_id int64
+	err := row.Scan(&team_id)
+	return team_id, err
+}
+
 const getCurrentTeamRole = `-- name: GetCurrentTeamRole :one
 SELECT role FROM team_members
 WHERE team_id = $1
