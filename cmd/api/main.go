@@ -19,6 +19,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/invitation"
+	"github.com/CORTA-11/core-api/internal/logging"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
@@ -37,7 +38,7 @@ func main() { os.Exit(realMain()) }
 
 // realMain runs the command and returns its exit status.
 func realMain() int {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo, AddSource: true}))
+	logger := logging.New("core-api")
 	slog.SetDefault(logger)
 	if err := godotenv.Load(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.Warn("unable to load .env", "error", err)

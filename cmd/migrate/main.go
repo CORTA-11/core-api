@@ -3,9 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
+	"github.com/CORTA-11/core-api/internal/logging"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -25,8 +26,9 @@ type migratorFactory func(sourceURL, databaseURL string) (migrator, error)
 
 // main runs the command.
 func main() {
+	slog.SetDefault(logging.New("migrate"))
 	if err := run(os.Args[1:], os.Getenv, newMigrator); err != nil {
-		log.Printf("migration failed: %v", err)
+		slog.Error("migration failed", "error", err)
 		os.Exit(1)
 	}
 }
@@ -53,10 +55,10 @@ func run(args []string, getenv func(string) string, factory migratorFactory) err
 	defer func() {
 		sourceErr, databaseErr := m.Close()
 		if sourceErr != nil {
-			log.Printf("migration source close failed: %v", sourceErr)
+			slog.Error("migration source close failed", "error", sourceErr)
 		}
 		if databaseErr != nil {
-			log.Printf("migration database close failed: %v", databaseErr)
+			slog.Error("migration database close failed", "error", databaseErr)
 		}
 	}()
 
@@ -74,11 +76,11 @@ func run(args []string, getenv func(string) string, factory migratorFactory) err
 		var dirty bool
 		version, dirty, err = m.Version()
 		if errors.Is(err, migrate.ErrNilVersion) {
-			log.Printf("public migration status: version=0 dirty=false")
+			slog.Info("public migration status", "version", 0, "dirty", false)
 			return nil
 		}
 		if err == nil {
-			log.Printf("public migration status: version=%d dirty=%t", version, dirty)
+			slog.Info("public migration status", "version", version, "dirty", dirty)
 			// A dirty public registry cannot safely coordinate tenant lifecycle
 			// transitions, so status is also a deployment gate.
 			if dirty {
@@ -94,6 +96,6 @@ func run(args []string, getenv func(string) string, factory migratorFactory) err
 		return fmt.Errorf("%s migration: %w", args[0], err)
 	}
 	// #nosec G706 -- command is validated against the fixed switch cases above.
-	log.Printf("migration completed: %s", args[0])
+	slog.Info("migration completed", "command", args[0])
 	return nil
 }

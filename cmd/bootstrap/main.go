@@ -2,17 +2,19 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/CORTA-11/core-api/internal/config"
+	"github.com/CORTA-11/core-api/internal/logging"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 )
 
 // main runs the command.
 func main() {
+	slog.SetDefault(logging.New("bootstrap"))
 	if err := run(context.Background()); err != nil {
-		log.Printf("bootstrap failed: %v", err)
+		slog.Error("bootstrap failed", "error", err)
 		os.Exit(1)
 	}
 }
@@ -30,6 +32,6 @@ func run(ctx context.Context) error {
 	if err := appMinio.EnsureBucket(ctx, client, cfg.MinIO.Bucket); err != nil {
 		return err
 	}
-	log.Printf("MinIO bucket %q is ready", cfg.MinIO.Bucket)
+	slog.Info("MinIO bucket is ready", "bucket", cfg.MinIO.Bucket)
 	return nil
 }
