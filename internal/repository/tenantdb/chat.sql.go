@@ -64,6 +64,41 @@ func (q *Queries) CreateChatMessage(ctx context.Context, arg CreateChatMessagePa
 	return i, err
 }
 
+const getChatMessage = `-- name: GetChatMessage :one
+SELECT public_id, team_id, sender_user_public_id, reply_to_public_id,
+       mentions, message, created_at, deleted_at
+FROM chat_messages
+WHERE team_id = NULLIF(current_setting('app.team_id', true), '')::BIGINT
+  AND public_id = $1
+`
+
+type GetChatMessageRow struct {
+	PublicID           uuid.UUID          `json:"public_id"`
+	TeamID             int64              `json:"team_id"`
+	SenderUserPublicID uuid.UUID          `json:"sender_user_public_id"`
+	ReplyToPublicID    pgtype.UUID        `json:"reply_to_public_id"`
+	Mentions           []uuid.UUID        `json:"mentions"`
+	Message            string             `json:"message"`
+	CreatedAt          time.Time          `json:"created_at"`
+	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
+}
+
+func (q *Queries) GetChatMessage(ctx context.Context, publicID uuid.UUID) (GetChatMessageRow, error) {
+	row := q.db.QueryRow(ctx, getChatMessage, publicID)
+	var i GetChatMessageRow
+	err := row.Scan(
+		&i.PublicID,
+		&i.TeamID,
+		&i.SenderUserPublicID,
+		&i.ReplyToPublicID,
+		&i.Mentions,
+		&i.Message,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const listChatMessages = `-- name: ListChatMessages :many
 SELECT public_id, team_id, sender_user_public_id, reply_to_public_id,
        mentions, message, created_at, deleted_at

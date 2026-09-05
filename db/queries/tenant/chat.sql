@@ -7,6 +7,13 @@ WHERE team_id = NULLIF(current_setting('app.team_id', true), '')::BIGINT
 ORDER BY created_at DESC, public_id DESC
 LIMIT sqlc.arg('limit');
 
+-- name: GetChatMessage :one
+SELECT public_id, team_id, sender_user_public_id, reply_to_public_id,
+       mentions, message, created_at, deleted_at
+FROM chat_messages
+WHERE team_id = NULLIF(current_setting('app.team_id', true), '')::BIGINT
+  AND public_id = sqlc.arg('public_id');
+
 -- name: CreateChatMessage :one
 INSERT INTO chat_messages (team_id, sender_user_public_id, reply_to_public_id, mentions, message)
 SELECT NULLIF(current_setting('app.team_id', true), '')::BIGINT,
