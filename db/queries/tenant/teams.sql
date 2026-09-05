@@ -52,6 +52,9 @@ SELECT role FROM team_members
 WHERE team_id = sqlc.arg('team_id')
   AND user_public_id = synodus_app_user_public_id();
 
+-- name: GetBoundTeamID :one
+SELECT NULLIF(current_setting('app.team_id', true), '')::BIGINT AS team_id;
+
 -- name: ListTeamMembersAfter :many
 SELECT user_public_id, role, created_at
 FROM team_members

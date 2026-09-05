@@ -22,6 +22,7 @@ import (
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
+	"github.com/CORTA-11/core-api/internal/realtime"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
@@ -142,6 +143,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	resourceBookings := service.NewResourceApplication(authorizer)
 	keyService := service.NewKeyService(pool, authorizer)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
+	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
 	readiness := map[string]v1.ReadinessCheck{
 		"postgres": pool.Ping,
 		"minio": func(checkCtx context.Context) error {
@@ -151,7 +153,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
 		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Invitations: invitations, ResourceBookings: resourceBookings,
-		Keys: keyService, Files: fileService,
+		Keys: keyService, Files: fileService, Chat: chat,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,

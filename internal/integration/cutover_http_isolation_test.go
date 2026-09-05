@@ -19,6 +19,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
+	"github.com/CORTA-11/core-api/internal/realtime"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/CORTA-11/core-api/internal/testsupport"
@@ -58,10 +59,13 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	trusted, err := httpx.ParseTrustedProxies("")
 	require.NoError(t, err)
 	authorizer := authorization.NewAuthorizer(fixture.resolver, fixture.executor)
+	chatChannel := "chat:cutover"
+	chatService := service.NewChatApplication(authorizer, realtime.NewChatPublisher(redisClient, chatChannel), bytes.Repeat([]byte{0x81}, 32))
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: manager, Verifier: cutoverCredentialVerifier{userID: fixture.users.shared},
 		Organizations: service.NewOrganizationApplication(fixture.runtimePool, codec),
 		TeamTasks:     service.NewTeamTaskApplication(authorizer, codec),
+		Chat:          chatService,
 		Environment:   "test", Origins: origins, TrustedProxies: trusted,
 		LoginGuard: loginGuard, Administrative: administrative,
 	})
@@ -102,6 +106,20 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 		ID uuid.UUID `json:"id"`
 	}
 	require.NoError(t, json.Unmarshal(taskResponse.body, &task))
+
+	pubsub := redisClient.Subscribe(ctx, chatChannel)
+	t.Cleanup(func() { _ = pubsub.Close() })
+	chatPath := server.URL + "/api/v1/orgs/" + organization.publicID.String() + "/teams/" + team.ID.String() + "/chat"
+	chatResponse := cutoverRequest(t, client, http.MethodPost, chatPath+"/messages",
+		`{"message":"Browser chat e2e"}`, loginBody.CSRFToken, "https://app.example")
+	require.Equal(t, http.StatusCreated, chatResponse.status, string(chatResponse.body))
+	assert.Contains(t, string(chatResponse.body), `"message":"Browser chat e2e"`)
+	socketTicket := cutoverRequest(t, client, http.MethodPost, chatPath+"/socket-ticket", "", loginBody.CSRFToken, "https://app.example")
+	require.Equal(t, http.StatusOK, socketTicket.status, string(socketTicket.body))
+	assert.Contains(t, string(socketTicket.body), `"token"`)
+	event, err := pubsub.ReceiveMessage(ctx)
+	require.NoError(t, err)
+	assert.Contains(t, event.Payload, `"type":"message.created"`)
 
 	wrongScope := cutoverRequest(t, client, http.MethodGet,
 		server.URL+"/api/v1/orgs/"+otherOrganization.publicID.String()+"/teams/"+team.ID.String()+"/tasks",

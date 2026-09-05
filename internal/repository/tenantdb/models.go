@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ChatMessage struct {
+	ID                 int64              `json:"id"`
+	PublicID           uuid.UUID          `json:"public_id"`
+	TeamID             int64              `json:"team_id"`
+	SenderUserPublicID uuid.UUID          `json:"sender_user_public_id"`
+	ReplyToPublicID    pgtype.UUID        `json:"reply_to_public_id"`
+	Mentions           []uuid.UUID        `json:"mentions"`
+	Message            string             `json:"message"`
+	CreatedAt          time.Time          `json:"created_at"`
+	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
+}
+
 type File struct {
 	ID          int64              `json:"id"`
 	PublicID    uuid.UUID          `json:"public_id"`

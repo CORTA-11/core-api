@@ -94,6 +94,12 @@
    cd ../socket-server && cp -n .env.example .env && make run
    ```
 
+   Docker Compose can run the API and socket server together:
+
+   ```bash
+   docker compose up --build -d api socket-server
+   ```
+
 For later public migrations use `make migrate-up-all`; do not rerun them with
 runtime credentials. `make bootstrap-db` is also the recovery command when an
 existing development `.env` receives new role passwords. If a password contains
@@ -150,6 +156,10 @@ curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/auth/session
 curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/orgs
 ```
 
+When using the shared Envoy entrypoint, open the app at
+`http://localhost:10000` and include `Origin: http://localhost:10000` on direct
+unsafe API calls. `HTTP_ALLOWED_ORIGINS` must include that exact origin.
+
 The seeds do not create teams. An organization owner or administrator can create
 one after the tenant provisioner reports the organization current:
 
@@ -201,11 +211,25 @@ work. The authenticated v1 API deliberately exposes no file HTTP routes yet;
 metadata-backed authorization and bounded transfer semantics must land before
 uploads or downloads become public.
 
-## Realtime (SaaS-ready fan-out)
+## Realtime chat
 
-Realtime HTTP and WebSocket product routes are not part of the M03 API surface.
-Redis is currently used by core-api for shared login and administrative rate
-limits. The later collaboration milestone will add authorization-aware event
-publication and socket integration.
+Team chat history, send, delete, and socket-ticket routes live in core-api.
+Each chat write commits to the tenant database, then publishes a small event to
+Redis on `REDIS_CHAT_CHANNEL` (`corta:chat:events` by default). The separate
+socket-server subscribes to that channel and fans events out to connected
+browser WebSockets for the matching team room.
+
+Set the same `JWT_SECRET` for core-api and socket-server. Core-api uses it to
+issue short-lived socket tickets from
+`POST /api/v1/orgs/{org_id}/teams/{team_id}/chat/socket-ticket`; socket-server
+validates those tickets locally when the browser connects to
+`ws://localhost:8081/ws?token=<socket_ticket>&team_id=<team_uuid>`.
+Through Envoy, use
+`ws://localhost:10000/ws?token=<socket_ticket>&team_id=<team_uuid>` instead.
+
+Redis is still used for shared login and administrative rate limits. WebSockets
+alone are not enough once there can be more than one socket-server replica,
+because a message sent through core-api must reach clients connected to any
+replica.
 
 The project uses `sqlc` for code generation using migration files.
