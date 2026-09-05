@@ -83,6 +83,13 @@ type FileService interface {
 	DeleteFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) error
 }
 
+type ChatService interface {
+	ListMessages(context.Context, session.Principal, uuid.UUID, uuid.UUID, int32, *time.Time) ([]service.ChatMessageView, error)
+	SendMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, *uuid.UUID, []uuid.UUID) (service.ChatMessageView, error)
+	DeleteMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.ChatMessageView, error)
+	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID) (string, error)
+}
+
 type RouterConfig struct {
 	Manager             *session.Manager
 	Verifier            identity.CredentialVerifier
@@ -94,6 +101,7 @@ type RouterConfig struct {
 	ResourceBookings    ResourceBookingService
 	Keys                KeyService
 	Files               FileService
+	Chat                ChatService
 	Environment         string
 	Origins             httpx.OriginPolicy
 	TrustedProxies      httpx.TrustedProxies
@@ -136,6 +144,7 @@ func NewRouter(config RouterConfig) *Router {
 		resourceBookings:    config.ResourceBookings,
 		keys:                config.Keys,
 		files:               config.Files,
+		chat:                config.Chat,
 	}
 	router.compose()
 	return router

@@ -25,6 +25,7 @@ type ResourceHandler struct {
 	resourceBookings    ResourceBookingService
 	keys                KeyService
 	files               FileService
+	chat                ChatService
 }
 
 type nameRequest struct {
