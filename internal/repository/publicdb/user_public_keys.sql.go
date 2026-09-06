@@ -7,20 +7,42 @@ package publicdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getUserPublicKey = `-- name: GetUserPublicKey :one
-SELECT user_id, public_key, created_at
+SELECT user_id, public_key, encrypted_private_key, kek_salt, kek_iterations, kek_algorithm, created_at, updated_at
 FROM public.user_public_keys
 WHERE user_id = $1
 `
 
-func (q *Queries) GetUserPublicKey(ctx context.Context, userID uuid.UUID) (UserPublicKey, error) {
+type GetUserPublicKeyRow struct {
+	UserID              uuid.UUID   `json:"user_id"`
+	PublicKey           string      `json:"public_key"`
+	EncryptedPrivateKey pgtype.Text `json:"encrypted_private_key"`
+	KekSalt             pgtype.Text `json:"kek_salt"`
+	KekIterations       pgtype.Int4 `json:"kek_iterations"`
+	KekAlgorithm        string      `json:"kek_algorithm"`
+	CreatedAt           time.Time   `json:"created_at"`
+	UpdatedAt           time.Time   `json:"updated_at"`
+}
+
+func (q *Queries) GetUserPublicKey(ctx context.Context, userID uuid.UUID) (GetUserPublicKeyRow, error) {
 	row := q.db.QueryRow(ctx, getUserPublicKey, userID)
-	var i UserPublicKey
-	err := row.Scan(&i.UserID, &i.PublicKey, &i.CreatedAt)
+	var i GetUserPublicKeyRow
+	err := row.Scan(
+		&i.UserID,
+		&i.PublicKey,
+		&i.EncryptedPrivateKey,
+		&i.KekSalt,
+		&i.KekIterations,
+		&i.KekAlgorithm,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }
 
@@ -37,15 +59,21 @@ type GetUserPublicKeysParams struct {
 	Limit   int32       `json:"limit"`
 }
 
-func (q *Queries) GetUserPublicKeys(ctx context.Context, arg GetUserPublicKeysParams) ([]UserPublicKey, error) {
+type GetUserPublicKeysRow struct {
+	UserID    uuid.UUID `json:"user_id"`
+	PublicKey string    `json:"public_key"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) GetUserPublicKeys(ctx context.Context, arg GetUserPublicKeysParams) ([]GetUserPublicKeysRow, error) {
 	rows, err := q.db.Query(ctx, getUserPublicKeys, arg.UserIds, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []UserPublicKey
+	var items []GetUserPublicKeysRow
 	for rows.Next() {
-		var i UserPublicKey
+		var i GetUserPublicKeysRow
 		if err := rows.Scan(&i.UserID, &i.PublicKey, &i.CreatedAt); err != nil {
 			return nil, err
 		}
@@ -57,22 +85,58 @@ func (q *Queries) GetUserPublicKeys(ctx context.Context, arg GetUserPublicKeysPa
 	return items, nil
 }
 
-const upsertUserPublicKey = `-- name: UpsertUserPublicKey :one
-INSERT INTO public.user_public_keys (user_id, public_key)
-VALUES ($1, $2)
+const upsertUserKeys = `-- name: UpsertUserKeys :one
+INSERT INTO public.user_public_keys (user_id, public_key, encrypted_private_key, kek_salt, kek_iterations, kek_algorithm)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (user_id) DO UPDATE
-SET public_key = EXCLUDED.public_key, created_at = NOW()
-RETURNING user_id, public_key, created_at
+SET public_key = EXCLUDED.public_key,
+    encrypted_private_key = COALESCE(EXCLUDED.encrypted_private_key, user_public_keys.encrypted_private_key),
+    kek_salt = COALESCE(EXCLUDED.kek_salt, user_public_keys.kek_salt),
+    kek_iterations = COALESCE(EXCLUDED.kek_iterations, user_public_keys.kek_iterations),
+    kek_algorithm = COALESCE(EXCLUDED.kek_algorithm, user_public_keys.kek_algorithm),
+    updated_at = NOW()
+RETURNING user_id, public_key, encrypted_private_key, kek_salt, kek_iterations, kek_algorithm, created_at, updated_at
 `
 
-type UpsertUserPublicKeyParams struct {
-	UserID    uuid.UUID `json:"user_id"`
-	PublicKey string    `json:"public_key"`
+type UpsertUserKeysParams struct {
+	UserID              uuid.UUID   `json:"user_id"`
+	PublicKey           string      `json:"public_key"`
+	EncryptedPrivateKey pgtype.Text `json:"encrypted_private_key"`
+	KekSalt             pgtype.Text `json:"kek_salt"`
+	KekIterations       pgtype.Int4 `json:"kek_iterations"`
+	KekAlgorithm        string      `json:"kek_algorithm"`
 }
 
-func (q *Queries) UpsertUserPublicKey(ctx context.Context, arg UpsertUserPublicKeyParams) (UserPublicKey, error) {
-	row := q.db.QueryRow(ctx, upsertUserPublicKey, arg.UserID, arg.PublicKey)
-	var i UserPublicKey
-	err := row.Scan(&i.UserID, &i.PublicKey, &i.CreatedAt)
+type UpsertUserKeysRow struct {
+	UserID              uuid.UUID   `json:"user_id"`
+	PublicKey           string      `json:"public_key"`
+	EncryptedPrivateKey pgtype.Text `json:"encrypted_private_key"`
+	KekSalt             pgtype.Text `json:"kek_salt"`
+	KekIterations       pgtype.Int4 `json:"kek_iterations"`
+	KekAlgorithm        string      `json:"kek_algorithm"`
+	CreatedAt           time.Time   `json:"created_at"`
+	UpdatedAt           time.Time   `json:"updated_at"`
+}
+
+func (q *Queries) UpsertUserKeys(ctx context.Context, arg UpsertUserKeysParams) (UpsertUserKeysRow, error) {
+	row := q.db.QueryRow(ctx, upsertUserKeys,
+		arg.UserID,
+		arg.PublicKey,
+		arg.EncryptedPrivateKey,
+		arg.KekSalt,
+		arg.KekIterations,
+		arg.KekAlgorithm,
+	)
+	var i UpsertUserKeysRow
+	err := row.Scan(
+		&i.UserID,
+		&i.PublicKey,
+		&i.EncryptedPrivateKey,
+		&i.KekSalt,
+		&i.KekIterations,
+		&i.KekAlgorithm,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
 	return i, err
 }

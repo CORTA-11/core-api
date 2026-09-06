@@ -90,31 +90,6 @@ func (q *Queries) GetFileByID(ctx context.Context, arg GetFileByIDParams) (File,
 	return i, err
 }
 
-const getTeamSharedKeyForUser = `-- name: GetTeamSharedKeyForUser :one
-SELECT team_id, user_id, encrypted_key, key_version, created_at
-FROM team_shared_keys
-WHERE team_id = $1 AND user_id = $2 AND key_version = $3
-`
-
-type GetTeamSharedKeyForUserParams struct {
-	TeamID     int64     `json:"team_id"`
-	UserID     uuid.UUID `json:"user_id"`
-	KeyVersion int32     `json:"key_version"`
-}
-
-func (q *Queries) GetTeamSharedKeyForUser(ctx context.Context, arg GetTeamSharedKeyForUserParams) (TeamSharedKey, error) {
-	row := q.db.QueryRow(ctx, getTeamSharedKeyForUser, arg.TeamID, arg.UserID, arg.KeyVersion)
-	var i TeamSharedKey
-	err := row.Scan(
-		&i.TeamID,
-		&i.UserID,
-		&i.EncryptedKey,
-		&i.KeyVersion,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const listFilesForTeam = `-- name: ListFilesForTeam :many
 SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at
 FROM files
@@ -162,46 +137,6 @@ func (q *Queries) ListFilesForTeam(ctx context.Context, arg ListFilesForTeamPara
 	return items, nil
 }
 
-const listTeamSharedKeysForUser = `-- name: ListTeamSharedKeysForUser :many
-SELECT team_id, user_id, encrypted_key, key_version, created_at
-FROM team_shared_keys
-WHERE team_id = $1 AND user_id = $2
-ORDER BY key_version DESC
-LIMIT $3
-`
-
-type ListTeamSharedKeysForUserParams struct {
-	TeamID int64     `json:"team_id"`
-	UserID uuid.UUID `json:"user_id"`
-	Limit  int32     `json:"limit"`
-}
-
-func (q *Queries) ListTeamSharedKeysForUser(ctx context.Context, arg ListTeamSharedKeysForUserParams) ([]TeamSharedKey, error) {
-	rows, err := q.db.Query(ctx, listTeamSharedKeysForUser, arg.TeamID, arg.UserID, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TeamSharedKey
-	for rows.Next() {
-		var i TeamSharedKey
-		if err := rows.Scan(
-			&i.TeamID,
-			&i.UserID,
-			&i.EncryptedKey,
-			&i.KeyVersion,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const softDeleteFile = `-- name: SoftDeleteFile :one
 UPDATE files
 SET deleted_at = NOW()
@@ -231,39 +166,6 @@ func (q *Queries) SoftDeleteFile(ctx context.Context, arg SoftDeleteFileParams) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
-	)
-	return i, err
-}
-
-const upsertTeamSharedKey = `-- name: UpsertTeamSharedKey :one
-INSERT INTO team_shared_keys (team_id, user_id, encrypted_key, key_version)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (team_id, user_id, key_version) DO UPDATE
-SET encrypted_key = EXCLUDED.encrypted_key, created_at = NOW()
-RETURNING team_id, user_id, encrypted_key, key_version, created_at
-`
-
-type UpsertTeamSharedKeyParams struct {
-	TeamID       int64     `json:"team_id"`
-	UserID       uuid.UUID `json:"user_id"`
-	EncryptedKey string    `json:"encrypted_key"`
-	KeyVersion   int32     `json:"key_version"`
-}
-
-func (q *Queries) UpsertTeamSharedKey(ctx context.Context, arg UpsertTeamSharedKeyParams) (TeamSharedKey, error) {
-	row := q.db.QueryRow(ctx, upsertTeamSharedKey,
-		arg.TeamID,
-		arg.UserID,
-		arg.EncryptedKey,
-		arg.KeyVersion,
-	)
-	var i TeamSharedKey
-	err := row.Scan(
-		&i.TeamID,
-		&i.UserID,
-		&i.EncryptedKey,
-		&i.KeyVersion,
-		&i.CreatedAt,
 	)
 	return i, err
 }

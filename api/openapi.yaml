@@ -699,10 +699,10 @@ paths:
         '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalFailure'}
         '503': {$ref: '#/components/responses/DependencyUnavailable'}
-  /api/v1/auth/public-key:
+  /api/v1/auth/user-keys:
     put:
       tags: [Authentication]
-      operationId: upsertPublicKey
+      operationId: upsertUserKeys
       security: [{sessionCookie: []}]
       parameters: [{$ref: '#/components/parameters/CSRFToken'}]
       requestBody:
@@ -714,9 +714,13 @@ paths:
               required: [public_key]
               properties:
                 public_key: {type: string}
+                encrypted_private_key: {type: string}
+                kek_salt: {type: string}
+                kek_iterations: {type: integer}
+                kek_algorithm: {type: string}
       responses:
         '200':
-          description: Public key registered
+          description: Caller's key material updated
           content:
             application/json:
               schema:
@@ -724,7 +728,37 @@ paths:
                 properties:
                   user_id: {type: string}
                   public_key: {type: string}
+                  encrypted_private_key: {type: string}
+                  kek_salt: {type: string}
+                  kek_iterations: {type: integer}
+                  kek_algorithm: {type: string}
+                  created_at: {type: string}
+                  updated_at: {type: string}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
         '401': {$ref: '#/components/responses/Unauthenticated'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+    get:
+      tags: [Authentication]
+      operationId: getUserKeys
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Caller's key material
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id: {type: string}
+                  public_key: {type: string}
+                  encrypted_private_key: {type: string}
+                  kek_salt: {type: string}
+                  kek_iterations: {type: integer}
+                  kek_algorithm: {type: string}
+                  created_at: {type: string}
+                  updated_at: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
   /api/v1/orgs/{org_id}/teams/{team_id}/members/public-keys:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
@@ -751,7 +785,7 @@ paths:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
     post:
       tags: [Teams]
-      operationId: upsertTeamSharedKeys
+      operationId: createTeamKey
       security: [{sessionCookie: []}]
       parameters: [{$ref: '#/components/parameters/CSRFToken'}]
       requestBody:
@@ -759,26 +793,57 @@ paths:
         content:
           application/json:
             schema:
-              type: array
-              items:
-                type: object
-                required: [user_id, encrypted_key, key_version]
-                properties:
-                  user_id: {type: string}
-                  encrypted_key: {type: string}
-                  key_version: {type: integer}
+              type: object
+              required: [wraps]
+              properties:
+                algorithm: {type: string}
+                wraps:
+                  type: array
+                  items:
+                    type: object
+                    required: [user_id, key, algorithm]
+                    properties:
+                      user_id: {type: string}
+                      key: {type: string}
+                      algorithm: {type: string}
       responses:
-        '204': {description: Keys upserted}
+        '201':
+          description: Team key version created, previous active version superseded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: integer}
+                  team_id: {type: string}
+                  version: {type: integer}
+                  status: {type: string}
+                  algorithm: {type: string}
+                  wraps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id: {type: string}
+                        key: {type: string}
+                        algorithm: {type: string}
+                  wrapped_user_ids:
+                    type: array
+                    items: {type: string}
+                  created_by: {type: string}
+                  created_at: {type: string}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '500': {$ref: '#/components/responses/InternalFailure'}
     get:
       tags: [Teams]
-      operationId: listTeamSharedKeysForUser
+      operationId: listTeamKeys
       security: [{sessionCookie: []}]
       responses:
         '200':
-          description: Shared keys of the current user for the team
+          description: Team key versions visible to the caller, wraps filtered to the caller
           content:
             application/json:
               schema:
@@ -786,10 +851,24 @@ paths:
                 items:
                   type: object
                   properties:
+                    id: {type: integer}
                     team_id: {type: string}
-                    user_id: {type: string}
-                    encrypted_key: {type: string}
-                    key_version: {type: integer}
+                    version: {type: integer}
+                    status: {type: string}
+                    algorithm: {type: string}
+                    wraps:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          user_id: {type: string}
+                          key: {type: string}
+                          algorithm: {type: string}
+                    wrapped_user_ids:
+                      type: array
+                      items: {type: string}
+                    created_by: {type: string}
+                    created_at: {type: string}
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
