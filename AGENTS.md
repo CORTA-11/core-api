@@ -69,3 +69,17 @@ These instructions apply to the entire `core-api` repository.
   credential split with an administrator connection.
 - Keep shared values such as `JWT_SECRET` and `REDIS_CHAT_CHANNEL` compatible
   with `socket-server` and keep exposed routes compatible with `infra`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Triage uses the five default canonical label names. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses the single-context layout. See `docs/agents/domain.md`.
