@@ -77,6 +77,21 @@ services:
       - internal
       - synodus-network
 
+  collaboration-server:
+    build:
+      context: ../socket-server/collaboration
+      dockerfile: Dockerfile
+    image: collaboration-server:local
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      COLLABORATION_HOST: 0.0.0.0
+      COLLABORATION_PORT: "8082"
+    networks:
+      - internal
+      - synodus-network
+
   provisioner:
     image: core-api:local
     restart: unless-stopped
