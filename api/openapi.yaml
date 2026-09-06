@@ -459,6 +459,26 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
         '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+      - name: document_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/PublicID'}
+    get:
+      tags: [Documents]
+      operationId: getDocument
+      summary: Retrieve a team Document projection
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Document projection
+          content: {application/json: {schema: {$ref: '#/components/schemas/DocumentProjection'}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api/v1/orgs/{org_id}/teams/{team_id}/tasks:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}
@@ -1203,6 +1223,18 @@ components:
         updated_by: {$ref: '#/components/schemas/PublicID'}
         created_at: {$ref: '#/components/schemas/Timestamp'}
         updated_at: {$ref: '#/components/schemas/Timestamp'}
+    DocumentProjection:
+      type: object
+      additionalProperties: false
+      required: [id, team_id, title, updated_by, created_at, updated_at, body_html]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        team_id: {$ref: '#/components/schemas/PublicID'}
+        title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\\S.*'}
+        updated_by: {$ref: '#/components/schemas/PublicID'}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+        body_html: {type: string}
     DocumentWrite:
       type: object
       additionalProperties: false

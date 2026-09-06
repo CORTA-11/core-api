@@ -11,6 +11,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,6 +20,21 @@ import (
 type organizationServiceStub struct {
 	page      service.OrganizationPage
 	deleteErr error
+}
+
+type documentServiceStub struct {
+	document service.DocumentProjection
+	err      error
+}
+
+func (stub documentServiceStub) List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error) {
+	return nil, nil
+}
+func (stub documentServiceStub) Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error) {
+	return service.DocumentView{}, nil
+}
+func (stub documentServiceStub) Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error) {
+	return stub.document, stub.err
 }
 
 func (stub organizationServiceStub) List(context.Context, session.Principal, pagination.Parameters) (service.OrganizationPage, error) {
@@ -69,6 +85,23 @@ func TestOrganizationListUsesExactOpenAPIDTOAndNullableDeletion(t *testing.T) {
 	assert.NotContains(t, organization, "tenant_version")
 	assert.Contains(t, body, "next_cursor")
 	assert.Contains(t, body, "previous_cursor")
+}
+
+func TestGetDocumentReturnsPersistedProjection(t *testing.T) {
+	orgID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
+	teamID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
+	documentID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
+	handler := &ResourceHandler{documents: documentServiceStub{document: service.DocumentProjection{DocumentView: service.DocumentView{ID: documentID, TeamID: teamID, Title: "Notes"}, BodyHTML: "<p>Persisted</p>"}}}
+	request := authenticatedResourceRequest(http.MethodGet, "/api/v1/orgs")
+	routeContext := chi.NewRouteContext()
+	routeContext.URLParams.Add("org_id", orgID.String())
+	routeContext.URLParams.Add("team_id", teamID.String())
+	routeContext.URLParams.Add("document_id", documentID.String())
+	request = request.WithContext(context.WithValue(request.Context(), chi.RouteCtxKey, routeContext))
+	response := httptest.NewRecorder()
+	handler.getDocument(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+	assert.JSONEq(t, `{"id":"33333333-3333-4333-8333-333333333333","team_id":"22222222-2222-4222-8222-222222222222","title":"Notes","updated_by":"00000000-0000-0000-0000-000000000000","created_at":"0001-01-01T00:00:00Z","updated_at":"0001-01-01T00:00:00Z","body_html":"<p>Persisted</p>"}`, response.Body.String())
 }
 
 func authenticatedResourceRequest(method, target string) *http.Request {

@@ -49,6 +49,7 @@ type TeamTaskService interface {
 
 type DocumentService interface {
 	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error)
+	Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error)
 	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
 }
 
@@ -299,6 +300,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.listDocuments)
 	case "createDocument":
 		return http.HandlerFunc(router.resources.createDocument)
+	case "getDocument":
+		return http.HandlerFunc(router.resources.getDocument)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -366,7 +369,7 @@ func isResourceOperation(operationID string) bool {
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||
 		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
-		operationID == "listDocuments" || operationID == "createDocument"
+		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument"
 }
 
 // ready handles the ready operation.

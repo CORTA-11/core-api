@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -10,6 +12,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 const maximumDocumentTitleLength = 255
@@ -21,6 +24,11 @@ type DocumentView struct {
 	UpdatedBy uuid.UUID `json:"updated_by"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type DocumentProjection struct {
+	DocumentView
+	BodyHTML string `json:"body_html"`
 }
 
 type DocumentApplication struct{ authorizer applicationAuthorizer }
@@ -81,6 +89,30 @@ func (application *DocumentApplication) List(
 		views = append(views, DocumentView{ID: row.PublicID, TeamID: teamID, Title: row.Title, UpdatedBy: row.LastUpdatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
 	}
 	return views, nil
+}
+
+func (application *DocumentApplication) Get(ctx context.Context, principal session.Principal, organizationID, teamID, documentID uuid.UUID) (DocumentProjection, error) {
+	if application == nil || application.authorizer == nil || !validPrincipal(principal) || organizationID == uuid.Nil || teamID == uuid.Nil || documentID == uuid.Nil {
+		return DocumentProjection{}, authorization.ErrResourceNotFound
+	}
+	var row tenantdb.Document
+	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionDocumentRead, func(queries *tenantdb.Queries) error {
+		team, queryErr := queries.ResolveTeamContext(ctx, tenantdb.ResolveTeamContextParams{PublicID: teamID, UserPublicID: principal.UserID})
+		if queryErr != nil {
+			return queryErr
+		}
+		row, queryErr = queries.GetDocumentForTeam(ctx, tenantdb.GetDocumentForTeamParams{TeamID: team.ID, PublicID: documentID})
+		return queryErr
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			err = authorization.ErrResourceNotFound
+		}
+		return DocumentProjection{}, fmt.Errorf("get document projection: %w", err)
+	}
+	view := documentView(row)
+	view.TeamID = teamID
+	return DocumentProjection{DocumentView: view, BodyHTML: row.BodyHtml}, nil
 }
 
 func documentView(row tenantdb.Document) DocumentView {
