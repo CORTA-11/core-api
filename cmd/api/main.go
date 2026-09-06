@@ -141,6 +141,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	invitations := service.NewInvitationApplication(pool, invitationBinding)
 	go runInvitationCleanup(ctx, logger, invitations)
 	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
+	documents := service.NewDocumentApplication(authorizer)
 	resourceBookings := service.NewResourceApplication(authorizer)
 	keyService := service.NewKeyService(pool, authorizer)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
@@ -153,7 +154,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
-		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Invitations: invitations, ResourceBookings: resourceBookings,
+		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Documents: documents, Invitations: invitations, ResourceBookings: resourceBookings,
 		Keys: keyService, Files: fileService, Chat: chat,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
