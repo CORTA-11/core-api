@@ -59,12 +59,14 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	trusted, err := httpx.ParseTrustedProxies("")
 	require.NoError(t, err)
 	authorizer := authorization.NewAuthorizer(fixture.resolver, fixture.executor)
+	documents := service.NewDocumentApplication(authorizer)
 	chatChannel := "chat:cutover"
 	chatService := service.NewChatApplication(authorizer, realtime.NewChatPublisher(redisClient, chatChannel), bytes.Repeat([]byte{0x81}, 32))
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: manager, Verifier: cutoverCredentialVerifier{userID: fixture.users.shared},
 		Organizations: service.NewOrganizationApplication(fixture.runtimePool, codec),
 		TeamTasks:     service.NewTeamTaskApplication(authorizer, codec),
+		Documents:     documents,
 		Chat:          chatService,
 		Environment:   "test", Origins: origins, TrustedProxies: trusted,
 		LoginGuard: loginGuard, Administrative: administrative,
@@ -107,6 +109,54 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	}
 	require.NoError(t, json.Unmarshal(taskResponse.body, &task))
 
+	documentsPath := server.URL + "/api/v1/orgs/" + organization.publicID.String() + "/teams/" + team.ID.String() + "/documents"
+	documentResponse := cutoverRequest(t, client, http.MethodPost, documentsPath,
+		`{"title":"Persisted calibration notes"}`, loginBody.CSRFToken, "https://app.example")
+	require.Equal(t, http.StatusCreated, documentResponse.status, string(documentResponse.body))
+	var document struct {
+		ID uuid.UUID `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(documentResponse.body, &document))
+	documentsTable := pgx.Identifier{organization.schema, "documents"}.Sanitize()
+	_, err = fixture.adminPool.Exec(ctx, `UPDATE `+documentsTable+` SET body_html = '<p>Persisted body</p>' WHERE public_id = $1`, document.ID)
+	require.NoError(t, err)
+	documentPath := documentsPath + "/" + document.ID.String()
+	openedDocument := cutoverRequest(t, client, http.MethodGet, documentPath, "", "", "")
+	require.Equal(t, http.StatusOK, openedDocument.status, string(openedDocument.body))
+	var projection struct {
+		ID             uuid.UUID       `json:"id"`
+		TeamID         uuid.UUID       `json:"team_id"`
+		UpdatedBy      uuid.UUID       `json:"updated_by"`
+		Title          string          `json:"title"`
+		BodyHTML       string          `json:"body_html"`
+		CanonicalState json.RawMessage `json:"canonical_state"`
+	}
+	require.NoError(t, json.Unmarshal(openedDocument.body, &projection))
+	assert.Equal(t, document.ID, projection.ID)
+	assert.Equal(t, team.ID, projection.TeamID)
+	assert.Equal(t, fixture.users.shared, projection.UpdatedBy)
+	assert.Equal(t, "Persisted calibration notes", projection.Title)
+	assert.Equal(t, "<p>Persisted body</p>", projection.BodyHTML)
+	assert.Nil(t, projection.CanonicalState)
+	_, err = fixture.adminPool.Exec(ctx, `UPDATE public.org_user SET role = 'administrator'
+		WHERE org_id = $1 AND user_id = (SELECT id FROM public.users WHERE user_id = $2)`, organization.id, fixture.users.alpha)
+	require.NoError(t, err)
+	_, err = documents.Get(ctx, session.Principal{UserID: fixture.users.alpha, SessionID: uuid.New()}, organization.publicID, team.ID, document.ID)
+	assert.ErrorIs(t, err, authorization.ErrResourceNotFound, "organization administration alone must not grant Document access")
+	_, err = documents.Get(ctx, session.Principal{UserID: fixture.users.outsider, SessionID: uuid.New()}, organization.publicID, team.ID, document.ID)
+	assert.ErrorIs(t, err, authorization.ErrResourceNotFound, "platform operation without tenant membership must not grant Document access")
+
+	missingDocument := cutoverRequest(t, client, http.MethodGet, documentsPath+"/40000000-0000-4000-8000-000000000099", "", "", "")
+	assert.Equal(t, http.StatusNotFound, missingDocument.status)
+	crossTeamDocument := cutoverRequest(t, client, http.MethodGet,
+		server.URL+"/api/v1/orgs/"+organization.publicID.String()+"/teams/"+organization.teams[0].publicID.String()+"/documents/"+document.ID.String(), "", "", "")
+	assert.Equal(t, http.StatusNotFound, crossTeamDocument.status)
+	crossOrganizationDocument := cutoverRequest(t, client, http.MethodGet,
+		server.URL+"/api/v1/orgs/"+otherOrganization.publicID.String()+"/teams/"+team.ID.String()+"/documents/"+document.ID.String(), "", "", "")
+	assert.Equal(t, http.StatusNotFound, crossOrganizationDocument.status)
+	unauthenticatedDocument := cutoverRequest(t, &http.Client{Timeout: 5 * time.Second}, http.MethodGet, documentPath, "", "", "")
+	assert.Equal(t, http.StatusUnauthorized, unauthenticatedDocument.status)
+
 	pubsub := redisClient.Subscribe(ctx, chatChannel)
 	t.Cleanup(func() { _ = pubsub.Close() })
 	chatPath := server.URL + "/api/v1/orgs/" + organization.publicID.String() + "/teams/" + team.ID.String() + "/chat"
@@ -142,6 +192,8 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	require.NoError(t, err)
 	removed := cutoverRequest(t, client, http.MethodGet, taskPath, "", "", "")
 	assert.Equal(t, http.StatusNotFound, removed.status)
+	removedDocument := cutoverRequest(t, client, http.MethodGet, documentPath, "", "", "")
+	assert.Equal(t, http.StatusNotFound, removedDocument.status)
 
 	badCSRF := cutoverRequest(t, client, http.MethodDelete,
 		fmt.Sprintf("%s/%s", taskPath, task.ID), "", "invalid", "https://app.example")

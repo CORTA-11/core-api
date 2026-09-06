@@ -1223,7 +1223,6 @@ components:
         updated_by: {$ref: '#/components/schemas/PublicID'}
         created_at: {$ref: '#/components/schemas/Timestamp'}
         updated_at: {$ref: '#/components/schemas/Timestamp'}
-        body_html: {type: string}
     DocumentProjection:
       type: object
       additionalProperties: false
