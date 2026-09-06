@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -105,9 +106,9 @@ func (application *DocumentApplication) Get(ctx context.Context, principal sessi
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return DocumentProjection{}, authorization.ErrResourceNotFound
+			err = authorization.ErrResourceNotFound
 		}
-		return DocumentProjection{}, err
+		return DocumentProjection{}, fmt.Errorf("get document projection: %w", err)
 	}
 	view := documentView(row)
 	view.TeamID = teamID
