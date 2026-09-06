@@ -138,7 +138,7 @@ func (handler *AuthHandler) register(writer http.ResponseWriter, request *http.R
 		violations = append(violations, httpx.Violation{Field: "display_name", Code: "invalid", Message: "Display name must contain 1 to 100 characters."})
 	}
 	if passwordErr != nil {
-		violations = append(violations, httpx.Violation{Field: "password", Code: "invalid", Message: "Password must contain 15 to 128 characters."})
+		violations = append(violations, httpx.Violation{Field: "password", Code: "invalid", Message: "Password must contain 12 to 128 characters."})
 	}
 	if len(violations) != 0 {
 		_ = httpx.WriteProblem(writer, request, httpx.NewError(httpx.ProblemInvalidRequest, nil, violations...))

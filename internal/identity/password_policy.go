@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	minimumPasswordCodePoints = 15
+	minimumPasswordCodePoints = 12
 	maximumPasswordCodePoints = 128
 	maximumPasswordBytes      = 1024
 )
