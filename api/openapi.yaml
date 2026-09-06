@@ -479,6 +479,60 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [Documents]
+      operationId: updateDocument
+      summary: Update a team Document projection
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/DocumentPatch'}}}
+      responses:
+        '200':
+          description: Document updated
+          content: {application/json: {schema: {$ref: '#/components/schemas/DocumentProjection'}}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    delete:
+      tags: [Documents]
+      operationId: deleteDocument
+      summary: Delete a team Document
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '204': {description: Document deleted}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+      - name: document_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/PublicID'}
+    post:
+      tags: [Documents]
+      operationId: issueDocumentSocketTicket
+      summary: Issue a short-lived ticket for one Document Room
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '200':
+          description: Document-scoped WebSocket ticket
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SocketTicket'}
+              example: {token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.signature}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/tasks:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}
@@ -1320,6 +1374,13 @@ components:
       required: [title]
       properties:
         title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\\S.*'}
+    DocumentPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\\S.*'}
+        body_html: {type: string}
     DocumentPage:
       type: object
       additionalProperties: false

@@ -21,7 +21,7 @@ func TestOpenAPISourceContractIsValidAndClosed(t *testing.T) {
 	document, err := Load(context.Background(), contractPath())
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.2", document.OpenAPI)
-	assert.Len(t, document.Paths.Map(), 34)
+	assert.Len(t, document.Paths.Map(), 35)
 
 	legacyFragments := []string{"/users", "/api/files", "/pprof", "/api/v1/user", "X-Org-ID", "bearer", "jwt"}
 	for path := range document.Paths.Map() {
@@ -73,7 +73,7 @@ func TestOpenAPIOperationIDsAreUnique(t *testing.T) {
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	assert.Len(t, seen, 52)
+	assert.Len(t, seen, 56)
 }
 
 func TestInventoryMatchesOpenAPIBidirectionally(t *testing.T) {

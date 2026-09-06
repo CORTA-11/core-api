@@ -39,7 +39,7 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
 			PermissionAuditRead, PermissionRealtimeConnect, PermissionResourceRequest,
-			PermissionDocumentRead, PermissionDocumentCreate:
+			PermissionDocumentRead, PermissionDocumentCreate, PermissionDocumentUpdate, PermissionDocumentDelete:
 			return true
 		}
 	case TeamRoleResearchLead:
@@ -47,26 +47,29 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 		case PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
-			PermissionAuditRead, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate:
+			PermissionAuditRead, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate,
+			PermissionDocumentUpdate, PermissionDocumentDelete:
 			return true
 		}
 	case TeamRoleResearcher:
 		switch permission {
 		case PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove,
-			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate:
+			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate,
+			PermissionDocumentUpdate:
 			return true
 		}
 	case TeamRoleContributor:
 		switch permission {
 		case PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
-			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate:
+			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate,
+			PermissionDocumentUpdate:
 			return true
 		}
 	case TeamRoleViewer:
 		switch permission {
 		case PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect,
-			PermissionDocumentRead, PermissionDocumentCreate:
+			PermissionDocumentRead, PermissionDocumentCreate, PermissionDocumentUpdate:
 			return true
 		}
 	}

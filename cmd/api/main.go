@@ -141,7 +141,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	invitations := service.NewInvitationApplication(pool, invitationBinding)
 	go runInvitationCleanup(ctx, logger, invitations)
 	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
-	documents := service.NewDocumentApplication(authorizer)
+	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
 	resourceBookings := service.NewResourceApplication(authorizer)
 	keyService := service.NewKeyService(pool, authorizer)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)

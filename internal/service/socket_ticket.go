@@ -46,7 +46,7 @@ func (application *ChatApplication) IssueSocketTicket(ctx context.Context, princ
 	}, application.ticketSecret)
 }
 
-func signSocketTicket(claims SocketTicketClaims, secret []byte) (string, error) {
+func signSocketTicket(claims any, secret []byte) (string, error) {
 	header, err := encodeSocketTicketPart(socketTicketHeader)
 	if err != nil {
 		return "", err

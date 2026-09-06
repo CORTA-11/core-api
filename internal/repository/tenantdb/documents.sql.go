@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createDocument = `-- name: CreateDocument :one
@@ -39,6 +40,19 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const deleteDocument = `-- name: DeleteDocument :execrows
+DELETE FROM documents
+WHERE public_id = $1
+`
+
+func (q *Queries) DeleteDocument(ctx context.Context, publicID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDocument, publicID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getDocumentForTeam = `-- name: GetDocumentForTeam :one
@@ -120,4 +134,43 @@ func (q *Queries) ListDocumentsForTeam(ctx context.Context, arg ListDocumentsFor
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateDocument = `-- name: UpdateDocument :one
+UPDATE documents
+SET title = COALESCE($1, title),
+    body_html = COALESCE($2, body_html),
+    last_updated_by = $3,
+    updated_at = NOW()
+WHERE public_id = $4
+RETURNING id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at
+`
+
+type UpdateDocumentParams struct {
+	Title         pgtype.Text `json:"title"`
+	BodyHtml      pgtype.Text `json:"body_html"`
+	LastUpdatedBy uuid.UUID   `json:"last_updated_by"`
+	PublicID      uuid.UUID   `json:"public_id"`
+}
+
+func (q *Queries) UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error) {
+	row := q.db.QueryRow(ctx, updateDocument,
+		arg.Title,
+		arg.BodyHtml,
+		arg.LastUpdatedBy,
+		arg.PublicID,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.TeamID,
+		&i.CanonicalState,
+		&i.Title,
+		&i.BodyHtml,
+		&i.LastUpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

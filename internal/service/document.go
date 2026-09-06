@@ -13,6 +13,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const maximumDocumentTitleLength = 255
@@ -31,10 +32,20 @@ type DocumentProjection struct {
 	BodyHTML string `json:"body_html"`
 }
 
-type DocumentApplication struct{ authorizer applicationAuthorizer }
+type DocumentPatch struct {
+	Title    *string
+	BodyHTML *string
+}
 
-func NewDocumentApplication(authorizer applicationAuthorizer) *DocumentApplication {
-	return &DocumentApplication{authorizer: authorizer}
+type DocumentApplication struct {
+	authorizer   applicationAuthorizer
+	ticketSecret []byte
+}
+
+func NewDocumentApplication(authorizer applicationAuthorizer, ticketSecret []byte) *DocumentApplication {
+	return &DocumentApplication{
+		authorizer: authorizer, ticketSecret: append([]byte(nil), ticketSecret...),
+	}
 }
 
 func (application *DocumentApplication) Create(
@@ -115,6 +126,61 @@ func (application *DocumentApplication) Get(ctx context.Context, principal sessi
 	return DocumentProjection{DocumentView: view, BodyHTML: row.BodyHtml}, nil
 }
 
+func (application *DocumentApplication) Update(
+	ctx context.Context, principal session.Principal, organizationID, teamID, documentID uuid.UUID, patch DocumentPatch,
+) (DocumentProjection, error) {
+	if patch.Title == nil && patch.BodyHTML == nil {
+		return DocumentProjection{}, ErrInvalidInput
+	}
+	if patch.Title != nil {
+		title, err := normalizeDocumentTitle(*patch.Title)
+		if err != nil {
+			return DocumentProjection{}, err
+		}
+		patch.Title = &title
+	}
+	if application == nil || application.authorizer == nil || !validPrincipal(principal) ||
+		organizationID == uuid.Nil || teamID == uuid.Nil || documentID == uuid.Nil {
+		return DocumentProjection{}, authorization.ErrResourceNotFound
+	}
+	var row tenantdb.Document
+	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionDocumentUpdate,
+		func(queries *tenantdb.Queries) error {
+			var queryErr error
+			row, queryErr = queries.UpdateDocument(ctx, tenantdb.UpdateDocumentParams{
+				Title: nullableDocumentText(patch.Title), BodyHtml: nullableDocumentText(patch.BodyHTML),
+				LastUpdatedBy: principal.UserID, PublicID: documentID,
+			})
+			if errors.Is(queryErr, pgx.ErrNoRows) {
+				return authorization.ErrResourceNotFound
+			}
+			return queryErr
+		})
+	if err != nil {
+		return DocumentProjection{}, err
+	}
+	view := documentView(row)
+	view.TeamID = teamID
+	return DocumentProjection{DocumentView: view, BodyHTML: row.BodyHtml}, nil
+}
+
+func (application *DocumentApplication) Delete(
+	ctx context.Context, principal session.Principal, organizationID, teamID, documentID uuid.UUID,
+) error {
+	if application == nil || application.authorizer == nil || !validPrincipal(principal) ||
+		organizationID == uuid.Nil || teamID == uuid.Nil || documentID == uuid.Nil {
+		return authorization.ErrResourceNotFound
+	}
+	return application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionDocumentDelete,
+		func(queries *tenantdb.Queries) error {
+			count, err := queries.DeleteDocument(ctx, documentID)
+			if err == nil && count == 0 {
+				return authorization.ErrResourceNotFound
+			}
+			return err
+		})
+}
+
 func documentView(row tenantdb.Document) DocumentView {
 	return DocumentView{ID: row.PublicID, Title: row.Title, UpdatedBy: row.LastUpdatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
@@ -125,4 +191,11 @@ func normalizeDocumentTitle(title string) (string, error) {
 		return "", ErrInvalidInput
 	}
 	return title, nil
+}
+
+func nullableDocumentText(value *string) pgtype.Text {
+	if value == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *value, Valid: true}
 }

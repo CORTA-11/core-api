@@ -324,20 +324,6 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-func nullableText(value *string) *string {
-	if value == nil {
-		return nil
-	}
-	return value
-}
-
-func nullableInt32(value *int32) *int32 {
-	if value == nil {
-		return nil
-	}
-	return value
-}
-
 func pgtextParam(value *string) pgtype.Text {
 	if value == nil {
 		return pgtype.Text{}
