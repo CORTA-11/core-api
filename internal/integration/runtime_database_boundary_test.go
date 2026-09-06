@@ -111,6 +111,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		WHERE schemaname = $1
 		ORDER BY tablename`, []any{schema}, []string{
 		"chat_messages:synodus_owner",
+		"documents:synodus_owner",
 		"files:synodus_owner",
 		"resource_requests:synodus_owner",
 		"resources:synodus_owner",
@@ -122,6 +123,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{schema}}, []string{
 		schema + ":chat_messages:INSERT", schema + ":chat_messages:SELECT", schema + ":chat_messages:UPDATE",
+		schema + ":documents:DELETE", schema + ":documents:INSERT", schema + ":documents:SELECT", schema + ":documents:UPDATE",
 		schema + ":files:DELETE", schema + ":files:INSERT", schema + ":files:SELECT", schema + ":files:UPDATE",
 		schema + ":resource_requests:DELETE", schema + ":resource_requests:INSERT", schema + ":resource_requests:SELECT", schema + ":resource_requests:UPDATE",
 		schema + ":resources:DELETE", schema + ":resources:INSERT", schema + ":resources:SELECT", schema + ":resources:UPDATE",
@@ -135,8 +137,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_class AS relation
 		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
 		WHERE namespace.nspname = $1 AND relation.relname = ANY($2)
-		ORDER BY relation.relname`, []any{schema, []string{"chat_messages", "teams", "team_members", "tasks", "resources", "resource_requests"}}, []string{
-		"chat_messages:t:t", "resource_requests:t:t", "resources:t:t", "tasks:t:t", "team_members:t:t", "teams:t:t",
+		ORDER BY relation.relname`, []any{schema, []string{"chat_messages", "documents", "teams", "team_members", "tasks", "resources", "resource_requests"}}, []string{
+		"chat_messages:t:t", "documents:t:t", "resource_requests:t:t", "resources:t:t", "tasks:t:t", "team_members:t:t", "teams:t:t",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', tablename, policyname, cmd, array_to_string(roles, ','))
@@ -145,6 +147,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		ORDER BY tablename, policyname`, []any{schema}, []string{
 		"chat_messages:chat_messages_owner_maintenance:ALL:synodus_owner",
 		"chat_messages:chat_messages_runtime_access:ALL:synodus_runtime",
+		"documents:documents_owner_maintenance:ALL:synodus_owner",
+		"documents:documents_runtime_access:ALL:synodus_runtime",
 		"files:files_owner_maintenance:ALL:synodus_owner",
 		"files:files_runtime_access:ALL:synodus_runtime",
 		"resource_requests:resource_requests_owner_maintenance:ALL:synodus_owner",
