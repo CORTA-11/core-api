@@ -166,8 +166,13 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 		`{"title":"Updated calibration notes","body_html":"<p>Updated persisted body</p>"}`,
 		loginBody.CSRFToken, "https://app.example")
 	require.Equal(t, http.StatusOK, updatedDocument.status, string(updatedDocument.body))
-	assert.Contains(t, string(updatedDocument.body), `"title":"Updated calibration notes"`)
-	assert.Contains(t, string(updatedDocument.body), `"body_html":"<p>Updated persisted body</p>"`)
+	var updatedProjection struct {
+		Title    string `json:"title"`
+		BodyHTML string `json:"body_html"`
+	}
+	require.NoError(t, json.Unmarshal(updatedDocument.body, &updatedProjection))
+	assert.Equal(t, "Updated calibration notes", updatedProjection.Title)
+	assert.Equal(t, "<p>Updated persisted body</p>", updatedProjection.BodyHTML)
 
 	deletableResponse := cutoverRequest(t, client, http.MethodPost, documentsPath,
 		`{"title":"Disposable Document"}`, loginBody.CSRFToken, "https://app.example")
