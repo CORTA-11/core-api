@@ -107,4 +107,5 @@ var Routes = [...]Route{
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/documents", "listDocuments", AuthenticationRequired, CSRFNone, authorization.PermissionDocumentRead, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/documents", "createDocument", AuthenticationRequired, CSRFRequired, authorization.PermissionDocumentCreate, BodyJSON, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}", "getDocument", AuthenticationRequired, CSRFNone, authorization.PermissionDocumentRead, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket", "issueDocumentSocketTicket", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
 }

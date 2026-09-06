@@ -31,10 +31,17 @@ type DocumentProjection struct {
 	BodyHTML string `json:"body_html"`
 }
 
-type DocumentApplication struct{ authorizer applicationAuthorizer }
+type DocumentApplication struct {
+	authorizer   applicationAuthorizer
+	ticketSecret []byte
+}
 
-func NewDocumentApplication(authorizer applicationAuthorizer) *DocumentApplication {
-	return &DocumentApplication{authorizer: authorizer}
+func NewDocumentApplication(authorizer applicationAuthorizer, ticketSecret ...[]byte) *DocumentApplication {
+	application := &DocumentApplication{authorizer: authorizer}
+	if len(ticketSecret) > 0 {
+		application.ticketSecret = append([]byte(nil), ticketSecret[0]...)
+	}
+	return application
 }
 
 func (application *DocumentApplication) Create(

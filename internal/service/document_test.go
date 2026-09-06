@@ -27,7 +27,7 @@ func TestDocumentApplicationUsesDocumentPermissions(t *testing.T) {
 	organizationID, teamID := uuid.New(), uuid.New()
 	denied := errors.New("stop after permission selection")
 	authorizer := &documentAuthorizer{err: denied}
-	application := NewDocumentApplication(authorizer)
+	application := NewDocumentApplication(authorizer, []byte("test-document-ticket-secret-value-123"))
 
 	_, err := application.Create(context.Background(), principal, organizationID, teamID, "Notes")
 	assert.ErrorIs(t, err, denied)
@@ -36,6 +36,10 @@ func TestDocumentApplicationUsesDocumentPermissions(t *testing.T) {
 	_, err = application.List(context.Background(), principal, organizationID, teamID)
 	assert.ErrorIs(t, err, denied)
 	assert.Equal(t, authorization.PermissionDocumentRead, authorizer.permission)
+
+	_, err = application.IssueSocketTicket(context.Background(), principal, organizationID, teamID, uuid.New())
+	assert.ErrorIs(t, err, denied)
+	assert.Equal(t, authorization.PermissionRealtimeConnect, authorizer.permission)
 }
 
 type documentAuthorizer struct {

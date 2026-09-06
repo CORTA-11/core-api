@@ -51,6 +51,7 @@ type DocumentService interface {
 	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error)
 	Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error)
 	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
+	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
 }
 
 type InvitationService interface {
@@ -302,6 +303,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.createDocument)
 	case "getDocument":
 		return http.HandlerFunc(router.resources.getDocument)
+	case "issueDocumentSocketTicket":
+		return http.HandlerFunc(router.resources.issueDocumentSocketTicket)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -370,7 +373,8 @@ func isResourceOperation(operationID string) bool {
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||
 		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
-		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument"
+		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
+		operationID == "issueDocumentSocketTicket"
 }
 
 // ready handles the ready operation.
