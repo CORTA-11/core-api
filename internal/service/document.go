@@ -36,12 +36,10 @@ type DocumentApplication struct {
 	ticketSecret []byte
 }
 
-func NewDocumentApplication(authorizer applicationAuthorizer, ticketSecret ...[]byte) *DocumentApplication {
-	application := &DocumentApplication{authorizer: authorizer}
-	if len(ticketSecret) > 0 {
-		application.ticketSecret = append([]byte(nil), ticketSecret[0]...)
+func NewDocumentApplication(authorizer applicationAuthorizer, ticketSecret []byte) *DocumentApplication {
+	return &DocumentApplication{
+		authorizer: authorizer, ticketSecret: append([]byte(nil), ticketSecret...),
 	}
-	return application
 }
 
 func (application *DocumentApplication) Create(
