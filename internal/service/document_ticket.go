@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/CORTA-11/core-api/internal/authorization"
@@ -49,10 +50,14 @@ func (application *DocumentApplication) IssueSocketTicket(
 		},
 	)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("authorize Document Room ticket: %w", err)
 	}
-	return signSocketTicket(DocumentSocketTicketClaims{
+	ticket, err := signSocketTicket(DocumentSocketTicketClaims{
 		UserID: principal.UserID, OrgID: organizationID, TeamID: teamID,
 		DocumentID: documentID, Purpose: "document", ExpiresAt: time.Now().Add(socketTicketTTL).Unix(),
 	}, application.ticketSecret)
+	if err != nil {
+		return "", fmt.Errorf("sign Document Room ticket: %w", err)
+	}
+	return ticket, nil
 }
