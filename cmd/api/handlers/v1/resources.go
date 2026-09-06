@@ -102,6 +102,25 @@ func (handler *ResourceHandler) getDocument(writer http.ResponseWriter, request 
 	_ = httpx.WriteJSON(writer, http.StatusOK, document)
 }
 
+func (handler *ResourceHandler) issueDocumentSocketTicket(writer http.ResponseWriter, request *http.Request) {
+	authentication, organizationID, teamID, ok := handler.scoped(request, true)
+	documentID, valid := routeUUID(request, "document_id")
+	if !ok || !valid || handler.documents == nil {
+		handler.problem(writer, request, authorization.ErrResourceNotFound)
+		return
+	}
+	ticket, err := handler.documents.IssueSocketTicket(
+		request.Context(), authentication.Principal, organizationID, teamID, documentID,
+	)
+	if err != nil {
+		handler.problem(writer, request, err)
+		return
+	}
+	_ = httpx.WriteJSON(writer, http.StatusOK, struct {
+		Token string `json:"token"`
+	}{Token: ticket})
+}
+
 // UnmarshalJSON decodes JSON into the value.
 func (task *taskRequest) UnmarshalJSON(data []byte) error {
 	var raw struct {

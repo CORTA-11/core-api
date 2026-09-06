@@ -211,6 +211,15 @@ work. The authenticated v1 API deliberately exposes no file HTTP routes yet;
 metadata-backed authorization and bounded transfer semantics must land before
 uploads or downloads become public.
 
+## Document collaboration
+
+Team Members request a short-lived Document Room ticket from
+`POST /api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket`.
+The operation requires the browser session's CSRF token and verifies that the
+Document belongs to the requested team before signing the user, organization,
+team, and Document scope with `JWT_SECRET`. The collaboration process validates
+that ticket locally before loading a room.
+
 ## Realtime chat
 
 Team chat history, send, delete, and socket-ticket routes live in core-api.

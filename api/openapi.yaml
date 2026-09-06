@@ -479,6 +479,32 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+      - name: document_id
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/PublicID'}
+    post:
+      tags: [Documents]
+      operationId: issueDocumentSocketTicket
+      summary: Issue a short-lived ticket for one Document Room
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '200':
+          description: Document-scoped WebSocket ticket
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SocketTicket'}
+              example: {token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.signature}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/tasks:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}

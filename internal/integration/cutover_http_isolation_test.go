@@ -59,9 +59,10 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	trusted, err := httpx.ParseTrustedProxies("")
 	require.NoError(t, err)
 	authorizer := authorization.NewAuthorizer(fixture.resolver, fixture.executor)
-	documents := service.NewDocumentApplication(authorizer)
+	ticketSecret := bytes.Repeat([]byte{0x81}, 32)
+	documents := service.NewDocumentApplication(authorizer, ticketSecret)
 	chatChannel := "chat:cutover"
-	chatService := service.NewChatApplication(authorizer, realtime.NewChatPublisher(redisClient, chatChannel), bytes.Repeat([]byte{0x81}, 32))
+	chatService := service.NewChatApplication(authorizer, realtime.NewChatPublisher(redisClient, chatChannel), ticketSecret)
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: manager, Verifier: cutoverCredentialVerifier{users: map[string]uuid.UUID{
 			"shared@tenant-boundary.example.test":   fixture.users.shared,
@@ -121,6 +122,25 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 		ID uuid.UUID `json:"id"`
 	}
 	require.NoError(t, json.Unmarshal(documentResponse.body, &document))
+	documentTicketPath := documentsPath + "/" + document.ID.String() + "/socket-ticket"
+	documentTicket := cutoverRequest(t, client, http.MethodPost, documentTicketPath, "", loginBody.CSRFToken, "https://app.example")
+	require.Equal(t, http.StatusOK, documentTicket.status, string(documentTicket.body))
+	assert.Contains(t, string(documentTicket.body), `"token"`)
+	missingDocumentTicket := cutoverRequest(t, client, http.MethodPost,
+		documentsPath+"/40000000-0000-4000-8000-000000000099/socket-ticket", "", loginBody.CSRFToken, "https://app.example")
+	assert.Equal(t, http.StatusNotFound, missingDocumentTicket.status)
+	crossTeamTicket := cutoverRequest(t, client, http.MethodPost,
+		server.URL+"/api/v1/orgs/"+organization.publicID.String()+"/teams/"+organization.teams[0].publicID.String()+"/documents/"+document.ID.String()+"/socket-ticket",
+		"", loginBody.CSRFToken, "https://app.example")
+	assert.Equal(t, http.StatusNotFound, crossTeamTicket.status)
+	crossOrganizationTicket := cutoverRequest(t, client, http.MethodPost,
+		server.URL+"/api/v1/orgs/"+otherOrganization.publicID.String()+"/teams/"+team.ID.String()+"/documents/"+document.ID.String()+"/socket-ticket",
+		"", loginBody.CSRFToken, "https://app.example")
+	assert.Equal(t, http.StatusNotFound, crossOrganizationTicket.status)
+	unauthenticatedTicket := cutoverRequest(t, &http.Client{Timeout: 5 * time.Second}, http.MethodPost, documentTicketPath, "", "", "https://app.example")
+	assert.Equal(t, http.StatusUnauthorized, unauthenticatedTicket.status)
+	badTicketCSRF := cutoverRequest(t, client, http.MethodPost, documentTicketPath, "", "invalid", "https://app.example")
+	assert.Equal(t, http.StatusForbidden, badTicketCSRF.status)
 	documentsTable := pgx.Identifier{organization.schema, "documents"}.Sanitize()
 	_, err = fixture.adminPool.Exec(ctx, `UPDATE `+documentsTable+` SET body_html = '<p>Persisted body</p>' WHERE public_id = $1`, document.ID)
 	require.NoError(t, err)
