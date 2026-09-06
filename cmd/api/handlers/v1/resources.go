@@ -87,6 +87,21 @@ func (handler *ResourceHandler) createDocument(writer http.ResponseWriter, reque
 	_ = httpx.WriteJSON(writer, http.StatusCreated, document)
 }
 
+func (handler *ResourceHandler) getDocument(writer http.ResponseWriter, request *http.Request) {
+	authentication, organizationID, teamID, ok := handler.scoped(request, true)
+	documentID, valid := routeUUID(request, "document_id")
+	if !ok || !valid || handler.documents == nil {
+		handler.problem(writer, request, authorization.ErrResourceNotFound)
+		return
+	}
+	document, err := handler.documents.Get(request.Context(), authentication.Principal, organizationID, teamID, documentID)
+	if err != nil {
+		handler.problem(writer, request, err)
+		return
+	}
+	_ = httpx.WriteJSON(writer, http.StatusOK, document)
+}
+
 // UnmarshalJSON decodes JSON into the value.
 func (task *taskRequest) UnmarshalJSON(data []byte) error {
 	var raw struct {

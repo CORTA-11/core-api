@@ -9,3 +9,8 @@ FROM documents
 WHERE team_id = sqlc.arg('team_id')
 ORDER BY updated_at DESC, public_id DESC
 LIMIT sqlc.arg('limit');
+
+-- name: GetDocumentForTeam :one
+SELECT id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at
+FROM documents
+WHERE team_id = sqlc.arg('team_id') AND public_id = sqlc.arg('public_id');

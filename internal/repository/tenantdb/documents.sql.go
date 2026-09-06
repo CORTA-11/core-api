@@ -41,6 +41,34 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 	return i, err
 }
 
+const getDocumentForTeam = `-- name: GetDocumentForTeam :one
+SELECT id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at
+FROM documents
+WHERE team_id = $1 AND public_id = $2
+`
+
+type GetDocumentForTeamParams struct {
+	TeamID   int64     `json:"team_id"`
+	PublicID uuid.UUID `json:"public_id"`
+}
+
+func (q *Queries) GetDocumentForTeam(ctx context.Context, arg GetDocumentForTeamParams) (Document, error) {
+	row := q.db.QueryRow(ctx, getDocumentForTeam, arg.TeamID, arg.PublicID)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.TeamID,
+		&i.CanonicalState,
+		&i.Title,
+		&i.BodyHtml,
+		&i.LastUpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listDocumentsForTeam = `-- name: ListDocumentsForTeam :many
 SELECT id, public_id, team_id, title, body_html, last_updated_by, created_at, updated_at
 FROM documents
