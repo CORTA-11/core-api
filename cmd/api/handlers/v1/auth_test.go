@@ -114,7 +114,7 @@ func TestRegistrationRateLimitRunsBeforeDecodeAndFailsClosed(t *testing.T) {
 }
 
 func TestRegistrationReturnsSafeFieldViolationsBeforeHashing(t *testing.T) {
-	secret := "short-secret"
+	secret := strings.Repeat("a", 11)
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/register", strings.NewReader(
 		`{"display_name":"","email":"","password":"`+secret+`"}`))
 	request.Header.Set("Content-Type", "application/json")

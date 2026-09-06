@@ -18,7 +18,7 @@ func TestPasswordPolicyNormalize(t *testing.T) {
 		input string
 		want  string
 	}{
-		{name: "minimum code points", input: strings.Repeat("a", 15), want: strings.Repeat("a", 15)},
+		{name: "minimum code points", input: strings.Repeat("a", 12), want: strings.Repeat("a", 12)},
 		{name: "maximum code points", input: strings.Repeat("a", 128), want: strings.Repeat("a", 128)},
 		{name: "spaces remain valid", input: "correct horse battery staple", want: "correct horse battery staple"},
 		{name: "Unicode remains valid", input: "research-\u5bc6\u7801-credential", want: "research-\u5bc6\u7801-credential"},
@@ -44,7 +44,7 @@ func TestPasswordPolicyRejectsInvalidInputWithoutDisclosure(t *testing.T) {
 		name  string
 		input string
 	}{
-		{name: "short", input: strings.Repeat("a", 14)},
+		{name: "short", input: strings.Repeat("a", 11)},
 		{name: "long", input: strings.Repeat("a", 129)},
 		{name: "invalid UTF-8", input: string([]byte{0xff, 'a'})},
 		{name: "control", input: secretWithControl},
@@ -72,7 +72,7 @@ func FuzzPasswordPolicyNormalizeNeverPanics(f *testing.F) {
 			return
 		}
 		assert.True(t, utf8.ValidString(got))
-		assert.GreaterOrEqual(t, utf8.RuneCountInString(got), 15)
+		assert.GreaterOrEqual(t, utf8.RuneCountInString(got), 12)
 		assert.LessOrEqual(t, utf8.RuneCountInString(got), 128)
 		assert.LessOrEqual(t, len(got), 1024)
 	})

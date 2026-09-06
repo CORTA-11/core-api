@@ -1093,7 +1093,7 @@ components:
       properties:
         display_name: {type: string, minLength: 1, maxLength: 100}
         email: {type: string, format: email, maxLength: 254}
-        password: {type: string, minLength: 15, maxLength: 128}
+        password: {type: string, minLength: 12, maxLength: 128}
     PasswordRequest:
       type: object
       additionalProperties: false
