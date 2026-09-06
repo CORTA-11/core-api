@@ -162,6 +162,25 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	assert.Equal(t, "Persisted calibration notes", projection.Title)
 	assert.Equal(t, "<p>Persisted body</p>", projection.BodyHTML)
 	assert.Nil(t, projection.CanonicalState)
+	updatedDocument := cutoverRequest(t, client, http.MethodPatch, documentPath,
+		`{"title":"Updated calibration notes","body_html":"<p>Updated persisted body</p>"}`,
+		loginBody.CSRFToken, "https://app.example")
+	require.Equal(t, http.StatusOK, updatedDocument.status, string(updatedDocument.body))
+	assert.Contains(t, string(updatedDocument.body), `"title":"Updated calibration notes"`)
+	assert.Contains(t, string(updatedDocument.body), `"body_html":"<p>Updated persisted body</p>"`)
+
+	deletableResponse := cutoverRequest(t, client, http.MethodPost, documentsPath,
+		`{"title":"Disposable Document"}`, loginBody.CSRFToken, "https://app.example")
+	require.Equal(t, http.StatusCreated, deletableResponse.status, string(deletableResponse.body))
+	var deletable struct {
+		ID uuid.UUID `json:"id"`
+	}
+	require.NoError(t, json.Unmarshal(deletableResponse.body, &deletable))
+	deletedDocument := cutoverRequest(t, client, http.MethodDelete, documentsPath+"/"+deletable.ID.String(),
+		"", loginBody.CSRFToken, "https://app.example")
+	require.Equal(t, http.StatusNoContent, deletedDocument.status, string(deletedDocument.body))
+	deletedDocument = cutoverRequest(t, client, http.MethodGet, documentsPath+"/"+deletable.ID.String(), "", "", "")
+	assert.Equal(t, http.StatusNotFound, deletedDocument.status)
 	_, err = fixture.adminPool.Exec(ctx, `UPDATE public.org_user SET role = 'administrator'
 		WHERE org_id = $1 AND user_id = (SELECT id FROM public.users WHERE user_id = $2)`, organization.id, fixture.users.alpha)
 	require.NoError(t, err)

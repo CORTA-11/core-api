@@ -37,6 +37,15 @@ func TestDocumentApplicationUsesDocumentPermissions(t *testing.T) {
 	assert.ErrorIs(t, err, denied)
 	assert.Equal(t, authorization.PermissionDocumentRead, authorizer.permission)
 
+	title := "Updated notes"
+	_, err = application.Update(context.Background(), principal, organizationID, teamID, uuid.New(), DocumentPatch{Title: &title})
+	assert.ErrorIs(t, err, denied)
+	assert.Equal(t, authorization.PermissionDocumentUpdate, authorizer.permission)
+
+	err = application.Delete(context.Background(), principal, organizationID, teamID, uuid.New())
+	assert.ErrorIs(t, err, denied)
+	assert.Equal(t, authorization.PermissionDocumentDelete, authorizer.permission)
+
 	_, err = application.IssueSocketTicket(context.Background(), principal, organizationID, teamID, uuid.New())
 	assert.ErrorIs(t, err, denied)
 	assert.Equal(t, authorization.PermissionRealtimeConnect, authorizer.permission)

@@ -51,6 +51,8 @@ type DocumentService interface {
 	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error)
 	Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error)
 	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
+	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error)
+	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
 	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
 }
 
@@ -303,6 +305,10 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.createDocument)
 	case "getDocument":
 		return http.HandlerFunc(router.resources.getDocument)
+	case "updateDocument":
+		return http.HandlerFunc(router.resources.updateDocument)
+	case "deleteDocument":
+		return http.HandlerFunc(router.resources.deleteDocument)
 	case "issueDocumentSocketTicket":
 		return http.HandlerFunc(router.resources.issueDocumentSocketTicket)
 	default:
@@ -374,6 +380,7 @@ func isResourceOperation(operationID string) bool {
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||
 		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
 		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
+		operationID == "updateDocument" || operationID == "deleteDocument" ||
 		operationID == "issueDocumentSocketTicket"
 }
 
