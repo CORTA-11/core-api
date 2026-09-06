@@ -21,15 +21,18 @@ func TestRolePermissionMappingsAreClosedAndSeparated(t *testing.T) {
 			PermissionTeamMembersRead, PermissionTeamMembersManage,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete, PermissionAuditRead, PermissionRealtimeConnect,
-			PermissionResourceRequest),
+			PermissionResourceRequest, PermissionDocumentRead, PermissionDocumentCreate),
 		TeamRoleResearchLead: set(PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
-			PermissionFileRead, PermissionFileUpload, PermissionFileDelete, PermissionAuditRead, PermissionRealtimeConnect),
+			PermissionFileRead, PermissionFileUpload, PermissionFileDelete, PermissionAuditRead, PermissionRealtimeConnect,
+			PermissionDocumentRead, PermissionDocumentCreate),
 		TeamRoleResearcher: set(PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
-			PermissionTaskMove, PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect),
+			PermissionTaskMove, PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect,
+			PermissionDocumentRead, PermissionDocumentCreate),
 		TeamRoleContributor: set(PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
-			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect),
-		TeamRoleViewer: set(PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect),
+			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate),
+		TeamRoleViewer: set(PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect,
+			PermissionDocumentRead, PermissionDocumentCreate),
 	}
 	for _, role := range organizationRoles {
 		for _, permission := range permissions {

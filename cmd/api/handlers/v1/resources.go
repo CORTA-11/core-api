@@ -26,6 +26,7 @@ type ResourceHandler struct {
 	keys                KeyService
 	files               FileService
 	chat                ChatService
+	documents           DocumentService
 }
 
 type nameRequest struct {
@@ -44,6 +45,46 @@ type taskRequest struct {
 	// assigneeSet separates an omitted field (keep current) from an explicit
 	// null (unassign); encoding/json cannot express that on a plain pointer.
 	assigneeSet bool
+}
+
+type documentRequest struct {
+	Title string `json:"title"`
+}
+
+func (handler *ResourceHandler) listDocuments(writer http.ResponseWriter, request *http.Request) {
+	authentication, organizationID, teamID, ok := handler.scoped(request, true)
+	if !ok || handler.documents == nil {
+		handler.problem(writer, request, authorization.ErrResourceNotFound)
+		return
+	}
+	documents, err := handler.documents.List(request.Context(), authentication.Principal, organizationID, teamID)
+	if err != nil {
+		handler.problem(writer, request, err)
+		return
+	}
+	_ = httpx.WriteJSON(writer, http.StatusOK, struct {
+		Items []service.DocumentView `json:"items"`
+	}{Items: documents})
+}
+
+func (handler *ResourceHandler) createDocument(writer http.ResponseWriter, request *http.Request) {
+	authentication, organizationID, teamID, ok := handler.scoped(request, true)
+	var input documentRequest
+	err := httpx.DecodeJSON(request, &input, maximumResourceBodyBytes)
+	if !ok || handler.documents == nil {
+		handler.problem(writer, request, authorization.ErrResourceNotFound)
+		return
+	}
+	if err != nil {
+		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
+		return
+	}
+	document, err := handler.documents.Create(request.Context(), authentication.Principal, organizationID, teamID, input.Title)
+	if err != nil {
+		handler.problem(writer, request, err)
+		return
+	}
+	_ = httpx.WriteJSON(writer, http.StatusCreated, document)
 }
 
 // UnmarshalJSON decodes JSON into the value.

@@ -38,7 +38,8 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 			PermissionTeamMembersRead, PermissionTeamMembersManage,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
-			PermissionAuditRead, PermissionRealtimeConnect, PermissionResourceRequest:
+			PermissionAuditRead, PermissionRealtimeConnect, PermissionResourceRequest,
+			PermissionDocumentRead, PermissionDocumentCreate:
 			return true
 		}
 	case TeamRoleResearchLead:
@@ -46,25 +47,26 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 		case PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
-			PermissionAuditRead, PermissionRealtimeConnect:
+			PermissionAuditRead, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate:
 			return true
 		}
 	case TeamRoleResearcher:
 		switch permission {
 		case PermissionTeamRead, PermissionTeamMembersRead,
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove,
-			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect:
+			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate:
 			return true
 		}
 	case TeamRoleContributor:
 		switch permission {
 		case PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate,
-			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect:
+			PermissionFileRead, PermissionFileUpload, PermissionRealtimeConnect, PermissionDocumentRead, PermissionDocumentCreate:
 			return true
 		}
 	case TeamRoleViewer:
 		switch permission {
-		case PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect:
+		case PermissionTeamRead, PermissionTeamMembersRead, PermissionTaskRead, PermissionFileRead, PermissionRealtimeConnect,
+			PermissionDocumentRead, PermissionDocumentCreate:
 			return true
 		}
 	}

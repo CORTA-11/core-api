@@ -23,6 +23,18 @@ type ChatMessage struct {
 	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type Document struct {
+	ID             int64     `json:"id"`
+	PublicID       uuid.UUID `json:"public_id"`
+	TeamID         int64     `json:"team_id"`
+	CanonicalState []byte    `json:"canonical_state"`
+	Title          string    `json:"title"`
+	BodyHtml       string    `json:"body_html"`
+	LastUpdatedBy  uuid.UUID `json:"last_updated_by"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type File struct {
 	ID          int64              `json:"id"`
 	PublicID    uuid.UUID          `json:"public_id"`

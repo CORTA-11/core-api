@@ -36,6 +36,8 @@ const (
 	PermissionFileDelete        Permission = "file.delete"
 	PermissionAuditRead         Permission = "audit.read"
 	PermissionRealtimeConnect   Permission = "realtime.connect"
+	PermissionDocumentRead      Permission = "document.read"
+	PermissionDocumentCreate    Permission = "document.create"
 	PermissionResourceRead      Permission = "resource.read"
 	PermissionResourceManage    Permission = "resource.manage"
 	PermissionResourceRequest   Permission = "resource.request"
@@ -50,6 +52,7 @@ var permissions = [...]Permission{
 	PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 	PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
 	PermissionAuditRead, PermissionRealtimeConnect,
+	PermissionDocumentRead, PermissionDocumentCreate,
 	PermissionResourceRead, PermissionResourceManage, PermissionResourceRequest, PermissionResourceDecide,
 }
 

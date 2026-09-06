@@ -47,6 +47,11 @@ type TeamTaskService interface {
 	AddTeamMember(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.TeamMemberView, error)
 }
 
+type DocumentService interface {
+	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error)
+	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
+}
+
 type InvitationService interface {
 	List(context.Context, session.Principal, uuid.UUID) ([]service.InvitationView, error)
 	Create(context.Context, session.Principal, uuid.UUID, string) (service.InvitationCreatedView, error)
@@ -97,6 +102,7 @@ type RouterConfig struct {
 	Organizations       OrganizationService
 	OrganizationMembers OrganizationMemberService
 	TeamTasks           TeamTaskService
+	Documents           DocumentService
 	Invitations         InvitationService
 	ResourceBookings    ResourceBookingService
 	Keys                KeyService
@@ -140,6 +146,7 @@ func NewRouter(config RouterConfig) *Router {
 		organizations:       config.Organizations,
 		organizationMembers: config.OrganizationMembers,
 		teamTasks:           config.TeamTasks,
+		documents:           config.Documents,
 		invitations:         config.Invitations,
 		resourceBookings:    config.ResourceBookings,
 		keys:                config.Keys,
@@ -288,6 +295,10 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.deleteChatMessage)
 	case "issueChatSocketTicket":
 		return http.HandlerFunc(router.resources.issueChatSocketTicket)
+	case "listDocuments":
+		return http.HandlerFunc(router.resources.listDocuments)
+	case "createDocument":
+		return http.HandlerFunc(router.resources.createDocument)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -354,7 +365,8 @@ func isResourceOperation(operationID string) bool {
 		operationID == "uploadFile" || operationID == "listFiles" ||
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||
-		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket"
+		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
+		operationID == "listDocuments" || operationID == "createDocument"
 }
 
 // ready handles the ready operation.

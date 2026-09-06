@@ -422,6 +422,43 @@ paths:
         required: true
         content: {application/json: {schema: {type: object, required: [email], properties: {email: {type: string, format: email}}}}}
       responses: {'201': {description: Team member added}}
+  /api/v1/orgs/{org_id}/teams/{team_id}/documents:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+    get:
+      tags: [Documents]
+      operationId: listDocuments
+      summary: List team Documents by recent activity
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Document summaries
+          content: {application/json: {schema: {$ref: '#/components/schemas/DocumentPage'}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    post:
+      tags: [Documents]
+      operationId: createDocument
+      summary: Create a team Document
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/DocumentWrite'}}}
+      responses:
+        '201':
+          description: Document created
+          content: {application/json: {schema: {$ref: '#/components/schemas/Document'}}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/tasks:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}
@@ -1155,6 +1192,29 @@ components:
         status: {type: string, enum: [todo, in_progress, done]}
         # Absent keeps the current assignee; null unassigns; a value reassigns.
         assignee_id: {type: [string, 'null'], format: uuid}
+    Document:
+      type: object
+      additionalProperties: false
+      required: [id, team_id, title, updated_by, created_at, updated_at]
+      properties:
+        id: {$ref: '#/components/schemas/PublicID'}
+        team_id: {$ref: '#/components/schemas/PublicID'}
+        title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\\S.*'}
+        updated_by: {$ref: '#/components/schemas/PublicID'}
+        created_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
+    DocumentWrite:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\\S.*'}
+    DocumentPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Document'}}
     ChatSender:
       type: object
       additionalProperties: false
