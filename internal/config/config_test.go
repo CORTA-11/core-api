@@ -74,6 +74,7 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, 30*time.Second, config.HTTPWriteTimeout)
 	assert.Equal(t, DevelopmentRateLimitSecret, config.RateLimitSecret)
 	assert.Equal(t, DevelopmentInvitationSecret, config.InvitationBindingSecret)
+	assert.Equal(t, DevelopmentCollaborationSecret, config.CollaborationServiceSecret)
 	assert.Equal(t, 250*time.Millisecond, config.RateLimitTimeout)
 	assert.Equal(t, int64(20), config.RateLimits.LoginIP.Limit)
 	assert.Equal(t, 15*time.Minute, config.RateLimits.LoginIP.Period)

@@ -54,6 +54,8 @@ type DocumentService interface {
 	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error)
 	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
 	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
+	LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentState, error)
+	StoreState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentStateWrite) (service.DocumentState, error)
 }
 
 type InvitationService interface {
@@ -98,27 +100,28 @@ type ChatService interface {
 }
 
 type RouterConfig struct {
-	Manager             *session.Manager
-	Verifier            identity.CredentialVerifier
-	Hasher              identity.PasswordHasher
-	Organizations       OrganizationService
-	OrganizationMembers OrganizationMemberService
-	TeamTasks           TeamTaskService
-	Documents           DocumentService
-	Invitations         InvitationService
-	ResourceBookings    ResourceBookingService
-	Keys                KeyService
-	Files               FileService
-	Chat                ChatService
-	Environment         string
-	Origins             httpx.OriginPolicy
-	TrustedProxies      httpx.TrustedProxies
-	Logger              *slog.Logger
-	LoginGuard          *ratelimit.LoginGuard
-	RegistrationGuard   *ratelimit.RegistrationGuard
-	Administrative      func(http.Handler) http.Handler
-	ReadinessChecks     map[string]ReadinessCheck
-	ReadinessTimeout    time.Duration
+	Manager                    *session.Manager
+	Verifier                   identity.CredentialVerifier
+	Hasher                     identity.PasswordHasher
+	Organizations              OrganizationService
+	OrganizationMembers        OrganizationMemberService
+	TeamTasks                  TeamTaskService
+	Documents                  DocumentService
+	Invitations                InvitationService
+	ResourceBookings           ResourceBookingService
+	Keys                       KeyService
+	Files                      FileService
+	Chat                       ChatService
+	Environment                string
+	Origins                    httpx.OriginPolicy
+	TrustedProxies             httpx.TrustedProxies
+	Logger                     *slog.Logger
+	LoginGuard                 *ratelimit.LoginGuard
+	RegistrationGuard          *ratelimit.RegistrationGuard
+	Administrative             func(http.Handler) http.Handler
+	ReadinessChecks            map[string]ReadinessCheck
+	ReadinessTimeout           time.Duration
+	CollaborationServiceSecret []byte
 }
 
 type Router struct {
@@ -145,15 +148,16 @@ func NewRouter(config RouterConfig) *Router {
 	}
 	router := &Router{mux: chi.NewRouter(), config: config, auth: auth}
 	router.resources = &ResourceHandler{
-		organizations:       config.Organizations,
-		organizationMembers: config.OrganizationMembers,
-		teamTasks:           config.TeamTasks,
-		documents:           config.Documents,
-		invitations:         config.Invitations,
-		resourceBookings:    config.ResourceBookings,
-		keys:                config.Keys,
-		files:               config.Files,
-		chat:                config.Chat,
+		organizations:              config.Organizations,
+		organizationMembers:        config.OrganizationMembers,
+		teamTasks:                  config.TeamTasks,
+		documents:                  config.Documents,
+		invitations:                config.Invitations,
+		resourceBookings:           config.ResourceBookings,
+		keys:                       config.Keys,
+		files:                      config.Files,
+		chat:                       config.Chat,
+		collaborationServiceSecret: append([]byte(nil), config.CollaborationServiceSecret...),
 	}
 	router.compose()
 	return router
@@ -178,7 +182,6 @@ func (router *Router) compose() {
 		writer.WriteHeader(http.StatusNoContent)
 	})
 	router.mux.Get("/health/ready", router.ready)
-
 	for _, route := range apicontract.Routes {
 		handler := router.operation(route.OperationID)
 		handler = httpx.LimitBody(route.BodyLimit, handler)
@@ -311,6 +314,10 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.deleteDocument)
 	case "issueDocumentSocketTicket":
 		return http.HandlerFunc(router.resources.issueDocumentSocketTicket)
+	case "loadDocumentState":
+		return http.HandlerFunc(router.resources.loadDocumentState)
+	case "storeDocumentState":
+		return http.HandlerFunc(router.resources.storeDocumentState)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
