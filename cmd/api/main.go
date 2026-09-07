@@ -159,6 +159,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
+		CollaborationServiceSecret: []byte(cfg.CollaborationServiceSecret),
 	})
 	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
 		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,

@@ -15,6 +15,7 @@ const (
 	AuthenticationPublic   AuthenticationPolicy = "public"
 	AuthenticationRequired AuthenticationPolicy = "required"
 	AuthenticationLogout   AuthenticationPolicy = "logout-cookie"
+	AuthenticationService  AuthenticationPolicy = "service"
 )
 
 type CSRFPolicy string
@@ -27,10 +28,11 @@ const (
 type BodyLimitClass string
 
 const (
-	BodyNone     BodyLimitClass = "none"
-	BodyAuthJSON BodyLimitClass = "auth-json-4k"
-	BodyJSON     BodyLimitClass = "resource-json-64k"
-	BodyFile     BodyLimitClass = "file-multipart-10m"
+	BodyNone              BodyLimitClass = "none"
+	BodyAuthJSON          BodyLimitClass = "auth-json-4k"
+	BodyJSON              BodyLimitClass = "resource-json-64k"
+	BodyFile              BodyLimitClass = "file-multipart-10m"
+	BodyCollaborationJSON BodyLimitClass = "collaboration-json-16m"
 )
 
 type RateLimitClass string
@@ -110,4 +112,6 @@ var Routes = [...]Route{
 	{http.MethodPatch, "/api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}", "updateDocument", AuthenticationRequired, CSRFRequired, authorization.PermissionDocumentUpdate, BodyJSON, RateNone},
 	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}", "deleteDocument", AuthenticationRequired, CSRFRequired, authorization.PermissionDocumentDelete, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket", "issueDocumentSocketTicket", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
+	{http.MethodGet, "/internal/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/state", "loadDocumentState", AuthenticationService, CSRFNone, authorization.PermissionDocumentRead, BodyNone, RateNone},
+	{http.MethodPut, "/internal/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/state", "storeDocumentState", AuthenticationService, CSRFNone, authorization.PermissionDocumentUpdate, BodyCollaborationJSON, RateNone},
 }

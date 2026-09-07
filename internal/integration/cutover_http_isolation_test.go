@@ -60,6 +60,7 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	require.NoError(t, err)
 	authorizer := authorization.NewAuthorizer(fixture.resolver, fixture.executor)
 	ticketSecret := bytes.Repeat([]byte{0x81}, 32)
+	collaborationSecret := "integration-collaboration-service-secret"
 	documents := service.NewDocumentApplication(authorizer, ticketSecret)
 	chatChannel := "chat:cutover"
 	chatService := service.NewChatApplication(authorizer, realtime.NewChatPublisher(redisClient, chatChannel), ticketSecret)
@@ -75,6 +76,7 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 		Chat:          chatService,
 		Environment:   "test", Origins: origins, TrustedProxies: trusted,
 		LoginGuard: loginGuard, Administrative: administrative,
+		CollaborationServiceSecret: []byte(collaborationSecret),
 	})
 	server := httptest.NewServer(router.Handler())
 	t.Cleanup(server.Close)
@@ -141,6 +143,27 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	assert.Equal(t, http.StatusUnauthorized, unauthenticatedTicket.status)
 	badTicketCSRF := cutoverRequest(t, client, http.MethodPost, documentTicketPath, "", "invalid", "https://app.example")
 	assert.Equal(t, http.StatusForbidden, badTicketCSRF.status)
+	privateStatePath := server.URL + "/internal/v1/orgs/" + organization.publicID.String() + "/teams/" + team.ID.String() + "/documents/" + document.ID.String() + "/state"
+	unauthenticatedState := cutoverPrivateRequest(t, http.MethodGet, privateStatePath, "", "", fixture.users.shared)
+	assert.Equal(t, http.StatusUnauthorized, unauthenticatedState.status)
+	invalidState := cutoverPrivateRequest(t, http.MethodPut, privateStatePath,
+		`{"canonical_state":"not-base64","title":"Persisted calibration notes","body_html":"<p>Private state</p>"}`,
+		collaborationSecret, fixture.users.shared)
+	assert.Equal(t, http.StatusBadRequest, invalidState.status)
+	storedState := cutoverPrivateRequest(t, http.MethodPut, privateStatePath,
+		`{"canonical_state":"AQID","title":"Persisted calibration notes","body_html":"<p>Private state</p>"}`,
+		collaborationSecret, fixture.users.shared)
+	require.Equal(t, http.StatusOK, storedState.status, string(storedState.body))
+	assert.Contains(t, string(storedState.body), `"canonical_state":"AQID"`)
+	loadedState := cutoverPrivateRequest(t, http.MethodGet, privateStatePath, "", collaborationSecret, fixture.users.shared)
+	require.Equal(t, http.StatusOK, loadedState.status, string(loadedState.body))
+	assert.Contains(t, string(loadedState.body), `"body_html":"<p>Private state</p>"`)
+	missingPrivateState := cutoverPrivateRequest(t, http.MethodGet,
+		server.URL+"/internal/v1/orgs/"+organization.publicID.String()+"/teams/"+team.ID.String()+"/documents/40000000-0000-4000-8000-000000000099/state",
+		"", collaborationSecret, fixture.users.shared)
+	assert.Equal(t, http.StatusNotFound, missingPrivateState.status)
+	wrongEditorState := cutoverPrivateRequest(t, http.MethodGet, privateStatePath, "", collaborationSecret, fixture.users.outsider)
+	assert.Equal(t, http.StatusNotFound, wrongEditorState.status)
 	documentsTable := pgx.Identifier{organization.schema, "documents"}.Sanitize()
 	_, err = fixture.adminPool.Exec(ctx, `UPDATE `+documentsTable+` SET body_html = '<p>Persisted body</p>' WHERE public_id = $1`, document.ID)
 	require.NoError(t, err)
@@ -324,4 +347,26 @@ func cutoverRequest(
 	_, err = output.ReadFrom(response.Body)
 	require.NoError(t, err)
 	return cutoverResponse{status: response.StatusCode, body: output.Bytes()}
+}
+
+func cutoverPrivateRequest(
+	t *testing.T, method, target, body, secret string, editorID uuid.UUID,
+) cutoverResponse {
+	t.Helper()
+	request, err := http.NewRequestWithContext(context.Background(), method, target, bytes.NewBufferString(body))
+	require.NoError(t, err)
+	if body != "" {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	if secret != "" {
+		request.Header.Set("Authorization", "Bearer "+secret)
+	}
+	request.Header.Set("X-Synodus-Editor-ID", editorID.String())
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, response.Body.Close()) }()
+	var responseBody bytes.Buffer
+	_, err = responseBody.ReadFrom(response.Body)
+	require.NoError(t, err)
+	return cutoverResponse{status: response.StatusCode, body: responseBody.Bytes()}
 }

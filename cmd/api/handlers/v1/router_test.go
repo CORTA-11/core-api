@@ -21,7 +21,9 @@ func TestRouterMountsOnlyReviewedV1AndHealthOperations(t *testing.T) {
 		actual = append(actual, method+" "+route)
 		return nil
 	}))
-	expected := []string{"GET /health/live", "GET /health/ready"}
+	expected := []string{
+		"GET /health/live", "GET /health/ready",
+	}
 	for _, route := range apicontract.Routes {
 		expected = append(expected, route.Method+" "+route.Pattern)
 	}
