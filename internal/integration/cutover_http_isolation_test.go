@@ -154,10 +154,17 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 		`{"canonical_state":"AQID","title":"Persisted calibration notes","body_html":"<p>Private state</p>"}`,
 		collaborationSecret, fixture.users.shared)
 	require.Equal(t, http.StatusOK, storedState.status, string(storedState.body))
-	assert.Contains(t, string(storedState.body), `"canonical_state":"AQID"`)
 	loadedState := cutoverPrivateRequest(t, http.MethodGet, privateStatePath, "", collaborationSecret, fixture.users.shared)
 	require.Equal(t, http.StatusOK, loadedState.status, string(loadedState.body))
-	assert.Contains(t, string(loadedState.body), `"body_html":"<p>Private state</p>"`)
+	for _, response := range []cutoverResponse{storedState, loadedState} {
+		var state struct {
+			CanonicalState []byte `json:"canonical_state"`
+			BodyHTML       string `json:"body_html"`
+		}
+		require.NoError(t, json.Unmarshal(response.body, &state))
+		assert.Equal(t, []byte{1, 2, 3}, state.CanonicalState)
+		assert.Equal(t, "<p>Private state</p>", state.BodyHTML)
+	}
 	missingPrivateState := cutoverPrivateRequest(t, http.MethodGet,
 		server.URL+"/internal/v1/orgs/"+organization.publicID.String()+"/teams/"+team.ID.String()+"/documents/40000000-0000-4000-8000-000000000099/state",
 		"", collaborationSecret, fixture.users.shared)
