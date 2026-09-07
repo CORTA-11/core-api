@@ -51,6 +51,8 @@ type DocumentService interface {
 	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error)
 	Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error)
 	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
+	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error)
+	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
 	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
 }
 
@@ -74,13 +76,11 @@ type ResourceBookingService interface {
 }
 
 type KeyService interface {
-	UpsertPublicKey(ctx context.Context, p session.Principal, publicKey string) (*service.UserPublicKey, error)
-	GetPublicKey(ctx context.Context, p session.Principal, userID uuid.UUID) (*service.UserPublicKey, error)
+	UpsertUserKeys(ctx context.Context, p session.Principal, input service.UserKeyUpdate) (*service.UserKey, error)
+	GetUserKeys(ctx context.Context, p session.Principal) (*service.UserKey, error)
 	GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.UserPublicKey, error)
-
-	UpsertTeamSharedKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, keys []service.TeamSharedKey) error
-	GetTeamSharedKeyForUser(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, userID uuid.UUID, version int32) (*service.TeamSharedKey, error)
-	ListTeamSharedKeysForUser(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, userID uuid.UUID) ([]service.TeamSharedKey, error)
+	CreateTeamKey(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, input service.TeamKeyVersionInput) (*service.TeamKey, error)
+	ListTeamKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.TeamKey, error)
 }
 
 type FileService interface {
@@ -273,14 +273,16 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.listResourceRequests)
 	case "decideResourceRequest":
 		return http.HandlerFunc(router.resources.decideResourceRequest)
-	case "upsertPublicKey":
-		return http.HandlerFunc(router.auth.upsertPublicKey)
+	case "upsertUserKeys":
+		return http.HandlerFunc(router.auth.upsertUserKeys)
+	case "getUserKeys":
+		return http.HandlerFunc(router.auth.getUserKeys)
 	case "getPublicKeysForTeam":
 		return http.HandlerFunc(router.resources.getPublicKeysForTeam)
-	case "upsertTeamSharedKeys":
-		return http.HandlerFunc(router.resources.upsertTeamSharedKeys)
-	case "listTeamSharedKeysForUser":
-		return http.HandlerFunc(router.resources.listTeamSharedKeysForUser)
+	case "createTeamKey":
+		return http.HandlerFunc(router.resources.createTeamKey)
+	case "listTeamKeys":
+		return http.HandlerFunc(router.resources.listTeamKeys)
 	case "uploadFile":
 		return http.HandlerFunc(router.resources.uploadFile)
 	case "listFiles":
@@ -303,6 +305,10 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.createDocument)
 	case "getDocument":
 		return http.HandlerFunc(router.resources.getDocument)
+	case "updateDocument":
+		return http.HandlerFunc(router.resources.updateDocument)
+	case "deleteDocument":
+		return http.HandlerFunc(router.resources.deleteDocument)
 	case "issueDocumentSocketTicket":
 		return http.HandlerFunc(router.resources.issueDocumentSocketTicket)
 	default:
@@ -366,13 +372,15 @@ func isResourceOperation(operationID string) bool {
 		operationID == "updateResource" || operationID == "deleteResource" ||
 		operationID == "listBookings" || operationID == "createResourceRequest" ||
 		operationID == "listResourceRequests" || operationID == "decideResourceRequest" ||
-		operationID == "upsertPublicKey" || operationID == "getPublicKeysForTeam" ||
-		operationID == "upsertTeamSharedKeys" || operationID == "listTeamSharedKeysForUser" ||
+		operationID == "upsertUserKeys" || operationID == "getUserKeys" ||
+		operationID == "getPublicKeysForTeam" ||
+		operationID == "createTeamKey" || operationID == "listTeamKeys" ||
 		operationID == "uploadFile" || operationID == "listFiles" ||
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||
 		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
 		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
+		operationID == "updateDocument" || operationID == "deleteDocument" ||
 		operationID == "issueDocumentSocketTicket"
 }
 

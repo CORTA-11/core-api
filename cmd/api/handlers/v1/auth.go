@@ -7,15 +7,21 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/authorization"
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
+	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 const maximumAuthBodyBytes = 4 * 1024
+
+// maximumUserKeysBodyBytes bounds the sealed private key payload, which is larger
+// than a plain auth body because it carries a base64 AES-GCM sealed JWK.
+const maximumUserKeysBodyBytes = 16 * 1024
 
 type AuthHandler struct {
 	manager       *session.Manager
@@ -431,6 +437,22 @@ func (handler *AuthHandler) problem(writer http.ResponseWriter, request *http.Re
 	_ = httpx.WriteProblem(writer, request, httpx.NewError(kind, cause))
 }
 
+// problemErr writes an HTTP problem response from a service error.
+func (handler *AuthHandler) problemErr(writer http.ResponseWriter, request *http.Request, err error) {
+	kind := httpx.ProblemDependencyUnavailable
+	switch {
+	case errors.Is(err, service.ErrInvalidInput):
+		kind = httpx.ProblemInvalidRequest
+	case errors.Is(err, authorization.ErrUnauthenticated):
+		kind = httpx.ProblemUnauthenticated
+	case errors.Is(err, authorization.ErrResourceNotFound):
+		kind = httpx.ProblemNotFound
+	case errors.Is(err, service.ErrConflict):
+		kind = httpx.ProblemConflict
+	}
+	handler.problem(writer, request, kind, err)
+}
+
 // responseFor builds an authentication response.
 func responseFor(authentication session.Authentication, csrfToken string) authResponse {
 	metadata := authentication.Session
@@ -445,25 +467,46 @@ func responseFor(authentication session.Authentication, csrfToken string) authRe
 	}
 }
 
-type upsertPublicKeyRequest struct {
-	PublicKey string `json:"public_key"`
+type upsertUserKeysRequest struct {
+	PublicKey           string  `json:"public_key"`
+	EncryptedPrivateKey *string `json:"encrypted_private_key"`
+	KEKSalt             *string `json:"kek_salt"`
+	KEKIterations       *int32  `json:"kek_iterations"`
+	KEKAlgorithm        *string `json:"kek_algorithm"`
 }
 
-// upsertPublicKey upserts public key.
-func (handler *AuthHandler) upsertPublicKey(writer http.ResponseWriter, request *http.Request) {
+// upsertUserKeys stores the caller's key pair: the RSA public key plus the
+// private key sealed with a password-derived key. The server only ever sees the
+// sealed private key, never the clear-text material.
+func (handler *AuthHandler) upsertUserKeys(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	if !ok || handler.keys == nil {
 		handler.problem(writer, request, httpx.ProblemUnauthenticated, nil)
 		return
 	}
-	var input upsertPublicKeyRequest
-	if err := httpx.DecodeJSON(request, &input, maximumAuthBodyBytes); err != nil {
+	var input upsertUserKeysRequest
+	if err := httpx.DecodeJSON(request, &input, maximumUserKeysBodyBytes); err != nil {
 		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
 		return
 	}
-	res, err := handler.keys.UpsertPublicKey(request.Context(), authentication.Principal, input.PublicKey)
+	res, err := handler.keys.UpsertUserKeys(request.Context(), authentication.Principal, service.UserKeyUpdate(input))
 	if err != nil {
-		handler.problem(writer, request, httpx.ProblemInvalidRequest, err)
+		handler.problemErr(writer, request, err)
+		return
+	}
+	_ = httpx.WriteJSON(writer, http.StatusOK, res)
+}
+
+// getUserKeys returns the caller's own key pair material.
+func (handler *AuthHandler) getUserKeys(writer http.ResponseWriter, request *http.Request) {
+	authentication, ok := authenticationFrom(request)
+	if !ok || handler.keys == nil {
+		handler.problem(writer, request, httpx.ProblemUnauthenticated, nil)
+		return
+	}
+	res, err := handler.keys.GetUserKeys(request.Context(), authentication.Principal)
+	if err != nil {
+		handler.problemErr(writer, request, err)
 		return
 	}
 	_ = httpx.WriteJSON(writer, http.StatusOK, res)

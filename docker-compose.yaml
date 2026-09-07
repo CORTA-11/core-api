@@ -183,7 +183,7 @@ networks:
     driver: bridge
 
   synodus-network:
-    driver: bridge
+    external: true
 
 volumes:
   postgres_data:

@@ -55,45 +55,76 @@ func TestE2EEKeysAndFilesRoundTrip(t *testing.T) {
 
 	fileSvc := service.NewFileService(minioClient, bucket, authorizer)
 
-	// 2. Register User Public Keys
-	ownerKey := "owner-public-key-ssh-rsa-AAAAB3NzaC1yc2EAAAADAQABAAABgQCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-	memberKey := "member-public-key-ssh-rsa-AAAAB3NzaC1yc2EAAAADAQABAAABgQCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	// 2. Register per-user key pairs: RSA public key plus a private key sealed
+	// with a password-derived key (PBKDF2-SHA256). The server never sees either
+	// in the clear, but this test only exercises the storage contract.
+	ownerPublicKey := "owner-public-key-ssh-rsa-AAAAB3NzaC1yc2EAAAADAQABAAABgQCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	memberPublicKey := "member-public-key-ssh-rsa-AAAAB3NzaC1yc2EAAAADAQABAAABgQCxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+	ownerPrivate := "encrypted-owner-private-key-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	memberPrivate := "encrypted-member-private-key-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+	salt := "a-fixed-salt"
 
-	resKey, err := keySvc.UpsertPublicKey(ctx, owner, ownerKey)
+	resKey, err := keySvc.UpsertUserKeys(ctx, owner, service.UserKeyUpdate{
+		PublicKey:           ownerPublicKey,
+		EncryptedPrivateKey: ptr(ownerPrivate),
+		KEKSalt:             ptr(salt),
+		KEKIterations:       ptr(int32(600000)),
+		KEKAlgorithm:        ptr("pbkdf2-sha256"),
+	})
 	require.NoError(t, err)
-	assert.Equal(t, ownerKey, resKey.PublicKey)
+	assert.Equal(t, ownerPublicKey, resKey.PublicKey)
+	require.NotNil(t, resKey.EncryptedPrivateKey)
+	assert.Equal(t, ownerPrivate, *resKey.EncryptedPrivateKey)
 
-	resKey2, err := keySvc.UpsertPublicKey(ctx, member, memberKey)
+	resKey2, err := keySvc.UpsertUserKeys(ctx, member, service.UserKeyUpdate{
+		PublicKey:           memberPublicKey,
+		EncryptedPrivateKey: ptr(memberPrivate),
+		KEKSalt:             ptr(salt),
+		KEKIterations:       ptr(int32(600000)),
+		KEKAlgorithm:        ptr("pbkdf2-sha256"),
+	})
 	require.NoError(t, err)
-	assert.Equal(t, memberKey, resKey2.PublicKey)
+	assert.Equal(t, memberPublicKey, resKey2.PublicKey)
 
-	// 3. Retrieve User Public Key
-	gotKey, err := keySvc.GetPublicKey(ctx, member, owner.UserID)
+	// 3. Retrieve own key material
+	gotKey, err := keySvc.GetUserKeys(ctx, member)
 	require.NoError(t, err)
-	assert.Equal(t, ownerKey, gotKey.PublicKey)
+	assert.Equal(t, memberPublicKey, gotKey.PublicKey)
+	require.NotNil(t, gotKey.EncryptedPrivateKey)
+	assert.Equal(t, memberPrivate, *gotKey.EncryptedPrivateKey)
 
 	// 4. Retrieve Public Keys of Team Members
 	teamKeys, err := keySvc.GetPublicKeysForTeam(ctx, owner, org.publicID, team.publicID)
 	require.NoError(t, err)
 	assert.Len(t, teamKeys, 2) // Owner and Member are in team
 
-	// 5. Share/Upsert Team Shared Keys (Symmetric keys encrypted with each member's public key)
-	encryptedKeyForOwner := "enc-key-for-owner"
-	encryptedKeyForMember := "enc-key-for-member"
-	sharedKeys := []service.TeamSharedKey{
-		{UserID: owner.UserID, EncryptedKey: encryptedKeyForOwner, KeyVersion: 1},
-		{UserID: member.UserID, EncryptedKey: encryptedKeyForMember, KeyVersion: 1},
+	// 5. Create Team Shared Key (Symmetric key encrypted with each member's public key)
+	sharedKeys := []service.TeamKeyWrap{
+		{UserID: owner.UserID, Key: "encrypted-team-key-for-owner-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", Algorithm: "rsa-oaep-2048"},
+		{UserID: member.UserID, Key: "encrypted-team-key-for-member-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", Algorithm: "rsa-oaep-2048"},
 	}
-	err = keySvc.UpsertTeamSharedKeys(ctx, owner, org.publicID, team.publicID, sharedKeys)
+	created, err := keySvc.CreateTeamKey(ctx, owner, org.publicID, team.publicID, service.TeamKeyVersionInput{Wraps: sharedKeys})
 	require.NoError(t, err)
+	assert.Equal(t, int32(1), created.Version)
+	assert.Equal(t, "active", created.Status)
+	assert.Equal(t, "aes-256-gcm", created.Algorithm)
+	require.Len(t, created.WrappedUserIDs, 2)
+	assert.Contains(t, created.WrappedUserIDs, owner.UserID)
+	assert.Contains(t, created.WrappedUserIDs, member.UserID)
+	// Wraps are filtered to the caller
+	require.Len(t, created.Wraps, 1)
+	assert.Equal(t, owner.UserID, created.Wraps[0].UserID)
 
-	// 6. Get/List Shared Keys for User
-	callerKeys, err := keySvc.ListTeamSharedKeysForUser(ctx, member, org.publicID, team.publicID, member.UserID)
+	// 6. Get/List Shared Keys for User (only wraps of the caller are exposed)
+	callerKeys, err := keySvc.ListTeamKeys(ctx, member, org.publicID, team.publicID)
 	require.NoError(t, err)
 	require.Len(t, callerKeys, 1)
-	assert.Equal(t, encryptedKeyForMember, callerKeys[0].EncryptedKey)
+	assert.Equal(t, int32(1), callerKeys[0].Version)
+	require.Len(t, callerKeys[0].Wraps, 1)
+	assert.Equal(t, member.UserID, callerKeys[0].Wraps[0].UserID)
+	assert.Len(t, callerKeys[0].WrappedUserIDs, 2)
 
-	// 7. Upload Encrypted File
+	// 7. Upload Encrypted File (bound to the active team key version)
 	payload := "encrypted-payload-data"
 	iv := []byte("aes-iv-bytes-16")
 	fileMeta, err := fileSvc.UploadFile(
@@ -106,7 +137,7 @@ func TestE2EEKeysAndFilesRoundTrip(t *testing.T) {
 		strings.NewReader(payload),
 		int64(len(payload)),
 		iv,
-		1,
+		created.Version,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "secret_report.enc", fileMeta.Name)
@@ -137,12 +168,35 @@ func TestE2EEKeysAndFilesRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, payload, downloadedData.String())
 
-	// 11. Owner Deletes File
+	// 11. Rotate: member leaves, so a fresh symmetric key is wrapped only for the
+	// owner. The previous version must be superseded and hidden from the leaver.
+	rotated, err := keySvc.CreateTeamKey(ctx, owner, org.publicID, team.publicID, service.TeamKeyVersionInput{Wraps: []service.TeamKeyWrap{
+		{UserID: owner.UserID, Key: "rotated-team-key-for-owner-CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC", Algorithm: "rsa-oaep-2048"},
+	}})
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), rotated.Version)
+	assert.Equal(t, "active", rotated.Status)
+	require.Len(t, rotated.WrappedUserIDs, 1)
+	assert.Equal(t, owner.UserID, rotated.WrappedUserIDs[0])
+
+	ownerKeys, err := keySvc.ListTeamKeys(ctx, owner, org.publicID, team.publicID)
+	require.NoError(t, err)
+	require.Len(t, ownerKeys, 2)
+	assert.Equal(t, int32(2), ownerKeys[0].Version)
+	assert.Equal(t, "active", ownerKeys[0].Status)
+	assert.Equal(t, int32(1), ownerKeys[1].Version)
+	assert.Equal(t, "superseded", ownerKeys[1].Status)
+
+	// 12. Owner Deletes File
 	err = fileSvc.DeleteFile(ctx, owner, org.publicID, team.publicID, fileMeta.ID)
 	require.NoError(t, err)
 
-	// 12. File Should No Longer Exist
+	// 13. File Should No Longer Exist
 	filesAfterDelete, err := fileSvc.ListFiles(ctx, member, org.publicID, team.publicID)
 	require.NoError(t, err)
 	assert.Empty(t, filesAfterDelete)
+}
+
+func ptr[T any](value T) *T {
+	return &value
 }

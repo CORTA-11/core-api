@@ -74,7 +74,12 @@ type User struct {
 }
 
 type UserPublicKey struct {
-	UserID    uuid.UUID `json:"user_id"`
-	PublicKey string    `json:"public_key"`
-	CreatedAt time.Time `json:"created_at"`
+	UserID              uuid.UUID   `json:"user_id"`
+	PublicKey           string      `json:"public_key"`
+	CreatedAt           time.Time   `json:"created_at"`
+	EncryptedPrivateKey pgtype.Text `json:"encrypted_private_key"`
+	KekSalt             pgtype.Text `json:"kek_salt"`
+	KekIterations       pgtype.Int4 `json:"kek_iterations"`
+	KekAlgorithm        string      `json:"kek_algorithm"`
+	UpdatedAt           time.Time   `json:"updated_at"`
 }

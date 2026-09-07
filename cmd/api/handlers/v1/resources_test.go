@@ -37,6 +37,12 @@ func (stub documentServiceStub) Create(context.Context, session.Principal, uuid.
 func (stub documentServiceStub) Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error) {
 	return stub.document, stub.err
 }
+func (stub documentServiceStub) Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error) {
+	return stub.document, stub.err
+}
+func (stub documentServiceStub) Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	return stub.err
+}
 func (stub documentServiceStub) IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error) {
 	return stub.ticket, stub.err
 }

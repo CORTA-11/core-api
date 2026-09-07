@@ -117,8 +117,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"resources:synodus_owner",
 		"schema_migrations:synodus_owner",
 		"tasks:synodus_owner",
+		"team_keys:synodus_owner",
 		"team_members:synodus_owner",
-		"team_shared_keys:synodus_owner",
 		"teams:synodus_owner",
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{schema}}, []string{
@@ -128,8 +128,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		schema + ":resource_requests:DELETE", schema + ":resource_requests:INSERT", schema + ":resource_requests:SELECT", schema + ":resource_requests:UPDATE",
 		schema + ":resources:DELETE", schema + ":resources:INSERT", schema + ":resources:SELECT", schema + ":resources:UPDATE",
 		schema + ":tasks:DELETE", schema + ":tasks:INSERT", schema + ":tasks:SELECT", schema + ":tasks:UPDATE",
+		schema + ":team_keys:DELETE", schema + ":team_keys:INSERT", schema + ":team_keys:SELECT", schema + ":team_keys:UPDATE",
 		schema + ":team_members:SELECT",
-		schema + ":team_shared_keys:DELETE", schema + ":team_shared_keys:INSERT", schema + ":team_shared_keys:SELECT", schema + ":team_shared_keys:UPDATE",
 		schema + ":teams:SELECT",
 	})
 	assertCatalogRows(t, fixture, `
@@ -157,10 +157,10 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"resources:resources_runtime_access:ALL:synodus_runtime",
 		"tasks:tasks_owner_maintenance:ALL:synodus_owner",
 		"tasks:tasks_runtime_access:ALL:synodus_runtime",
+		"team_keys:team_keys_owner_maintenance:ALL:synodus_owner",
+		"team_keys:team_keys_runtime_access:ALL:synodus_runtime",
 		"team_members:team_members_owner_maintenance:ALL:synodus_owner",
 		"team_members:team_members_runtime_select:SELECT:synodus_runtime",
-		"team_shared_keys:team_shared_keys_owner_maintenance:ALL:synodus_owner",
-		"team_shared_keys:team_shared_keys_runtime_access:ALL:synodus_runtime",
 		"teams:teams_owner_maintenance:ALL:synodus_owner",
 		"teams:teams_runtime_organization_select:SELECT:synodus_runtime",
 		"teams:teams_runtime_select:SELECT:synodus_runtime",
@@ -205,6 +205,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"create_team_with_creator:EXECUTE",
 		"list_bound_team_members:EXECUTE",
 		"synodus_app_user_public_id:EXECUTE",
+		"synodus_commit_team_key:EXECUTE",
 		"synodus_current_organization_role:EXECUTE",
 		"synodus_has_organization_membership:EXECUTE",
 		"synodus_has_team_membership:EXECUTE",
@@ -216,13 +217,14 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
 		WHERE namespace.nspname = $1 AND procedure.proname = ANY($2)
 		ORDER BY procedure.proname`, []any{schema, []string{
-		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_has_team_membership",
+		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_commit_team_key", "synodus_has_team_membership",
 	}}, []string{
 		"add_team_contributor:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"list_bound_team_members:synodus_owner",
 		"synodus_app_user_public_id:synodus_owner",
+		"synodus_commit_team_key:synodus_owner",
 		"synodus_has_team_membership:synodus_owner",
 	})
 	assertCatalogRows(t, fixture, `

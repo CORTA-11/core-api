@@ -29,8 +29,8 @@ func (handler *ResourceHandler) getPublicKeysForTeam(writer http.ResponseWriter,
 	_ = httpx.WriteJSON(writer, http.StatusOK, keys)
 }
 
-// upsertTeamSharedKeys upserts team shared keys.
-func (handler *ResourceHandler) upsertTeamSharedKeys(writer http.ResponseWriter, request *http.Request) {
+// createTeamKey creates the next team key version, superseding the active one.
+func (handler *ResourceHandler) createTeamKey(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
 	teamID, validTeam := routeUUID(request, "team_id")
@@ -39,23 +39,29 @@ func (handler *ResourceHandler) upsertTeamSharedKeys(writer http.ResponseWriter,
 		return
 	}
 
-	var input []service.TeamSharedKey
+	var input struct {
+		Algorithm string                `json:"algorithm"`
+		Wraps     []service.TeamKeyWrap `json:"wraps"`
+	}
 	if err := httpx.DecodeJSON(request, &input, maximumResourceBodyBytes); err != nil {
 		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
 		return
 	}
 
-	err := handler.keys.UpsertTeamSharedKeys(request.Context(), authentication.Principal, orgID, teamID, input)
+	key, err := handler.keys.CreateTeamKey(request.Context(), authentication.Principal, orgID, teamID, service.TeamKeyVersionInput{
+		Algorithm: input.Algorithm,
+		Wraps:     input.Wraps,
+	})
 	if err != nil {
 		handler.problem(writer, request, err)
 		return
 	}
 
-	writer.WriteHeader(http.StatusNoContent)
+	_ = httpx.WriteJSON(writer, http.StatusCreated, key)
 }
 
-// listTeamSharedKeysForUser lists team shared keys for user.
-func (handler *ResourceHandler) listTeamSharedKeysForUser(writer http.ResponseWriter, request *http.Request) {
+// listTeamKeys lists team key versions visible to the caller.
+func (handler *ResourceHandler) listTeamKeys(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
 	teamID, validTeam := routeUUID(request, "team_id")
@@ -64,7 +70,7 @@ func (handler *ResourceHandler) listTeamSharedKeysForUser(writer http.ResponseWr
 		return
 	}
 
-	keys, err := handler.keys.ListTeamSharedKeysForUser(request.Context(), authentication.Principal, orgID, teamID, authentication.Principal.UserID)
+	keys, err := handler.keys.ListTeamKeys(request.Context(), authentication.Principal, orgID, teamID)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return

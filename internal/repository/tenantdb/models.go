@@ -99,18 +99,21 @@ type Team struct {
 	IsQuarantine bool      `json:"is_quarantine"`
 }
 
+type TeamKey struct {
+	ID        int64     `json:"id"`
+	TeamID    int64     `json:"team_id"`
+	Version   int32     `json:"version"`
+	Status    string    `json:"status"`
+	Algorithm string    `json:"algorithm"`
+	Wraps     []byte    `json:"wraps"`
+	CreatedBy uuid.UUID `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type TeamMember struct {
 	TeamID       int64     `json:"team_id"`
 	UserPublicID uuid.UUID `json:"user_public_id"`
 	Role         string    `json:"role"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-type TeamSharedKey struct {
-	TeamID       int64     `json:"team_id"`
-	UserID       uuid.UUID `json:"user_id"`
-	EncryptedKey string    `json:"encrypted_key"`
-	KeyVersion   int32     `json:"key_version"`
-	CreatedAt    time.Time `json:"created_at"`
 }
