@@ -97,6 +97,10 @@ type ChatService interface {
 	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID) (string, error)
 }
 
+type AIService interface {
+	Process(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.AIProcessInput) (service.AIProcessResult, error)
+}
+
 type RouterConfig struct {
 	Manager             *session.Manager
 	Verifier            identity.CredentialVerifier
@@ -110,6 +114,7 @@ type RouterConfig struct {
 	Keys                KeyService
 	Files               FileService
 	Chat                ChatService
+	AI                  AIService
 	Environment         string
 	Origins             httpx.OriginPolicy
 	TrustedProxies      httpx.TrustedProxies
@@ -154,6 +159,7 @@ func NewRouter(config RouterConfig) *Router {
 		keys:                config.Keys,
 		files:               config.Files,
 		chat:                config.Chat,
+		ai:                  config.AI,
 	}
 	router.compose()
 	return router
@@ -299,6 +305,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.deleteChatMessage)
 	case "issueChatSocketTicket":
 		return http.HandlerFunc(router.resources.issueChatSocketTicket)
+	case "processAI":
+		return http.HandlerFunc(router.resources.processAI)
 	case "listDocuments":
 		return http.HandlerFunc(router.resources.listDocuments)
 	case "createDocument":
@@ -379,6 +387,7 @@ func isResourceOperation(operationID string) bool {
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||
 		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
+		operationID == "processAI" ||
 		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
 		operationID == "updateDocument" || operationID == "deleteDocument" ||
 		operationID == "issueDocumentSocketTicket"

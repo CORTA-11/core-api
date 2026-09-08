@@ -31,6 +31,7 @@ const (
 	BodyAuthJSON BodyLimitClass = "auth-json-4k"
 	BodyJSON     BodyLimitClass = "resource-json-64k"
 	BodyFile     BodyLimitClass = "file-multipart-10m"
+	BodyAI       BodyLimitClass = "ai-json-2m"
 )
 
 type RateLimitClass string
@@ -104,6 +105,7 @@ var Routes = [...]Route{
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/chat/messages", "createChatMessage", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyJSON, RateNone},
 	{http.MethodDelete, "/api/v1/orgs/{org_id}/teams/{team_id}/chat/messages/{message_id}", "deleteChatMessage", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/chat/socket-ticket", "issueChatSocketTicket", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
+	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/ai/process", "processAI", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyAI, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/documents", "listDocuments", AuthenticationRequired, CSRFNone, authorization.PermissionDocumentRead, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/documents", "createDocument", AuthenticationRequired, CSRFRequired, authorization.PermissionDocumentCreate, BodyJSON, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}", "getDocument", AuthenticationRequired, CSRFNone, authorization.PermissionDocumentRead, BodyNone, RateNone},

@@ -146,6 +146,11 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	keyService := service.NewKeyService(pool, authorizer)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
 	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
+	aiClient, err := service.NewHTTPAIClient(cfg.AIServiceURL, cfg.AIServiceToken, cfg.AIServiceTimeout)
+	if err != nil {
+		return fmt.Errorf("configure AI service client: %w", err)
+	}
+	ai := service.NewAIApplication(authorizer, aiClient)
 	readiness := map[string]v1.ReadinessCheck{
 		"postgres": pool.Ping,
 		"minio": func(checkCtx context.Context) error {
@@ -155,7 +160,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
 		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Documents: documents, Invitations: invitations, ResourceBookings: resourceBookings,
-		Keys: keyService, Files: fileService, Chat: chat,
+		Keys: keyService, Files: fileService, Chat: chat, AI: ai,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
