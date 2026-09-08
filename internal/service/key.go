@@ -70,4 +70,5 @@ type KeyService interface {
 
 	CreateTeamKey(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, input TeamKeyVersionInput) (*TeamKey, error)
 	ListTeamKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]TeamKey, error)
+	AddTeamKeyMemberWrap(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, version int32, wrap TeamKeyWrap) (*TeamKey, error)
 }

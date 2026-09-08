@@ -974,6 +974,162 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/keys/{version}/wraps:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: addTeamKeyMemberWrap
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: version, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, key, algorithm]
+              properties:
+                user_id: {type: string}
+                key: {type: string}
+                algorithm: {type: string}
+      responses:
+        '200':
+          description: Team key version returned with the new member wrap appended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: integer}
+                  team_id: {type: string}
+                  version: {type: integer}
+                  status: {type: string}
+                  algorithm: {type: string}
+                  wraps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id: {type: string}
+                        key: {type: string}
+                        algorithm: {type: string}
+                  wrapped_user_ids:
+                    type: array
+                    items: {type: string}
+                  created_by: {type: string}
+                  created_at: {type: string}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: createKeyAccessRequest
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '201':
+          description: Key access request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  team_id: {type: string}
+                  team_name: {type: string}
+                  requested_by: {type: string}
+                  requested_by_name: {type: string}
+                  status: {type: string}
+                  created_at: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+    get:
+      tags: [Teams]
+      operationId: listKeyAccessRequests
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Team key access requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        team_id: {type: string}
+                        team_name: {type: string}
+                        requested_by: {type: string}
+                        requested_by_name: {type: string}
+                        status: {type: string}
+                        created_at: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/{request_id}/approve:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: approveKeyAccessRequest
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: request_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Key access request granted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  team_id: {type: string}
+                  team_name: {type: string}
+                  requested_by: {type: string}
+                  requested_by_name: {type: string}
+                  status: {type: string}
+                  created_at: {type: string}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/{request_id}/deny:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: denyKeyAccessRequest
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: request_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Key access request denied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  team_id: {type: string}
+                  team_name: {type: string}
+                  requested_by: {type: string}
+                  requested_by_name: {type: string}
+                  status: {type: string}
+                  created_at: {type: string}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
   /api/v1/orgs/{org_id}/teams/{team_id}/files:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
     post:

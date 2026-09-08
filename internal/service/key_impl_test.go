@@ -10,6 +10,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pashagolub/pgxmock/v3"
 	"github.com/stretchr/testify/assert"
@@ -244,6 +245,84 @@ func TestKeyService_ListTeamKeys(t *testing.T) {
 	assert.Equal(t, teamID, res[0].TeamID)
 	assert.Equal(t, []uuid.UUID{p.UserID, other}, res[0].WrappedUserIDs)
 	assert.NoError(t, mockPool.ExpectationsWereMet())
+}
+
+func TestKeyService_AddTeamKeyMemberWrap(t *testing.T) {
+	p := session.Principal{UserID: uuid.New(), SessionID: uuid.New()}
+	orgID, teamID := uuid.New(), uuid.New()
+	other := uuid.New()
+	now := time.Now()
+
+	newSvc := func(t *testing.T) (pgxmock.PgxPoolIface, *mockAuthorizer, KeyService) {
+		t.Helper()
+		mockPool, err := pgxmock.NewPool()
+		require.NoError(t, err)
+		t.Cleanup(func() { mockPool.Close() })
+		queries := tenantdb.New(mockPool)
+		auth := new(mockAuthorizer)
+		auth.queries = queries
+		return mockPool, auth, NewKeyService(mockPool, auth)
+	}
+
+	t.Run("success appends wrap for new member", func(t *testing.T) {
+		mockPool, auth, svc := newSvc(t)
+		auth.On("WithinTeam", mock.Anything, p, orgID, teamID, authorization.PermissionFileUpload, mock.Anything).
+			Return(nil).
+			Once()
+
+		mockPool.ExpectQuery(`(?s)ResolveTeamContext.*SELECT`).
+			WithArgs(teamID, p.UserID).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "public_id"}).AddRow(int64(7), teamID))
+
+		updatedWraps, err := json.Marshal([]TeamKeyWrap{
+			{UserID: p.UserID, Key: longPubKey, Algorithm: rsaWrapAlgorithm},
+			{UserID: other, Key: longPubKey, Algorithm: rsaWrapAlgorithm},
+		})
+		require.NoError(t, err)
+		newWrap, err := json.Marshal(TeamKeyWrap{UserID: other, Key: longPubKey, Algorithm: rsaWrapAlgorithm})
+		require.NoError(t, err)
+
+		mockPool.ExpectQuery(`(?s)AppendTeamKeyWrap.*synodus_append_team_key_wrap`).
+			WithArgs(int64(7), int32(2), newWrap, p.UserID).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "team_id", "version", "status", "algorithm", "wraps", "created_by", "created_at"}).
+				AddRow(int64(1), int64(7), int32(2), "active", "aes-256-gcm", updatedWraps, p.UserID, now))
+
+		res, err := svc.AddTeamKeyMemberWrap(context.Background(), p, orgID, teamID, 2, TeamKeyWrap{UserID: other, Key: longPubKey, Algorithm: rsaWrapAlgorithm})
+		require.NoError(t, err)
+		assert.Equal(t, int32(2), res.Version)
+		assert.Len(t, res.Wraps, 1)
+		assert.Equal(t, p.UserID, res.Wraps[0].UserID)
+		assert.Equal(t, []uuid.UUID{p.UserID, other}, res.WrappedUserIDs)
+		assert.NoError(t, mockPool.ExpectationsWereMet())
+	})
+
+	t.Run("invalid wrap rejected", func(t *testing.T) {
+		_, auth, svc := newSvc(t)
+		require.NotNil(t, auth)
+		_, err := svc.AddTeamKeyMemberWrap(context.Background(), p, orgID, teamID, 2, TeamKeyWrap{UserID: other, Key: "short", Algorithm: rsaWrapAlgorithm})
+		assert.ErrorIs(t, err, ErrInvalidInput)
+	})
+
+	t.Run("missing version is not found", func(t *testing.T) {
+		mockPool, auth, svc := newSvc(t)
+		auth.On("WithinTeam", mock.Anything, p, orgID, teamID, authorization.PermissionFileUpload, mock.Anything).
+			Return(nil).
+			Once()
+
+		mockPool.ExpectQuery(`(?s)ResolveTeamContext.*SELECT`).
+			WithArgs(teamID, p.UserID).
+			WillReturnRows(pgxmock.NewRows([]string{"id", "public_id"}).AddRow(int64(7), teamID))
+
+		missingWrap, err := json.Marshal(TeamKeyWrap{UserID: other, Key: longPubKey, Algorithm: rsaWrapAlgorithm})
+		require.NoError(t, err)
+		mockPool.ExpectQuery(`(?s)AppendTeamKeyWrap.*synodus_append_team_key_wrap`).
+			WithArgs(int64(7), int32(99), missingWrap, p.UserID).
+			WillReturnError(pgx.ErrNoRows)
+
+		_, err = svc.AddTeamKeyMemberWrap(context.Background(), p, orgID, teamID, 99, TeamKeyWrap{UserID: other, Key: longPubKey, Algorithm: rsaWrapAlgorithm})
+		assert.ErrorIs(t, err, authorization.ErrResourceNotFound)
+		assert.NoError(t, mockPool.ExpectationsWereMet())
+	})
 }
 
 func strptr(s string) *string { return &s }

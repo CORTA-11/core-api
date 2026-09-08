@@ -44,6 +44,7 @@ const (
 	PermissionResourceManage    Permission = "resource.manage"
 	PermissionResourceRequest   Permission = "resource.request"
 	PermissionResourceDecide    Permission = "resource.decide"
+	PermissionKeyAccessDecide   Permission = "key.access.decide"
 )
 
 var permissions = [...]Permission{
@@ -56,6 +57,7 @@ var permissions = [...]Permission{
 	PermissionAuditRead, PermissionRealtimeConnect,
 	PermissionDocumentRead, PermissionDocumentCreate, PermissionDocumentUpdate, PermissionDocumentDelete,
 	PermissionResourceRead, PermissionResourceManage, PermissionResourceRequest, PermissionResourceDecide,
+	PermissionKeyAccessDecide,
 }
 
 type OrganizationRole string

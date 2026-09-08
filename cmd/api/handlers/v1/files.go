@@ -79,6 +79,34 @@ func (handler *ResourceHandler) listTeamKeys(writer http.ResponseWriter, request
 	_ = httpx.WriteJSON(writer, http.StatusOK, keys)
 }
 
+// addTeamKeyMemberWrap appends one member's RSA-OAEP copy to an existing team
+// key version — the leader's client does this when approving a key access
+// request so the requester can read files sealed under that version.
+func (handler *ResourceHandler) addTeamKeyMemberWrap(writer http.ResponseWriter, request *http.Request) {
+	authentication, ok := authenticationFrom(request)
+	orgID, validOrg := routeUUID(request, "org_id")
+	teamID, validTeam := routeUUID(request, "team_id")
+	version, validVersion := routeInt32(request, "version")
+	if !ok || !validOrg || !validTeam || !validVersion || handler.keys == nil {
+		handler.problem(writer, request, authorization.ErrResourceNotFound)
+		return
+	}
+
+	var wrap service.TeamKeyWrap
+	if err := httpx.DecodeJSON(request, &wrap, maximumResourceBodyBytes); err != nil {
+		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
+		return
+	}
+
+	key, err := handler.keys.AddTeamKeyMemberWrap(request.Context(), authentication.Principal, orgID, teamID, version, wrap)
+	if err != nil {
+		handler.problem(writer, request, err)
+		return
+	}
+
+	_ = httpx.WriteJSON(writer, http.StatusOK, key)
+}
+
 // uploadFile uploads file.
 func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)

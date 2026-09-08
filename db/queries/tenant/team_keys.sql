@@ -8,3 +8,7 @@ FROM team_keys
 WHERE team_id = $1
 ORDER BY version DESC
 LIMIT sqlc.arg('limit');
+
+-- name: AppendTeamKeyWrap :one
+SELECT id, team_id, version, status, algorithm, wraps, created_by, created_at
+FROM synodus_append_team_key_wrap($1, $2, $3, $4);

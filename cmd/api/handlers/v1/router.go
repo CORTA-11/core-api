@@ -83,6 +83,7 @@ type KeyService interface {
 	GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.UserPublicKey, error)
 	CreateTeamKey(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, input service.TeamKeyVersionInput) (*service.TeamKey, error)
 	ListTeamKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.TeamKey, error)
+	AddTeamKeyMemberWrap(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, version int32, wrap service.TeamKeyWrap) (*service.TeamKey, error)
 }
 
 type FileService interface {
@@ -90,6 +91,12 @@ type FileService interface {
 	DownloadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) (*service.FileView, io.ReadCloser, error)
 	ListFiles(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.FileView, error)
 	DeleteFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) error
+}
+
+type KeyAccessService interface {
+	CreateKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) (service.KeyAccessRequestView, error)
+	ListKeyAccessRequests(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.KeyAccessRequestView, error)
+	DecideKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, requestID uuid.UUID, status string) (service.KeyAccessRequestView, error)
 }
 
 type ChatService interface {
@@ -110,6 +117,7 @@ type RouterConfig struct {
 	Invitations                InvitationService
 	ResourceBookings           ResourceBookingService
 	Keys                       KeyService
+	KeyAccess                  KeyAccessService
 	Files                      FileService
 	Chat                       ChatService
 	Environment                string
@@ -155,6 +163,7 @@ func NewRouter(config RouterConfig) *Router {
 		invitations:                config.Invitations,
 		resourceBookings:           config.ResourceBookings,
 		keys:                       config.Keys,
+		keyAccess:                  config.KeyAccess,
 		files:                      config.Files,
 		chat:                       config.Chat,
 		collaborationServiceSecret: append([]byte(nil), config.CollaborationServiceSecret...),
@@ -286,6 +295,16 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.createTeamKey)
 	case "listTeamKeys":
 		return http.HandlerFunc(router.resources.listTeamKeys)
+	case "addTeamKeyMemberWrap":
+		return http.HandlerFunc(router.resources.addTeamKeyMemberWrap)
+	case "createKeyAccessRequest":
+		return http.HandlerFunc(router.resources.createKeyAccessRequest)
+	case "listKeyAccessRequests":
+		return http.HandlerFunc(router.resources.listKeyAccessRequests)
+	case "approveKeyAccessRequest":
+		return http.HandlerFunc(router.resources.approveKeyAccessRequest)
+	case "denyKeyAccessRequest":
+		return http.HandlerFunc(router.resources.denyKeyAccessRequest)
 	case "uploadFile":
 		return http.HandlerFunc(router.resources.uploadFile)
 	case "listFiles":
@@ -382,6 +401,9 @@ func isResourceOperation(operationID string) bool {
 		operationID == "upsertUserKeys" || operationID == "getUserKeys" ||
 		operationID == "getPublicKeysForTeam" ||
 		operationID == "createTeamKey" || operationID == "listTeamKeys" ||
+		operationID == "addTeamKeyMemberWrap" || operationID == "createKeyAccessRequest" ||
+		operationID == "listKeyAccessRequests" || operationID == "approveKeyAccessRequest" ||
+		operationID == "denyKeyAccessRequest" ||
 		operationID == "uploadFile" || operationID == "listFiles" ||
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||

@@ -11,6 +11,39 @@ import (
 	"github.com/google/uuid"
 )
 
+const appendTeamKeyWrap = `-- name: AppendTeamKeyWrap :one
+SELECT id, team_id, version, status, algorithm, wraps, created_by, created_at
+FROM synodus_append_team_key_wrap($1, $2, $3, $4)
+`
+
+type AppendTeamKeyWrapParams struct {
+	CandidateTeamID  int64     `json:"candidate_team_id"`
+	CandidateVersion int32     `json:"candidate_version"`
+	KeyWrap          []byte    `json:"key_wrap"`
+	CallerUserID     uuid.UUID `json:"caller_user_id"`
+}
+
+func (q *Queries) AppendTeamKeyWrap(ctx context.Context, arg AppendTeamKeyWrapParams) (TeamKey, error) {
+	row := q.db.QueryRow(ctx, appendTeamKeyWrap,
+		arg.CandidateTeamID,
+		arg.CandidateVersion,
+		arg.KeyWrap,
+		arg.CallerUserID,
+	)
+	var i TeamKey
+	err := row.Scan(
+		&i.ID,
+		&i.TeamID,
+		&i.Version,
+		&i.Status,
+		&i.Algorithm,
+		&i.Wraps,
+		&i.CreatedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createTeamKeyVersion = `-- name: CreateTeamKeyVersion :one
 SELECT id, team_id, version, status, algorithm, wraps, created_by, created_at
 FROM synodus_commit_team_key($1, $2, $3, $4)
