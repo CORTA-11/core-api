@@ -49,7 +49,7 @@ func TestDocumentApplicationUsesDocumentPermissions(t *testing.T) {
 	assert.ErrorIs(t, err, denied)
 	assert.Equal(t, authorization.PermissionDocumentDelete, authorizer.permission)
 
-	_, err = application.IssueSocketTicket(context.Background(), principal, organizationID, teamID, uuid.New())
+	_, err = application.IssueSocketTicket(context.Background(), principal, "Authenticated Editor", organizationID, teamID, uuid.New())
 	assert.ErrorIs(t, err, denied)
 	assert.Equal(t, authorization.PermissionRealtimeConnect, authorizer.permission)
 

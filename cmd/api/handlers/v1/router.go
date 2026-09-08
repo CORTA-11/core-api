@@ -53,7 +53,7 @@ type DocumentService interface {
 	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
 	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error)
 	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
-	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
+	IssueSocketTicket(context.Context, session.Principal, string, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
 	LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentState, error)
 	StoreState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentStateWrite) (service.DocumentState, error)
 }

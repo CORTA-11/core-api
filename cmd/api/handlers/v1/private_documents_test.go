@@ -41,7 +41,7 @@ func (stub *privateDocumentServiceStub) Update(context.Context, session.Principa
 func (stub *privateDocumentServiceStub) Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error {
 	return nil
 }
-func (stub *privateDocumentServiceStub) IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error) {
+func (stub *privateDocumentServiceStub) IssueSocketTicket(context.Context, session.Principal, string, uuid.UUID, uuid.UUID, uuid.UUID) (string, error) {
 	return "", nil
 }
 func (stub *privateDocumentServiceStub) LoadState(_ context.Context, editorID, _, _, _ uuid.UUID) (service.DocumentState, error) {
