@@ -117,6 +117,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"resources:synodus_owner",
 		"schema_migrations:synodus_owner",
 		"tasks:synodus_owner",
+		"team_key_access_requests:synodus_owner",
 		"team_keys:synodus_owner",
 		"team_members:synodus_owner",
 		"teams:synodus_owner",
@@ -128,6 +129,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		schema + ":resource_requests:DELETE", schema + ":resource_requests:INSERT", schema + ":resource_requests:SELECT", schema + ":resource_requests:UPDATE",
 		schema + ":resources:DELETE", schema + ":resources:INSERT", schema + ":resources:SELECT", schema + ":resources:UPDATE",
 		schema + ":tasks:DELETE", schema + ":tasks:INSERT", schema + ":tasks:SELECT", schema + ":tasks:UPDATE",
+		schema + ":team_key_access_requests:INSERT", schema + ":team_key_access_requests:SELECT", schema + ":team_key_access_requests:UPDATE",
 		schema + ":team_keys:DELETE", schema + ":team_keys:INSERT", schema + ":team_keys:SELECT", schema + ":team_keys:UPDATE",
 		schema + ":team_members:SELECT",
 		schema + ":teams:SELECT",
@@ -137,8 +139,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_class AS relation
 		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
 		WHERE namespace.nspname = $1 AND relation.relname = ANY($2)
-		ORDER BY relation.relname`, []any{schema, []string{"chat_messages", "documents", "teams", "team_members", "tasks", "resources", "resource_requests"}}, []string{
-		"chat_messages:t:t", "documents:t:t", "resource_requests:t:t", "resources:t:t", "tasks:t:t", "team_members:t:t", "teams:t:t",
+		ORDER BY relation.relname`, []any{schema, []string{"chat_messages", "documents", "teams", "team_members", "tasks", "resources", "resource_requests", "team_key_access_requests"}}, []string{
+		"chat_messages:t:t", "documents:t:t", "resource_requests:t:t", "resources:t:t", "tasks:t:t", "team_key_access_requests:t:t", "team_members:t:t", "teams:t:t",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', tablename, policyname, cmd, array_to_string(roles, ','))
@@ -157,6 +159,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"resources:resources_runtime_access:ALL:synodus_runtime",
 		"tasks:tasks_owner_maintenance:ALL:synodus_owner",
 		"tasks:tasks_runtime_access:ALL:synodus_runtime",
+		"team_key_access_requests:team_key_access_requests_owner_maintenance:ALL:synodus_owner",
+		"team_key_access_requests:team_key_access_requests_runtime_access:ALL:synodus_runtime",
 		"team_keys:team_keys_owner_maintenance:ALL:synodus_owner",
 		"team_keys:team_keys_runtime_access:ALL:synodus_runtime",
 		"team_members:team_members_owner_maintenance:ALL:synodus_owner",
@@ -205,6 +209,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"create_team_with_creator:EXECUTE",
 		"list_bound_team_members:EXECUTE",
 		"synodus_app_user_public_id:EXECUTE",
+		"synodus_append_team_key_wrap:EXECUTE",
 		"synodus_commit_team_key:EXECUTE",
 		"synodus_current_organization_role:EXECUTE",
 		"synodus_has_organization_membership:EXECUTE",
@@ -217,13 +222,14 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
 		WHERE namespace.nspname = $1 AND procedure.proname = ANY($2)
 		ORDER BY procedure.proname`, []any{schema, []string{
-		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_commit_team_key", "synodus_has_team_membership",
+		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_append_team_key_wrap", "synodus_commit_team_key", "synodus_has_team_membership",
 	}}, []string{
 		"add_team_contributor:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"list_bound_team_members:synodus_owner",
 		"synodus_app_user_public_id:synodus_owner",
+		"synodus_append_team_key_wrap:synodus_owner",
 		"synodus_commit_team_key:synodus_owner",
 		"synodus_has_team_membership:synodus_owner",
 	})
@@ -231,12 +237,13 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		SELECT concat_ws(':', sequencename, sequenceowner)
 		FROM pg_sequences
 		WHERE schemaname = $1 AND sequencename = ANY($2)
-		ORDER BY sequencename`, []any{schema, []string{"resource_requests_id_seq", "resources_id_seq", "tasks_id_seq", "teams_id_seq"}}, []string{
-		"resource_requests_id_seq:synodus_owner", "resources_id_seq:synodus_owner", "tasks_id_seq:synodus_owner", "teams_id_seq:synodus_owner",
+		ORDER BY sequencename`, []any{schema, []string{"resource_requests_id_seq", "resources_id_seq", "tasks_id_seq", "team_key_access_requests_id_seq", "teams_id_seq"}}, []string{
+		"resource_requests_id_seq:synodus_owner", "resources_id_seq:synodus_owner", "tasks_id_seq:synodus_owner", "team_key_access_requests_id_seq:synodus_owner", "teams_id_seq:synodus_owner",
 	})
 	fixture.assertSequencePrivileges(t, schema, "resource_requests_id_seq", true, true, false)
 	fixture.assertSequencePrivileges(t, schema, "resources_id_seq", true, true, false)
 	fixture.assertSequencePrivileges(t, schema, "tasks_id_seq", true, true, false)
+	fixture.assertSequencePrivileges(t, schema, "team_key_access_requests_id_seq", true, true, false)
 	fixture.assertSequencePrivileges(t, schema, "teams_id_seq", false, false, false)
 
 	var teamIDNullable string
