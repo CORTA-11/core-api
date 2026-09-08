@@ -61,7 +61,7 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	authorizer := authorization.NewAuthorizer(fixture.resolver, fixture.executor)
 	ticketSecret := bytes.Repeat([]byte{0x81}, 32)
 	collaborationSecret := "integration-collaboration-service-secret"
-	documents := service.NewDocumentApplication(authorizer, ticketSecret)
+	documents := service.NewDocumentApplication(authorizer, ticketSecret, cutoverRoomCloser{})
 	chatChannel := "chat:cutover"
 	chatService := service.NewChatApplication(authorizer, realtime.NewChatPublisher(redisClient, chatChannel), ticketSecret)
 	router := v1.NewRouter(v1.RouterConfig{
@@ -216,6 +216,14 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	require.Equal(t, http.StatusNoContent, deletedDocument.status, string(deletedDocument.body))
 	deletedDocument = cutoverRequest(t, client, http.MethodGet, documentsPath+"/"+deletable.ID.String(), "", "", "")
 	assert.Equal(t, http.StatusNotFound, deletedDocument.status)
+	deletedStatePath := server.URL + "/internal/v1/orgs/" + organization.publicID.String() +
+		"/teams/" + team.ID.String() + "/documents/" + deletable.ID.String() + "/state"
+	deletedLoad := cutoverPrivateRequest(t, http.MethodGet, deletedStatePath, "", collaborationSecret, fixture.users.shared)
+	assert.Equal(t, http.StatusNotFound, deletedLoad.status)
+	deletedStore := cutoverPrivateRequest(t, http.MethodPut, deletedStatePath,
+		`{"canonical_state":"AQID","title":"Must stay deleted","body_html":"<p>Stale</p>"}`,
+		collaborationSecret, fixture.users.shared)
+	assert.Equal(t, http.StatusNotFound, deletedStore.status)
 	_, err = fixture.adminPool.Exec(ctx, `UPDATE public.org_user SET role = 'administrator'
 		WHERE org_id = $1 AND user_id = (SELECT id FROM public.users WHERE user_id = $2)`, organization.id, fixture.users.alpha)
 	require.NoError(t, err)
@@ -297,6 +305,12 @@ type cutoverResponse struct {
 }
 
 type cutoverCredentialVerifier struct{ users map[string]uuid.UUID }
+
+type cutoverRoomCloser struct{}
+
+func (cutoverRoomCloser) CloseDocumentRoom(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	return nil
+}
 
 func (verifier cutoverCredentialVerifier) Verify(_ context.Context, email, _ string) (identity.CredentialPrincipal, error) {
 	userID, ok := verifier.users[email]

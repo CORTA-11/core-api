@@ -7,9 +7,12 @@ import (
 	"testing"
 
 	"github.com/CORTA-11/core-api/internal/authorization"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
+	"github.com/pashagolub/pgxmock/v3"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +30,7 @@ func TestDocumentApplicationUsesDocumentPermissions(t *testing.T) {
 	organizationID, teamID := uuid.New(), uuid.New()
 	denied := errors.New("stop after permission selection")
 	authorizer := &documentAuthorizer{err: denied}
-	application := NewDocumentApplication(authorizer, []byte("test-document-ticket-secret-value-123"))
+	application := NewDocumentApplication(authorizer, []byte("test-document-ticket-secret-value-123"), noopDocumentRoomCloser{})
 
 	_, err := application.Create(context.Background(), principal, organizationID, teamID, "Notes")
 	assert.ErrorIs(t, err, denied)
@@ -92,10 +95,79 @@ func TestStoreDocumentStateRejectsMissingCanonicalStateBeforeAuthorization(t *te
 	t.Parallel()
 	principal := session.Principal{UserID: uuid.New(), SessionID: uuid.New()}
 	authorizer := &documentAuthorizer{err: errors.New("authorizer should not be called")}
-	application := NewDocumentApplication(authorizer, nil)
+	application := NewDocumentApplication(authorizer, nil, noopDocumentRoomCloser{})
 
 	_, err := application.StoreState(context.Background(), principal.UserID, uuid.New(), uuid.New(), uuid.New(), DocumentStateWrite{Title: "Notes"})
 
 	assert.ErrorIs(t, err, ErrInvalidInput)
 	assert.Empty(t, authorizer.permission)
+}
+
+func TestDeletingDocumentClosesItsCollaborationRoom(t *testing.T) {
+	mockPool, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(mockPool.Close)
+	principal := session.Principal{UserID: uuid.New(), SessionID: uuid.New()}
+	organizationID, teamID, documentID := uuid.New(), uuid.New(), uuid.New()
+	mockPool.ExpectExec("DELETE FROM documents").WithArgs(documentID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	authorizer := new(mockAuthorizer)
+	authorizer.queries = tenantdb.New(mockPool)
+	authorizer.On(
+		"WithinTeam", mock.Anything, principal, organizationID, teamID,
+		authorization.PermissionDocumentDelete, mock.Anything,
+	).Return(nil)
+	closer := &recordingDocumentRoomCloser{}
+	application := NewDocumentApplication(authorizer, nil, closer)
+
+	require.NoError(t, application.Delete(context.Background(), principal, organizationID, teamID, documentID))
+
+	assert.Equal(t, []uuid.UUID{organizationID, teamID, documentID}, closer.scope)
+	require.NoError(t, mockPool.ExpectationsWereMet())
+}
+
+func TestDocumentDeletionCanRetryWhenClosingItsRoomFails(t *testing.T) {
+	mockPool, err := pgxmock.NewPool()
+	require.NoError(t, err)
+	t.Cleanup(mockPool.Close)
+	principal := session.Principal{UserID: uuid.New(), SessionID: uuid.New()}
+	organizationID, teamID, documentID := uuid.New(), uuid.New(), uuid.New()
+	authorizer := new(mockAuthorizer)
+	authorizer.queries = tenantdb.New(mockPool)
+	authorizer.On(
+		"WithinTeam", mock.Anything, principal, organizationID, teamID,
+		authorization.PermissionDocumentDelete, mock.Anything,
+	).Return(nil).Twice()
+	closer := &recordingDocumentRoomCloser{errors: []error{errors.New("temporarily unavailable"), nil}}
+	application := NewDocumentApplication(authorizer, nil, closer)
+
+	err = application.Delete(context.Background(), principal, organizationID, teamID, documentID)
+	assert.ErrorContains(t, err, "temporarily unavailable")
+	mockPool.ExpectExec("DELETE FROM documents").WithArgs(documentID).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	require.NoError(t, application.Delete(context.Background(), principal, organizationID, teamID, documentID))
+
+	assert.Equal(t, 2, closer.calls)
+	require.NoError(t, mockPool.ExpectationsWereMet())
+}
+
+type noopDocumentRoomCloser struct{}
+
+func (noopDocumentRoomCloser) CloseDocumentRoom(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error {
+	return nil
+}
+
+type recordingDocumentRoomCloser struct {
+	calls  int
+	errors []error
+	scope  []uuid.UUID
+}
+
+func (closer *recordingDocumentRoomCloser) CloseDocumentRoom(
+	_ context.Context, organizationID, teamID, documentID uuid.UUID,
+) error {
+	closer.calls++
+	closer.scope = []uuid.UUID{organizationID, teamID, documentID}
+	if len(closer.errors) >= closer.calls {
+		return closer.errors[closer.calls-1]
+	}
+	return nil
 }

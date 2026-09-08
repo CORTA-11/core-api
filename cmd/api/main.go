@@ -141,7 +141,14 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	invitations := service.NewInvitationApplication(pool, invitationBinding)
 	go runInvitationCleanup(ctx, logger, invitations)
 	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
-	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
+	roomCloser, err := realtime.NewDocumentRoomCloser(
+		os.Getenv("COLLABORATION_INTERNAL_URL"), cfg.CollaborationServiceSecret,
+		&http.Client{Timeout: cfg.DependencyTimeout},
+	)
+	if err != nil {
+		return fmt.Errorf("configure collaboration room closer: %w", err)
+	}
+	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")), roomCloser)
 	resourceBookings := service.NewResourceApplication(authorizer)
 	keyService := service.NewKeyService(pool, authorizer)
 	keyAccess := service.NewKeyAccessApplication(authorizer)

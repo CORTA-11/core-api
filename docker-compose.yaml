@@ -23,6 +23,7 @@ services:
       REDIS_CHAT_CHANNEL: ${REDIS_CHAT_CHANNEL:-corta:chat:events}
       JWT_SECRET: ${JWT_SECRET:-development-socket-ticket-secret-change-me}
       COLLABORATION_SERVICE_SECRET: ${COLLABORATION_SERVICE_SECRET:-development-collaboration-service-secret-change-me}
+      COLLABORATION_INTERNAL_URL: http://collaboration-server:8082
       MINIO_ENDPOINT: minio:9000
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-synodus-files}
       MINIO_USE_SSL: "false"
@@ -90,11 +91,14 @@ services:
       COLLABORATION_HOST: 0.0.0.0
       COLLABORATION_PORT: "8082"
       CORE_API_INTERNAL_URL: http://api:8080
+      REDIS_URL: redis://redis:6379/0
       COLLABORATION_SERVICE_SECRET: ${COLLABORATION_SERVICE_SECRET:-development-collaboration-service-secret-change-me}
       JWT_SECRET: ${JWT_SECRET:-development-socket-ticket-secret-change-me}
       SOCKET_ALLOWED_ORIGINS: ${SOCKET_ALLOWED_ORIGINS:-http://localhost:10000,http://127.0.0.1:10000,http://localhost:3000,http://127.0.0.1:3000}
     depends_on:
       api:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - internal

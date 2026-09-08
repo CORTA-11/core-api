@@ -53,12 +53,19 @@ type DocumentStateWrite struct {
 
 type DocumentApplication struct {
 	authorizer   applicationAuthorizer
+	roomCloser   documentRoomCloser
 	ticketSecret []byte
 }
 
-func NewDocumentApplication(authorizer applicationAuthorizer, ticketSecret []byte) *DocumentApplication {
+type documentRoomCloser interface {
+	CloseDocumentRoom(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error
+}
+
+func NewDocumentApplication(
+	authorizer applicationAuthorizer, ticketSecret []byte, roomCloser documentRoomCloser,
+) *DocumentApplication {
 	return &DocumentApplication{
-		authorizer: authorizer, ticketSecret: append([]byte(nil), ticketSecret...),
+		authorizer: authorizer, roomCloser: roomCloser, ticketSecret: append([]byte(nil), ticketSecret...),
 	}
 }
 
@@ -185,14 +192,18 @@ func (application *DocumentApplication) Delete(
 		organizationID == uuid.Nil || teamID == uuid.Nil || documentID == uuid.Nil {
 		return authorization.ErrResourceNotFound
 	}
-	return application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionDocumentDelete,
+	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionDocumentDelete,
 		func(queries *tenantdb.Queries) error {
+			if err := application.roomCloser.CloseDocumentRoom(ctx, organizationID, teamID, documentID); err != nil {
+				return fmt.Errorf("close Document Room before deletion: %w", err)
+			}
 			count, err := queries.DeleteDocument(ctx, documentID)
 			if err == nil && count == 0 {
 				return authorization.ErrResourceNotFound
 			}
 			return err
 		})
+	return err
 }
 
 func (application *DocumentApplication) LoadState(
