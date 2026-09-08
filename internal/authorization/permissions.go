@@ -39,7 +39,8 @@ func TeamAllows(role TeamRole, permission Permission) bool {
 			PermissionTaskRead, PermissionTaskCreate, PermissionTaskUpdate, PermissionTaskMove, PermissionTaskDelete,
 			PermissionFileRead, PermissionFileUpload, PermissionFileDelete,
 			PermissionAuditRead, PermissionRealtimeConnect, PermissionResourceRequest,
-			PermissionDocumentRead, PermissionDocumentCreate, PermissionDocumentUpdate, PermissionDocumentDelete:
+			PermissionDocumentRead, PermissionDocumentCreate, PermissionDocumentUpdate, PermissionDocumentDelete,
+			PermissionKeyAccessDecide:
 			return true
 		}
 	case TeamRoleResearchLead:

@@ -144,6 +144,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
 	resourceBookings := service.NewResourceApplication(authorizer)
 	keyService := service.NewKeyService(pool, authorizer)
+	keyAccess := service.NewKeyAccessApplication(authorizer)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
 	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
 	readiness := map[string]v1.ReadinessCheck{
@@ -156,6 +157,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
 		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Documents: documents, Invitations: invitations, ResourceBookings: resourceBookings,
 		Keys: keyService, Files: fileService, Chat: chat,
+		KeyAccess:   keyAccess,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
