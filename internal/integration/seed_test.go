@@ -30,13 +30,14 @@ func TestDevelopmentSeedsCreateIdempotentOrganizationMembershipMatrix(t *testing
 	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM public.users`).Scan(&userCount))
 	require.NoError(t, pool.QueryRow(ctx, `SELECT count(*) FROM public.org_user`).Scan(&membershipCount))
 	assert.Equal(t, 3, organizationCount)
-	assert.Equal(t, 3, userCount)
+	assert.Equal(t, 4, userCount)
 	assert.Equal(t, 6, membershipCount)
 
 	expectedMemberships := map[string][]string{
 		"admin@aratuwa.edu":  {"University of Aratuwa", "MedSync", "Pied Piper"},
 		"leader@aratuwa.edu": {"University of Aratuwa", "MedSync"},
 		"member@aratuwa.edu": {"University of Aratuwa"},
+		"platform@corta.dev": {},
 	}
 	passwordHashes := make(map[string]struct{}, len(expectedMemberships))
 	hasher, err := identity.NewPasswordHasher(identity.HashConfig{})

@@ -140,6 +140,7 @@ Each account stores a distinct target-parameter hash.
 | `admin@aratuwa.edu` | `0d5a4f4e-8d3b-4f17-9a79-4c38e29a6d11` | University of Aratuwa, MedSync, Pied Piper |
 | `leader@aratuwa.edu` | `48b38b47-36a8-4758-9858-c28c222d2c2e` | University of Aratuwa, MedSync |
 | `member@aratuwa.edu` | `981a7340-2a25-4aac-8b49-fddf45ff4894` | University of Aratuwa |
+| `platform@corta.dev` | `d47b9e21-5a13-4c88-b0e7-8391f6a2d504` | None; platform operations do not grant tenant content access |
 
 The seeded organization public IDs are:
 

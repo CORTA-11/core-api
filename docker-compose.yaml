@@ -21,6 +21,8 @@ services:
       DB_NAME: ${DB_NAME:-appdb}
       REDIS_URL: redis://redis:6379/0
       REDIS_CHAT_CHANNEL: ${REDIS_CHAT_CHANNEL:-corta:chat:events}
+      RATE_LIMIT_LOGIN_IP_LIMIT: ${RATE_LIMIT_LOGIN_IP_LIMIT:-20}
+      RATE_LIMIT_LOGIN_IP_BURST: ${RATE_LIMIT_LOGIN_IP_BURST:-20}
       JWT_SECRET: ${JWT_SECRET:-development-socket-ticket-secret-change-me}
       COLLABORATION_SERVICE_SECRET: ${COLLABORATION_SERVICE_SECRET:-development-collaboration-service-secret-change-me}
       COLLABORATION_INTERNAL_URL: http://collaboration-server:8082
