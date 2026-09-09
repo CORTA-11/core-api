@@ -12,6 +12,7 @@ tags:
   - name: Teams
   - name: Tasks
   - name: Chat
+  - name: Documents
 paths:
   /api/v1/auth/register:
     post:
@@ -430,6 +431,12 @@ paths:
       tags: [Documents]
       operationId: listDocuments
       summary: List team Documents by recent activity
+      description: Requires membership in the owning team and the `document.read` permission.
+      x-authentication: required
+      x-csrf: none
+      x-permission: document.read
+      x-body-limit: none
+      x-rate-limit: none
       security: [{sessionCookie: []}]
       responses:
         '200':
@@ -444,6 +451,12 @@ paths:
       tags: [Documents]
       operationId: createDocument
       summary: Create a team Document
+      description: Requires membership in the owning team and the `document.create` permission.
+      x-authentication: required
+      x-csrf: required
+      x-permission: document.create
+      x-body-limit: resource-json-64k
+      x-rate-limit: none
       security: [{sessionCookie: []}]
       parameters: [{$ref: '#/components/parameters/CSRFToken'}]
       requestBody:
@@ -471,6 +484,12 @@ paths:
       tags: [Documents]
       operationId: getDocument
       summary: Retrieve a team Document projection
+      description: Requires membership in the owning team and the `document.read` permission. Canonical Yjs state is not returned.
+      x-authentication: required
+      x-csrf: none
+      x-permission: document.read
+      x-body-limit: none
+      x-rate-limit: none
       security: [{sessionCookie: []}]
       responses:
         '200':
@@ -479,10 +498,18 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
     patch:
       tags: [Documents]
       operationId: updateDocument
       summary: Update a team Document projection
+      description: Requires membership in the owning team and the `document.update` permission. This projection route is a persisted fallback; live Editors synchronize through the Document Room.
+      x-authentication: required
+      x-csrf: required
+      x-permission: document.update
+      x-body-limit: resource-json-64k
+      x-rate-limit: none
       security: [{sessionCookie: []}]
       parameters: [{$ref: '#/components/parameters/CSRFToken'}]
       requestBody:
@@ -496,10 +523,18 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
     delete:
       tags: [Documents]
       operationId: deleteDocument
       summary: Delete a team Document
+      description: Requires membership in the owning team and the `document.delete` permission, currently granted to Team Admins and Research Leads. The active Document Room is closed before durable content is removed.
+      x-authentication: required
+      x-csrf: required
+      x-permission: document.delete
+      x-body-limit: none
+      x-rate-limit: none
       security: [{sessionCookie: []}]
       parameters: [{$ref: '#/components/parameters/CSRFToken'}]
       responses:
@@ -507,6 +542,8 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}
@@ -519,6 +556,12 @@ paths:
       tags: [Documents]
       operationId: issueDocumentSocketTicket
       summary: Issue a short-lived ticket for one Document Room
+      description: Requires membership in the owning team and the `realtime.connect` permission. The signed ticket binds the Editor, organization, team, and Document and is valid for 60 seconds.
+      x-authentication: required
+      x-csrf: required
+      x-permission: realtime.connect
+      x-body-limit: none
+      x-rate-limit: none
       security: [{sessionCookie: []}]
       parameters: [{$ref: '#/components/parameters/CSRFToken'}]
       responses:
@@ -543,6 +586,12 @@ paths:
       tags: [Documents]
       operationId: loadDocumentState
       summary: Load canonical Document state for the collaboration service
+      description: Private service operation. Requires the shared collaboration bearer credential and an Editor identity that is still a member of the owning team with `document.read` permission.
+      x-authentication: service
+      x-csrf: none
+      x-permission: document.read
+      x-body-limit: none
+      x-rate-limit: none
       security: [{serviceBearer: []}]
       responses:
         '200':
@@ -561,6 +610,12 @@ paths:
       tags: [Documents]
       operationId: storeDocumentState
       summary: Atomically store canonical Document state and projections
+      description: Private service operation. Requires the shared collaboration bearer credential and an Editor identity that is still a member of the owning team with `document.update` permission.
+      x-authentication: service
+      x-csrf: none
+      x-permission: document.update
+      x-body-limit: collaboration-json-16m
+      x-rate-limit: none
       security: [{serviceBearer: []}]
       requestBody:
         required: true
@@ -1288,6 +1343,13 @@ paths:
     post:
       tags: [Chat]
       operationId: issueChatSocketTicket
+      summary: Issue a short-lived ticket for one team chat room
+      description: Requires membership in the requested team and the `realtime.connect` permission. The signed ticket binds the user and team and is valid for 60 seconds.
+      x-authentication: required
+      x-csrf: required
+      x-permission: realtime.connect
+      x-body-limit: none
+      x-rate-limit: none
       security: [{sessionCookie: []}]
       parameters: [{$ref: '#/components/parameters/CSRFToken'}]
       responses:
@@ -1301,6 +1363,7 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
 components:
   securitySchemes:
     sessionCookie:

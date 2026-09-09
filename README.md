@@ -88,17 +88,40 @@
    Verify startup with `curl -i http://localhost:8080/health/ready`; a ready
    development stack returns HTTP 204.
 
-7. Start socket-server if realtime behavior is needed:
+7. Start the realtime services if chat or collaborative Documents are needed:
 
    ```bash
-   cd ../socket-server && cp -n .env.example .env && make run
+   cd ../socket-server
+   cp -n .env.example .env
+   make run
    ```
 
-   Docker Compose can run the API and socket server together:
+   In another terminal:
 
    ```bash
-   docker compose up --build -d api socket-server
+   cd ../socket-server
+   npm --prefix collaboration ci
+   make collaboration-build
+   make collaboration-run
    ```
+
+   Direct startup requires Node.js 22+ and `npm --prefix collaboration ci`
+   once before `make collaboration-run`. Docker Compose can build and run both
+   realtime processes with the API:
+
+   ```bash
+   docker compose up --build -d api socket-server collaboration-server
+   docker compose ps
+   curl -i http://localhost:8080/health/ready
+   curl -sS http://localhost:8081/health
+   curl -sS http://localhost:8082/health
+   ```
+
+   `api`, `socket-server`, and `collaboration-server` use the private Compose
+   network. The Document process reaches core-api at `http://api:8080`; only
+   browser REST and WebSocket traffic should be exposed through Envoy. Set the
+   same `JWT_SECRET`, `COLLABORATION_SERVICE_SECRET`, and allowed browser
+   origins in every process.
 
 For later public migrations use `make migrate-up-all`; do not rerun them with
 runtime credentials. `make bootstrap-db` is also the recovery command when an
@@ -218,7 +241,75 @@ Team Members request a short-lived Document Room ticket from
 The operation requires the browser session's CSRF token and verifies that the
 Document belongs to the requested team before signing the user, organization,
 team, and Document scope with `JWT_SECRET`. The collaboration process validates
-that ticket locally before loading a room.
+that ticket locally before loading a room. It then uses the private
+`GET|PUT /internal/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/state`
+operations with `COLLABORATION_SERVICE_SECRET` and the ticket's Editor identity.
+The private calls recheck team membership and Document permission; the
+collaboration service never receives tenant database credentials.
+
+The browser connects through Envoy at
+`ws://localhost:10000/ws/docs?org_id={org_id}&team_id={team_id}`, using
+`{org_id}:{team_id}:{document_id}` as the Hocuspocus Document name and the
+issued token as its connection token. The collaboration process reports ready
+only when core-api and Redis room lifecycle checks succeed:
+
+```bash
+curl -sS http://localhost:8082/health
+# {"ok":true,"service":"collaboration-server"}
+```
+
+The reviewed public route inventory is below. `none` means that the request is
+not rate-limited by an application policy; infrastructure-wide controls may
+still apply. Routes with a `none` body reject a supplied request body.
+
+| Operation | Success | Error statuses | Permission | CSRF | Body limit | Rate limit |
+| --- | --- | --- | --- | --- | --- | --- |
+| `GET .../documents` | 200 | 401, 403, 404, 500, 503 | `document.read` | no | none | none |
+| `POST .../documents` | 201 | 400, 401, 403, 404, 500, 503 | `document.create` | yes | 64 KiB JSON | none |
+| `GET .../documents/{document_id}` | 200 | 401, 403, 404, 500, 503 | `document.read` | no | none | none |
+| `PATCH .../documents/{document_id}` | 200 | 400, 401, 403, 404, 500, 503 | `document.update` | yes | 64 KiB JSON | none |
+| `DELETE .../documents/{document_id}` | 204 | 401, 403, 404, 500, 503 | `document.delete` | yes | none | none |
+| `POST .../documents/{document_id}/socket-ticket` | 200 | 401, 403, 404, 500, 503 | `realtime.connect` | yes | none | none |
+| `POST .../chat/socket-ticket` | 200 | 401, 403, 404, 500, 503 | `realtime.connect` | yes | none | none |
+
+Every public route uses the browser session cookie. A 403 is returned when the
+authenticated user lacks the listed team permission; unknown, cross-team, and
+cross-organization resources are concealed as 404 where appropriate. Error
+bodies use `application/problem+json`. `api/openapi.yaml` is authoritative and
+the executable inventory in `internal/apicontract/inventory.go` is checked
+against it.
+
+The private state operations both require service bearer authentication and an
+`X-Synodus-Editor-ID`; they have no CSRF or rate-limit policy. `GET .../state`
+accepts no body and returns 200, while `PUT .../state` accepts up to 16 MiB of
+JSON and returns 200. Both declare 400, 401, 403, 404, 500, and 503 errors.
+
+### Backup and restore expectations
+
+Document title, HTML projection, and canonical Yjs state live in each tenant's
+Postgres `documents` table. Ordinary tenant-database backups therefore include
+Document content; restore it with the same database backup and restore process
+used for the rest of that tenant schema. Redis holds no authoritative Document
+content and is not a Document backup source.
+
+The application keeps only the latest canonical state. It has no custom
+Document version history, point-in-time Document restore, or application-level
+recovery protocol. Database-level point-in-time recovery, if configured by the
+operator, remains an infrastructure capability rather than a product feature.
+
+### First-release limits
+
+- Document Rooms run as a single collaboration-service replica. Distributed
+  room ownership and Redis-backed horizontal scaling are deferred.
+- Hocuspocus/Yjs protocol behavior is used as shipped; there is no custom
+  per-change durable acknowledgement or immediate membership-revocation push.
+  Authorization is rechecked when a ticket is issued and when state is loaded
+  or stored.
+- Every Team Member can read, create, and edit Documents; Team Admins and
+  Research Leads can also delete. Granular per-Document roles are deferred.
+- The editor supports the current title and rich-text paragraph/formatting
+  schema. Richer editor nodes and an application-level version history are out
+  of scope.
 
 ## Realtime chat
 
