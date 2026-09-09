@@ -20,6 +20,13 @@ VALUES
         '$argon2id$v=19$m=65536,t=3,p=4$ZpBw2CZYs+ytbJPD9y33DQ$xzwBg3yWM+X9LNr41T+1Tvl6y+PdxRUThylv5RfIr2s',
         'Demo Member',
         'nfc_v1'
+    ),
+    (
+        'd47b9e21-5a13-4c88-b0e7-8391f6a2d504',
+        'platform@corta.dev',
+        '$argon2id$v=19$m=65536,t=3,p=4$RleJR5CiCwz9gvaRhe/Kbg$u7mzzXViTQeYtn36kZY9/3g5rYPVNZAG8zi/8KBiofg',
+        'Demo Platform Operator',
+        'nfc_v1'
     )
 ON CONFLICT (email_canonical) DO UPDATE
 SET password_hash = EXCLUDED.password_hash,
