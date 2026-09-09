@@ -154,7 +154,7 @@ func (handler *ResourceHandler) issueDocumentSocketTicket(writer http.ResponseWr
 		return
 	}
 	ticket, err := handler.documents.IssueSocketTicket(
-		request.Context(), authentication.Principal, organizationID, teamID, documentID,
+		request.Context(), authentication.Principal, authentication.User.DisplayName, organizationID, teamID, documentID,
 	)
 	if err != nil {
 		handler.problem(writer, request, err)
