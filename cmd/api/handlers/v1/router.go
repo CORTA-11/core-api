@@ -382,35 +382,64 @@ func authenticationFrom(request *http.Request) (session.Authentication, bool) {
 	return authentication, ok
 }
 
-// isResourceOperation checks whether resource operation.
+var resourceOperationIDs = map[string]struct{}{
+	"listOrganizations":                    {},
+	"createOrganization":                   {},
+	"getOrganization":                      {},
+	"updateOrganization":                   {},
+	"deleteOrganization":                   {},
+	"restoreOrganization":                  {},
+	"listTeams":                            {},
+	"createTeam":                           {},
+	"listTasks":                            {},
+	"createTask":                           {},
+	"updateTask":                           {},
+	"deleteTask":                           {},
+	"listOrganizationInvitations":          {},
+	"createOrganizationInvitation":         {},
+	"listOrganizationMembers":              {},
+	"revokeOrganizationInvitation":         {},
+	"acceptCurrentOrganizationInvitation":  {},
+	"declineCurrentOrganizationInvitation": {},
+	"listTeamMembers":                      {},
+	"addTeamMember":                        {},
+	"listResources":                        {},
+	"createResource":                       {},
+	"updateResource":                       {},
+	"deleteResource":                       {},
+	"listBookings":                         {},
+	"createResourceRequest":                {},
+	"listResourceRequests":                 {},
+	"decideResourceRequest":                {},
+	"upsertUserKeys":                       {},
+	"getUserKeys":                          {},
+	"getPublicKeysForTeam":                 {},
+	"createTeamKey":                        {},
+	"listTeamKeys":                         {},
+	"addTeamKeyMemberWrap":                 {},
+	"createKeyAccessRequest":               {},
+	"listKeyAccessRequests":                {},
+	"approveKeyAccessRequest":              {},
+	"denyKeyAccessRequest":                 {},
+	"uploadFile":                           {},
+	"listFiles":                            {},
+	"downloadFile":                         {},
+	"deleteFile":                           {},
+	"listChatMessages":                     {},
+	"createChatMessage":                    {},
+	"deleteChatMessage":                    {},
+	"issueChatSocketTicket":                {},
+	"listDocuments":                        {},
+	"createDocument":                       {},
+	"getDocument":                          {},
+	"updateDocument":                       {},
+	"deleteDocument":                       {},
+	"issueDocumentSocketTicket":            {},
+}
+
 func isResourceOperation(operationID string) bool {
-	return operationID == "listOrganizations" || operationID == "createOrganization" ||
-		operationID == "getOrganization" || operationID == "updateOrganization" ||
-		operationID == "deleteOrganization" || operationID == "restoreOrganization" ||
-		operationID == "listTeams" || operationID == "createTeam" || operationID == "listTasks" ||
-		operationID == "createTask" || operationID == "updateTask" || operationID == "deleteTask" ||
-		operationID == "listOrganizationInvitations" || operationID == "createOrganizationInvitation" ||
-		operationID == "listOrganizationMembers" ||
-		operationID == "revokeOrganizationInvitation" || operationID == "acceptCurrentOrganizationInvitation" ||
-		operationID == "declineCurrentOrganizationInvitation" ||
-		operationID == "listTeamMembers" || operationID == "addTeamMember" ||
-		operationID == "listResources" || operationID == "createResource" ||
-		operationID == "updateResource" || operationID == "deleteResource" ||
-		operationID == "listBookings" || operationID == "createResourceRequest" ||
-		operationID == "listResourceRequests" || operationID == "decideResourceRequest" ||
-		operationID == "upsertUserKeys" || operationID == "getUserKeys" ||
-		operationID == "getPublicKeysForTeam" ||
-		operationID == "createTeamKey" || operationID == "listTeamKeys" ||
-		operationID == "addTeamKeyMemberWrap" || operationID == "createKeyAccessRequest" ||
-		operationID == "listKeyAccessRequests" || operationID == "approveKeyAccessRequest" ||
-		operationID == "denyKeyAccessRequest" ||
-		operationID == "uploadFile" || operationID == "listFiles" ||
-		operationID == "downloadFile" || operationID == "deleteFile" ||
-		operationID == "listChatMessages" || operationID == "createChatMessage" ||
-		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
-		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
-		operationID == "updateDocument" || operationID == "deleteDocument" ||
-		operationID == "issueDocumentSocketTicket"
+	_, exists := resourceOperationIDs[operationID]
+	return exists
 }
 
 // ready handles the ready operation.
