@@ -39,17 +39,15 @@
    operational role passwords. Normal migrations, provisioning, and API traffic
    use the separated migrator, provisioner, and runtime credentials afterward.
 
-4. Create the configured MinIO bucket and optionally seed development data.
-   `make seed` is idempotent, so it is safe to rerun:
+4. Create the configured MinIO bucket.
 
    ```bash
    make bootstrap
-   make seed
    ```
 
 5. Start the tenant provisioner in its own terminal. It is a long-running
    process and should remain running. Wait for `status --all` to report each
-   seeded organization as `"current":true` before calling tenant routes:
+   organization as `"current":true` before calling tenant routes:
 
    ```bash
    make provisioner
@@ -129,72 +127,6 @@ existing development `.env` receives new role passwords. If a password contains
 URL-reserved characters, set URL-encoded `BOOTSTRAP_DATABASE_URL`,
 `DATABASE_URL`, `MIGRATION_DATABASE_URL`, and `PROVISIONING_DATABASE_URL`
 explicitly instead of relying on the component-derived development URLs.
-
-### Development seed data
-
-All seeded users use the development-only password `synodus-demo-password`.
-Each account stores a distinct target-parameter hash.
-
-| User | Public user ID | Organization memberships |
-| --- | --- | --- |
-| `admin@aratuwa.edu` | `0d5a4f4e-8d3b-4f17-9a79-4c38e29a6d11` | University of Aratuwa, MedSync, Pied Piper |
-| `leader@aratuwa.edu` | `48b38b47-36a8-4758-9858-c28c222d2c2e` | University of Aratuwa, MedSync |
-| `member@aratuwa.edu` | `981a7340-2a25-4aac-8b49-fddf45ff4894` | University of Aratuwa |
-| `platform@corta.dev` | `d47b9e21-5a13-4c88-b0e7-8391f6a2d504` | None; platform operations do not grant tenant content access |
-
-The seeded organization public IDs are:
-
-| Organization | Public ID |
-| --- | --- |
-| University of Aratuwa | `30ee7153-9b48-4560-8cbf-972587a60fda` |
-| MedSync | `f1810095-f8a0-4e27-83df-d88b3256604d` |
-| Pied Piper | `afb118ba-2ade-4422-9f20-04754fd1d4a7` |
-
-Legacy seed memberships intentionally have no guessed owner. Before using an
-administrative organization route, assign the intended owner and verify the
-cutover precondition:
-
-```bash
-make assign-org-owner \
-  ORG_ID=30ee7153-9b48-4560-8cbf-972587a60fda \
-  USER_ID=0d5a4f4e-8d3b-4f17-9a79-4c38e29a6d11
-make verify-org-owners
-```
-
-The verify command prints only public IDs for active ownerless organizations
-and exits nonzero until every one has an owner.
-
-The API uses an opaque cookie session. The login response also returns the CSRF
-token required with an approved exact `Origin` on unsafe requests. This example
-uses a temporary cookie jar; do not commit it:
-
-```bash
-COOKIE_JAR="$(mktemp)"
-LOGIN_RESPONSE="$(curl -sS -c "${COOKIE_JAR}" \
-  -X POST http://localhost:8080/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@aratuwa.edu","password":"synodus-demo-password"}')"
-CSRF_TOKEN="$(printf '%s' "${LOGIN_RESPONSE}" | jq -r '.csrf_token')"
-
-curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/auth/session
-curl -sS -b "${COOKIE_JAR}" http://localhost:8080/api/v1/orgs
-```
-
-When using the shared Envoy entrypoint, open the app at
-`http://localhost:10000` and include `Origin: http://localhost:10000` on direct
-unsafe API calls. `HTTP_ALLOWED_ORIGINS` must include that exact origin.
-
-The seeds do not create teams. An organization owner or administrator can create
-one after the tenant provisioner reports the organization current:
-
-```bash
-curl -sS -b "${COOKIE_JAR}" \
-  -X POST http://localhost:8080/api/v1/orgs/30ee7153-9b48-4560-8cbf-972587a60fda/teams \
-  -H 'Origin: http://localhost:3000' \
-  -H "X-CSRF-Token: ${CSRF_TOKEN}" \
-  -H 'Content-Type: application/json' \
-  -d '{"name":"Lab Alpha"}'
-```
 
 ## Tenant provisioning operations
 
