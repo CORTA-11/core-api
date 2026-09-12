@@ -33,10 +33,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// main runs the command.
 func main() { os.Exit(realMain()) }
 
-// realMain runs the command and returns its exit status.
 func realMain() int {
 	logger := logging.New("core-api")
 	slog.SetDefault(logger)
@@ -52,7 +50,6 @@ func realMain() int {
 	return 0
 }
 
-// run runs the command workflow.
 func run(ctx context.Context, logger *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -197,7 +194,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	return serveAll(ctx, bindings, cfg.ShutdownTimeout)
 }
 
-// runInvitationCleanup runs invitation cleanup.
 func runInvitationCleanup(ctx context.Context, logger *slog.Logger, invitations *service.InvitationApplication) {
 	ticker := time.NewTicker(time.Hour)
 	defer ticker.Stop()
@@ -218,7 +214,6 @@ func runInvitationCleanup(ctx context.Context, logger *slog.Logger, invitations 
 	}
 }
 
-// newDiagnosticServer news diagnostic server.
 func newDiagnosticServer(cfg config.Config, logger *slog.Logger) (*http.Server, error) {
 	if !cfg.PprofEnabled || cfg.Environment == "production" {
 		return nil, errors.New("diagnostics are not permitted")
@@ -236,14 +231,12 @@ func newDiagnosticServer(cfg config.Config, logger *slog.Logger) (*http.Server, 
 	}, logger), nil
 }
 
-// dependencyCheck dependencys check.
 func dependencyCheck(parent context.Context, timeout time.Duration, check func(context.Context) error) error {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	return check(ctx)
 }
 
-// serve handles the serve operation.
 func serve(ctx context.Context, server *http.Server, listener net.Listener, shutdownTimeout time.Duration) error {
 	return serveAll(ctx, []serverBinding{{name: "HTTP", server: server, listener: listener}}, shutdownTimeout)
 }
@@ -259,7 +252,6 @@ type serverResult struct {
 	err  error
 }
 
-// serveAll serves all.
 func serveAll(ctx context.Context, bindings []serverBinding, shutdownTimeout time.Duration) error {
 	serveResult := make(chan serverResult, len(bindings))
 	for _, binding := range bindings {

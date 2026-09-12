@@ -12,7 +12,6 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 )
 
-// Load loads the required data.
 func Load(ctx context.Context, path string) (*openapi3.T, error) {
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = false
@@ -31,7 +30,6 @@ type Validator struct {
 	options openapi3filter.Options
 }
 
-// NewValidator creates a validator.
 func NewValidator(document *openapi3.T) (*Validator, error) {
 	router, err := legacy.NewRouter(document)
 	if err != nil {
@@ -50,12 +48,10 @@ type Operation struct {
 	input *openapi3filter.RequestValidationInput
 }
 
-// OperationID operations id.
 func (operation *Operation) OperationID() string {
 	return operation.input.Route.Operation.OperationID
 }
 
-// Match handles the match operation.
 func (validator *Validator) Match(request *http.Request) (*Operation, error) {
 	route, parameters, err := validator.router.FindRoute(request)
 	if err != nil {
@@ -66,7 +62,6 @@ func (validator *Validator) Match(request *http.Request) (*Operation, error) {
 	}}, nil
 }
 
-// ValidateRequest validates request.
 func (operation *Operation) ValidateRequest(ctx context.Context) error {
 	if operation.input.Route.Operation.RequestBody == nil && operation.input.Request.ContentLength > 0 {
 		return errors.New("validate OpenAPI request: request body is not documented")
@@ -77,7 +72,6 @@ func (operation *Operation) ValidateRequest(ctx context.Context) error {
 	return nil
 }
 
-// ValidateResponse validates response.
 func (operation *Operation) ValidateResponse(
 	ctx context.Context,
 	status int,

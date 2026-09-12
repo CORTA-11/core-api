@@ -13,12 +13,10 @@ type teamService struct {
 	executor organizationExecutor
 }
 
-// NewTeamService creates a team service.
 func NewTeamService(executor organizationExecutor) TeamService {
 	return &teamService{executor: executor}
 }
 
-// GetTeams gets teams.
 func (t *teamService) GetTeams(ctx context.Context, organization tenancy.OrganizationContext) ([]Team, error) {
 	var teams []tenantdb.Team
 	err := t.executor.WithinOrganization(ctx, organization, func(queries *tenantdb.Queries) error {
@@ -39,7 +37,6 @@ func (t *teamService) GetTeams(ctx context.Context, organization tenancy.Organiz
 	return domainTeams, nil
 }
 
-// CreateTeam creates team.
 func (t *teamService) CreateTeam(ctx context.Context, organization tenancy.OrganizationContext, name, leaderEmail string) (*Team, error) {
 	slug := strings.ReplaceAll(strings.ToLower(name), " ", "-")
 	var team tenantdb.Team

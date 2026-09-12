@@ -14,12 +14,10 @@ type taskService struct {
 	executor teamExecutor
 }
 
-// NewTaskService creates a task service.
 func NewTaskService(executor teamExecutor) TaskService {
 	return &taskService{executor: executor}
 }
 
-// GetTasks gets tasks.
 func (service *taskService) GetTasks(ctx context.Context, team tenancy.TeamContext) ([]Task, error) {
 	var rows []tenantdb.Task
 	err := service.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {
@@ -37,7 +35,6 @@ func (service *taskService) GetTasks(ctx context.Context, team tenancy.TeamConte
 	return tasks, nil
 }
 
-// CreateTask creates task.
 func (service *taskService) CreateTask(ctx context.Context, team tenancy.TeamContext, description, status string) (*Task, error) {
 	description = strings.TrimSpace(description)
 	if description == "" {
@@ -60,7 +57,6 @@ func (service *taskService) CreateTask(ctx context.Context, team tenancy.TeamCon
 	return &task, nil
 }
 
-// UpdateTask updates task.
 func (service *taskService) UpdateTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID, description, status string) (*Task, error) {
 	description = strings.TrimSpace(description)
 	if description == "" {
@@ -83,7 +79,6 @@ func (service *taskService) UpdateTask(ctx context.Context, team tenancy.TeamCon
 	return &task, nil
 }
 
-// DeleteTask deletes task.
 func (service *taskService) DeleteTask(ctx context.Context, team tenancy.TeamContext, taskID uuid.UUID) (*Task, error) {
 	var row tenantdb.Task
 	err := service.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {

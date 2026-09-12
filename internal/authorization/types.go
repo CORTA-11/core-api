@@ -86,7 +86,6 @@ var teamRoles = [...]TeamRole{
 	TeamRoleAdmin, TeamRoleResearchLead, TeamRoleResearcher, TeamRoleContributor, TeamRoleViewer,
 }
 
-// ValidPermission checks whether permission is valid.
 func ValidPermission(permission Permission) bool {
 	for _, known := range permissions {
 		if permission == known {
@@ -96,7 +95,6 @@ func ValidPermission(permission Permission) bool {
 	return false
 }
 
-// ValidOrganizationRole checks whether organization role is valid.
 func ValidOrganizationRole(role OrganizationRole) bool {
 	for _, known := range organizationRoles {
 		if role == known {
@@ -106,7 +104,6 @@ func ValidOrganizationRole(role OrganizationRole) bool {
 	return false
 }
 
-// ValidTeamRole checks whether team role is valid.
 func ValidTeamRole(role TeamRole) bool {
 	for _, known := range teamRoles {
 		if role == known {

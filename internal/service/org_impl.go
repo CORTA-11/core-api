@@ -14,7 +14,6 @@ type orgService struct {
 	queries *publicdb.Queries
 }
 
-// NewOrgService creates an org service.
 func NewOrgService(pool pgxPool, queries *publicdb.Queries) OrgService {
 	return &orgService{
 		pool:    pool,
@@ -22,7 +21,6 @@ func NewOrgService(pool pgxPool, queries *publicdb.Queries) OrgService {
 	}
 }
 
-// GetOrgs gets orgs.
 func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 	dbOrgs, err := o.queries.GetOrgs(ctx, listResultLimit)
 	if err != nil {
@@ -38,7 +36,6 @@ func (o *orgService) GetOrgs(ctx context.Context) ([]Organization, error) {
 	return domainOrgs, nil
 }
 
-// CreateOrg creates org.
 func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization, error) {
 	// Derive the schema identifier from a server-generated UUID so organization
 	// names and other client input never influence an SQL identifier.
@@ -73,7 +70,6 @@ func (o *orgService) CreateOrg(ctx context.Context, name string) (*Organization,
 	return &ret, nil
 }
 
-// UpdateOrg updates org.
 func (o *orgService) UpdateOrg(ctx context.Context, publicID uuid.UUID, name string) (*Organization, error) {
 	org, err := o.queries.UpdateOrg(ctx, publicdb.UpdateOrgParams{
 		PublicID: publicID,
@@ -86,7 +82,6 @@ func (o *orgService) UpdateOrg(ctx context.Context, publicID uuid.UUID, name str
 	return &ret, nil
 }
 
-// SoftDeleteOrg softs delete org.
 func (o *orgService) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (*Organization, error) {
 	// The query enters deleting atomically with deleted_at so an in-flight
 	// reconciler cannot reactivate the organization.
@@ -98,7 +93,6 @@ func (o *orgService) SoftDeleteOrg(ctx context.Context, publicID uuid.UUID) (*Or
 	return &ret, nil
 }
 
-// RestoreOrg restores org.
 func (o *orgService) RestoreOrg(ctx context.Context, publicID uuid.UUID) (*Organization, error) {
 	// Restore records fresh provisioning intent; the schema must pass normal
 	// ledger and catalog validation before tenant traffic resumes.

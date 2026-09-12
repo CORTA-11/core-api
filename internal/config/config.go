@@ -68,7 +68,6 @@ type MinIO struct {
 
 type lookupFunc func(string) (string, bool)
 
-// Load loads the required data.
 func Load() (Config, error) {
 	return LoadFrom(runtimeLookup(os.LookupEnv))
 }
@@ -134,7 +133,6 @@ func runtimeLookup(environment lookupFunc) lookupFunc {
 	}
 }
 
-// LoadFrom loads from.
 func LoadFrom(lookup lookupFunc) (Config, error) {
 	var problems []error
 	config := Config{
@@ -309,7 +307,6 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	return config, nil
 }
 
-// validatePprofAddress validates pprof address.
 func validatePprofAddress(apiAddress, diagnosticAddress string) error {
 	host, portText, err := net.SplitHostPort(diagnosticAddress)
 	if err != nil {
@@ -328,7 +325,6 @@ func validatePprofAddress(apiAddress, diagnosticAddress string) error {
 	return nil
 }
 
-// parseRatePolicy parses rate policy.
 func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy, problems *[]error) {
 	if raw, ok := lookup(prefix + "_LIMIT"); ok && strings.TrimSpace(raw) != "" {
 		parsed, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
@@ -359,7 +355,6 @@ func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy,
 	}
 }
 
-// databasePassword databases password.
 func databasePassword(databaseURL string) string {
 	parsed, err := url.Parse(databaseURL)
 	if err != nil || parsed.User == nil {
@@ -369,20 +364,17 @@ func databasePassword(databaseURL string) string {
 	return password
 }
 
-// isDevelopmentSecret checks whether development secret.
 func isDevelopmentSecret(secret string) bool {
 	normalized := strings.ToLower(secret)
 	return secret == "your-super-secret-key-change-in-production" ||
 		strings.Contains(normalized, "change-me")
 }
 
-// value handles the value operation.
 func value(lookup lookupFunc, name string) string {
 	value, _ := lookup(name)
 	return strings.TrimSpace(value)
 }
 
-// valueOrDefault values or default.
 func valueOrDefault(lookup lookupFunc, name, fallback string) string {
 	if result := value(lookup, name); result != "" {
 		return result

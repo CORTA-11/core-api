@@ -23,10 +23,8 @@ import (
 
 var errFleetNotCurrent = errors.New("requested tenant fleet is not current")
 
-// main runs the command.
 func main() { os.Exit(realMain()) }
 
-// realMain runs the command and returns its exit status.
 func realMain() int {
 	_ = godotenv.Load()
 	lookup := tenancy.RuntimeLookup(os.LookupEnv)
@@ -62,7 +60,6 @@ func realMain() int {
 	return 0
 }
 
-// execute executes the requested command.
 func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, output io.Writer) error {
 	if len(args) == 0 {
 		return errors.New("usage: provisioner run|reconcile|status|retry")
@@ -171,7 +168,6 @@ func execute(ctx context.Context, args []string, lookup tenancy.LookupFunc, outp
 	}
 }
 
-// parseSelection parses selection.
 func parseSelection(command string, args []string, defaultConcurrency int, allowConcurrency bool) (*uuid.UUID, bool, int, error) {
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)

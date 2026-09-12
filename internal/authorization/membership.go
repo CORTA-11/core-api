@@ -18,7 +18,6 @@ type MembershipManager struct {
 	pool *pgxpool.Pool
 }
 
-// NewMembershipManager creates a membership manager.
 func NewMembershipManager(pool *pgxpool.Pool) *MembershipManager {
 	return &MembershipManager{pool: pool}
 }
@@ -94,7 +93,6 @@ func (manager *MembershipManager) ChangeRole(
 	return nil
 }
 
-// Remove handles the remove operation.
 func (manager *MembershipManager) Remove(
 	ctx context.Context,
 	principal session.Principal,

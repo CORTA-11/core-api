@@ -50,7 +50,6 @@ type TeamContext struct {
 	resolved     bool
 }
 
-// newOrganizationContext news organization context.
 func newOrganizationContext(
 	organizationID int64,
 	organizationPublicID uuid.UUID,
@@ -70,7 +69,6 @@ func newOrganizationContext(
 	}
 }
 
-// validate handles the validate operation.
 func (organization OrganizationContext) validate() error {
 	if !organization.resolved || organization.organizationID <= 0 ||
 		organization.organizationPublicID == uuid.Nil || organization.userPublicID == uuid.Nil ||
@@ -82,12 +80,10 @@ func (organization OrganizationContext) validate() error {
 	return nil
 }
 
-// newTeamContext news team context.
 func newTeamContext(organization OrganizationContext, teamID int64, teamPublicID uuid.UUID) TeamContext {
 	return TeamContext{organization: organization, teamID: teamID, teamPublicID: teamPublicID, resolved: true}
 }
 
-// validate handles the validate operation.
 func (team TeamContext) validate() error {
 	if !team.resolved || team.teamID <= 0 || team.teamPublicID == uuid.Nil || team.organization.validate() != nil {
 		return ErrInvalidContext

@@ -17,7 +17,6 @@ type Team struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// mapDBTeamToDomain maps dbte am to domain.
 func mapDBTeamToDomain(row tenantdb.Team) Team {
 	return Team{
 		PublicID:  row.PublicID,

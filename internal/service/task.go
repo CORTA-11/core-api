@@ -18,7 +18,6 @@ type Task struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
-// NormalizeTaskStatus normalizes task status.
 func NormalizeTaskStatus(status string) string {
 	switch strings.ToLower(strings.TrimSpace(status)) {
 	case "", "todo":
@@ -32,7 +31,6 @@ func NormalizeTaskStatus(status string) string {
 	}
 }
 
-// IsValidTaskStatus checks whether valid task status.
 func IsValidTaskStatus(status string) bool {
 	switch NormalizeTaskStatus(status) {
 	case "todo", "in_progress", "done":
@@ -42,7 +40,6 @@ func IsValidTaskStatus(status string) bool {
 	}
 }
 
-// mapDBTaskToDomain maps dbta sk to domain.
 func mapDBTaskToDomain(row tenantdb.Task) Task {
 	return Task{
 		PublicID:    row.PublicID,

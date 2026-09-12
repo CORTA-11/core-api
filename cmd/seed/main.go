@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// main runs the command.
 func main() {
 	slog.SetDefault(logging.New("seed"))
 	ctx := context.Background()

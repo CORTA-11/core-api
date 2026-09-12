@@ -14,7 +14,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// main runs the command.
 func main() {
 	_ = godotenv.Load()
 	slog.SetDefault(logging.New("dbroles"))

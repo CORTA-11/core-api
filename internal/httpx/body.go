@@ -10,7 +10,6 @@ import (
 
 const maximumDrainBytes = 4 << 10
 
-// BodyLimitBytes bodys limit bytes.
 func BodyLimitBytes(class apicontract.BodyLimitClass) int64 {
 	switch class {
 	case apicontract.BodyAuthJSON:
@@ -28,7 +27,6 @@ func BodyLimitBytes(class apicontract.BodyLimitClass) int64 {
 	}
 }
 
-// LimitBody limits body.
 func LimitBody(class apicontract.BodyLimitClass, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		limit := BodyLimitBytes(class)
@@ -51,7 +49,6 @@ func LimitBody(class apicontract.BodyLimitClass, next http.Handler) http.Handler
 	})
 }
 
-// drainAndClose drains and close.
 func drainAndClose(body io.ReadCloser) {
 	if body == nil {
 		return
@@ -60,7 +57,6 @@ func drainAndClose(body io.ReadCloser) {
 	_ = body.Close()
 }
 
-// isMaxBytesError checks whether max bytes error.
 func isMaxBytesError(err error) bool {
 	var maximum *http.MaxBytesError
 	return errors.As(err, &maximum)

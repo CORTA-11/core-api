@@ -100,7 +100,6 @@ func (e *Executor) WithinTeamQueries(
 	return e.within(ctx, team.organization, team.teamID, true, callback)
 }
 
-// within handles the within operation.
 func (e *Executor) within(
 	ctx context.Context,
 	organization OrganizationContext,
@@ -138,7 +137,6 @@ func (e *Executor) within(
 	return nil
 }
 
-// revalidateOrganization revalidates organization.
 func revalidateOrganization(ctx context.Context, queries *publicdb.Queries, organization OrganizationContext) error {
 	row, err := queries.ResolveOrganizationContext(ctx, publicdb.ResolveOrganizationContextParams{
 		UserPublicID:         organization.userPublicID,
@@ -155,7 +153,6 @@ func revalidateOrganization(ctx context.Context, queries *publicdb.Queries, orga
 	return nil
 }
 
-// installTenantScope installs tenant scope.
 func installTenantScope(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -191,7 +188,6 @@ func installTenantScope(
 	return nil
 }
 
-// rollbackDetached rollbacks detached.
 func rollbackDetached(tx pgx.Tx) {
 	ctx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
 	defer cancel()

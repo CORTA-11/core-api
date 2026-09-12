@@ -138,7 +138,6 @@ func LoadConfig(lookup LookupFunc) (Config, error) {
 	return cfg, nil
 }
 
-// value handles the value operation.
 func value(lookup LookupFunc, name string) string {
 	result, _ := lookup(name)
 	return result
@@ -152,7 +151,6 @@ func ValidateConcurrency(value int) error {
 	return nil
 }
 
-// retryDelay retrys delay.
 func retryDelay(initial, maximum time.Duration, attempts int) time.Duration {
 	delay := initial
 	for i := 1; i < attempts && delay < maximum; i++ {

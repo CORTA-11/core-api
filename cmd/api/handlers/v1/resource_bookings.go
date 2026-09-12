@@ -21,7 +21,6 @@ type decisionInput struct {
 	Status string `json:"status"`
 }
 
-// listResources lists resources.
 func (handler *ResourceHandler) listResources(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	if !ok || handler.resourceBookings == nil {
@@ -38,7 +37,6 @@ func (handler *ResourceHandler) listResources(writer http.ResponseWriter, reques
 	}{items})
 }
 
-// createResource creates resource.
 func (handler *ResourceHandler) createResource(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	var input service.ResourceWrite
@@ -59,7 +57,6 @@ func (handler *ResourceHandler) createResource(writer http.ResponseWriter, reque
 	_ = httpx.WriteJSON(writer, http.StatusCreated, view)
 }
 
-// updateResource updates resource.
 func (handler *ResourceHandler) updateResource(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	id, valid := routeUUID(request, "resource_id")
@@ -81,7 +78,6 @@ func (handler *ResourceHandler) updateResource(writer http.ResponseWriter, reque
 	_ = httpx.WriteJSON(writer, http.StatusOK, view)
 }
 
-// deleteResource deletes resource.
 func (handler *ResourceHandler) deleteResource(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	id, valid := routeUUID(request, "resource_id")
@@ -96,7 +92,6 @@ func (handler *ResourceHandler) deleteResource(writer http.ResponseWriter, reque
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-// listBookings lists bookings.
 func (handler *ResourceHandler) listBookings(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	if !ok || handler.resourceBookings == nil {
@@ -113,7 +108,6 @@ func (handler *ResourceHandler) listBookings(writer http.ResponseWriter, request
 	}{items})
 }
 
-// createResourceRequest creates resource request.
 func (handler *ResourceHandler) createResourceRequest(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	resourceID, valid := routeUUID(request, "resource_id")
@@ -135,7 +129,6 @@ func (handler *ResourceHandler) createResourceRequest(writer http.ResponseWriter
 	_ = httpx.WriteJSON(writer, http.StatusCreated, view)
 }
 
-// listResourceRequests lists resource requests.
 func (handler *ResourceHandler) listResourceRequests(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	if !ok || handler.resourceBookings == nil {
@@ -152,7 +145,6 @@ func (handler *ResourceHandler) listResourceRequests(writer http.ResponseWriter,
 	}{items})
 }
 
-// decideResourceRequest decides resource request.
 func (handler *ResourceHandler) decideResourceRequest(writer http.ResponseWriter, request *http.Request) {
 	auth, orgID, _, ok := handler.scoped(request, false)
 	id, valid := routeUUID(request, "request_id")

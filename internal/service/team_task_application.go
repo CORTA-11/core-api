@@ -55,7 +55,6 @@ type TeamMemberView struct {
 	JoinedAt time.Time `json:"joined_at"`
 }
 
-// ListTeamMembers lists team members.
 func (application *TeamTaskApplication) ListTeamMembers(ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID) ([]TeamMemberView, error) {
 	var result []TeamMemberView
 	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTeamMembersRead, func(queries *tenantdb.Queries) error {
@@ -75,7 +74,6 @@ func (application *TeamTaskApplication) ListTeamMembers(ctx context.Context, pri
 	return result, err
 }
 
-// AddTeamMember adds team member.
 func (application *TeamTaskApplication) AddTeamMember(ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID, email string) (TeamMemberView, error) {
 	canonical, err := (identity.EmailCanonicalizer{}).Canonicalize(email)
 	if err != nil {
@@ -93,7 +91,6 @@ func (application *TeamTaskApplication) AddTeamMember(ctx context.Context, princ
 	return result, err
 }
 
-// classifyTeamMemberError classifys team member error.
 func classifyTeamMemberError(err error) error {
 	var databaseError *pgconn.PgError
 	if errors.As(err, &databaseError) {
@@ -127,12 +124,10 @@ type TeamTaskApplication struct {
 	codec      *pagination.Codec
 }
 
-// NewTeamTaskApplication creates a team task application.
 func NewTeamTaskApplication(authorizer applicationAuthorizer, codec *pagination.Codec) *TeamTaskApplication {
 	return &TeamTaskApplication{authorizer: authorizer, codec: codec}
 }
 
-// ListTeams lists teams.
 func (application *TeamTaskApplication) ListTeams(
 	ctx context.Context,
 	principal session.Principal,
@@ -195,7 +190,6 @@ func (application *TeamTaskApplication) ListTeams(
 	return page, nil
 }
 
-// CreateTeam creates team.
 func (application *TeamTaskApplication) CreateTeam(
 	ctx context.Context,
 	principal session.Principal,
@@ -231,7 +225,6 @@ func (application *TeamTaskApplication) CreateTeam(
 	return view, nil
 }
 
-// ListTasks lists tasks.
 func (application *TeamTaskApplication) ListTasks(
 	ctx context.Context,
 	principal session.Principal,
@@ -292,7 +285,6 @@ func (application *TeamTaskApplication) ListTasks(
 	return page, nil
 }
 
-// CreateTask creates task.
 func (application *TeamTaskApplication) CreateTask(
 	ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID, description, status string,
 	assigneeID *uuid.UUID,
@@ -323,7 +315,6 @@ func (application *TeamTaskApplication) CreateTask(
 	return taskView(row), nil
 }
 
-// UpdateTask updates task.
 func (application *TeamTaskApplication) UpdateTask(
 	ctx context.Context, principal session.Principal, organizationID, teamID, taskID uuid.UUID, description, status string,
 	assigneeID *uuid.UUID, setAssignee bool,
@@ -364,7 +355,6 @@ func (application *TeamTaskApplication) UpdateTask(
 	return taskView(row), nil
 }
 
-// DeleteTask deletes task.
 func (application *TeamTaskApplication) DeleteTask(
 	ctx context.Context, principal session.Principal, organizationID, teamID, taskID uuid.UUID,
 ) error {
@@ -382,7 +372,6 @@ func (application *TeamTaskApplication) DeleteTask(
 		})
 }
 
-// valid handles the valid operation.
 func (application *TeamTaskApplication) valid(
 	principal session.Principal, organizationID uuid.UUID, parameters pagination.Parameters,
 ) error {
@@ -398,7 +387,6 @@ func (application *TeamTaskApplication) valid(
 	return nil
 }
 
-// cursor handles the cursor operation.
 func (application *TeamTaskApplication) cursor(token string, binding pagination.Binding) (pagination.Cursor, error) {
 	if token == "" {
 		return pagination.Cursor{Direction: pagination.DirectionNext}, nil
@@ -410,7 +398,6 @@ func (application *TeamTaskApplication) cursor(token string, binding pagination.
 	return cursor, nil
 }
 
-// teamLinks teams links.
 func (application *TeamTaskApplication) teamLinks(
 	page *TeamPage, rows []tenantdb.Team, binding pagination.Binding,
 	direction pagination.Direction, hadCursor, more bool,
@@ -438,7 +425,6 @@ func (application *TeamTaskApplication) teamLinks(
 	return nil
 }
 
-// taskLinks tasks links.
 func (application *TeamTaskApplication) taskLinks(
 	page *TaskPage, rows []tenantdb.Task, binding pagination.Binding,
 	direction pagination.Direction, hadCursor, more bool,
@@ -466,7 +452,6 @@ func (application *TeamTaskApplication) taskLinks(
 	return nil
 }
 
-// deterministicTeamSlug deterministics team slug.
 func deterministicTeamSlug(name string) string {
 	var builder strings.Builder
 	separator := false
@@ -491,7 +476,6 @@ func deterministicTeamSlug(name string) string {
 	return "team-" + hex.EncodeToString(digest[:6])
 }
 
-// validateTaskWrite validates task write.
 func validateTaskWrite(description, status string) (string, string, error) {
 	description = strings.TrimSpace(description)
 	if description == "" || !utf8.ValidString(description) || utf8.RuneCountInString(description) > 4096 {
@@ -522,7 +506,6 @@ func validateAssigneeMembership(ctx context.Context, queries *tenantdb.Queries, 
 	return nil
 }
 
-// assigneeValue assignees value.
 func assigneeValue(assigneeID *uuid.UUID) pgtype.UUID {
 	if assigneeID == nil {
 		return pgtype.UUID{}
@@ -530,20 +513,17 @@ func assigneeValue(assigneeID *uuid.UUID) pgtype.UUID {
 	return pgtype.UUID{Bytes: [16]byte(*assigneeID), Valid: true}
 }
 
-// teamView teams view.
 func teamView(row tenantdb.Team) TeamView {
 	return TeamView{ID: row.PublicID, Name: row.Name, Slug: row.Slug,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
-// taskView tasks view.
 func taskView(row tenantdb.Task) TaskView {
 	return TaskView{ID: row.PublicID, Description: row.Description, Status: row.Status,
 		AssigneeID: publicIDOf(row.AssigneePublicID),
 		CreatedAt:  row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
-// publicIDOf publics idof.
 func publicIDOf(value pgtype.UUID) *uuid.UUID {
 	if !value.Valid {
 		return nil

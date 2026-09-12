@@ -25,7 +25,6 @@ type CSRFProtector struct {
 	secret []byte
 }
 
-// NewCSRFProtector creates a csrfpr otector.
 func NewCSRFProtector(secret []byte) (CSRFProtector, error) {
 	if len(secret) < minimumCSRFSecretBytes {
 		return CSRFProtector{}, ErrInvalidCSRFSecret
@@ -33,7 +32,6 @@ func NewCSRFProtector(secret []byte) (CSRFProtector, error) {
 	return CSRFProtector{secret: append([]byte(nil), secret...)}, nil
 }
 
-// Derive handles the derive operation.
 func (protector CSRFProtector) Derive(rawToken []byte) string {
 	mac := hmac.New(sha256.New, protector.secret)
 	_, _ = mac.Write([]byte(csrfDomain))
@@ -41,7 +39,6 @@ func (protector CSRFProtector) Derive(rawToken []byte) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// Valid handles the valid operation.
 func (protector CSRFProtector) Valid(rawToken []byte, candidate string) bool {
 	if len(rawToken) != tokenBytes || len(candidate) != encodedTokenBytes {
 		return false
@@ -54,7 +51,6 @@ func (protector CSRFProtector) Valid(rawToken []byte, candidate string) bool {
 	return err == nil && subtle.ConstantTimeCompare(decoded, expected) == 1
 }
 
-// CookiePolicy cookies policy.
 func CookiePolicy(environment string) http.Cookie {
 	// #nosec G124 -- development/test intentionally use HTTP on loopback; the
 	// production branch below always enables Secure.
@@ -72,7 +68,6 @@ func CookiePolicy(environment string) http.Cookie {
 	return cookie
 }
 
-// NormalizeUserAgent normalizes user agent.
 func NormalizeUserAgent(userAgent string) string {
 	if !utf8.ValidString(userAgent) {
 		userAgent = strings.ToValidUTF8(userAgent, "")

@@ -20,7 +20,6 @@ var (
 	ErrAccountDependency  = errors.New("account dependency unavailable")
 )
 
-// NormalizeDisplayName normalizes display name.
 func NormalizeDisplayName(value string) (string, error) {
 	if !utf8.ValidString(value) || len(value) > 255 {
 		return "", ErrInvalidDisplayName
@@ -43,12 +42,10 @@ type LocalAccountCreator struct {
 	hasher  PasswordHasher
 }
 
-// NewLocalAccountCreator creates a local account creator.
 func NewLocalAccountCreator(queries *publicdb.Queries, hasher PasswordHasher) *LocalAccountCreator {
 	return &LocalAccountCreator{queries: queries, hasher: hasher}
 }
 
-// Create creates the requested resource.
 func (creator *LocalAccountCreator) Create(
 	ctx context.Context,
 	email string,

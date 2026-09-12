@@ -20,7 +20,6 @@ type Organization struct {
 	DeletedAt      time.Time `json:"deleted_at"`
 }
 
-// mapDBOrgToDomain maps dbor g to domain.
 func mapDBOrgToDomain(row publicdb.Org) Organization {
 	var deletedAt time.Time
 
