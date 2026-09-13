@@ -29,6 +29,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/minio/minio-go/v7"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -49,36 +50,66 @@ func realMain() int {
 	return 0
 }
 
+type dependencySet struct {
+	pool        *pgxpool.Pool
+	rdb         *redis.Client
+	minioClient *minio.Client
+}
+
+func setupDependencies(ctx context.Context, cfg config.Config) (*dependencySet, error) {
+	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("create PostgreSQL pool: %w", err)
+	}
+	if err := dependencyCheck(ctx, cfg.DependencyTimeout, pool.Ping); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
+	}
+
+	redisOptions, err := redis.ParseURL(cfg.RedisURL)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("parse Redis URL: %w", err)
+	}
+	rdb := redis.NewClient(redisOptions)
+
+	minioClient, err := appMinio.NewClient(cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, cfg.MinIO.UseSSL)
+	if err != nil {
+		pool.Close()
+		_ = rdb.Close()
+		return nil, err
+	}
+	if err := dependencyCheck(ctx, cfg.DependencyTimeout, func(checkCtx context.Context) error {
+		return appMinio.VerifyBucket(checkCtx, minioClient, cfg.MinIO.Bucket)
+	}); err != nil {
+		pool.Close()
+		_ = rdb.Close()
+		return nil, fmt.Errorf("verify MinIO: %w", err)
+	}
+
+	return &dependencySet{
+		pool:        pool,
+		rdb:         rdb,
+		minioClient: minioClient,
+	}, nil
+}
+
 func run(ctx context.Context, logger *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
-	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
-	if err != nil {
-		return fmt.Errorf("create PostgreSQL pool: %w", err)
-	}
-	defer pool.Close()
-	if err := dependencyCheck(ctx, cfg.DependencyTimeout, pool.Ping); err != nil {
-		return fmt.Errorf("ping PostgreSQL: %w", err)
-	}
 
-	redisOptions, err := redis.ParseURL(cfg.RedisURL)
-	if err != nil {
-		return fmt.Errorf("parse Redis URL: %w", err)
-	}
-	rdb := redis.NewClient(redisOptions)
-	defer func() { _ = rdb.Close() }()
-
-	minioClient, err := appMinio.NewClient(cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, cfg.MinIO.UseSSL)
+	deps, err := setupDependencies(ctx, cfg)
 	if err != nil {
 		return err
 	}
-	if err := dependencyCheck(ctx, cfg.DependencyTimeout, func(checkCtx context.Context) error {
-		return appMinio.VerifyBucket(checkCtx, minioClient, cfg.MinIO.Bucket)
-	}); err != nil {
-		return fmt.Errorf("verify MinIO: %w", err)
-	}
+	defer deps.pool.Close()
+	defer func() { _ = deps.rdb.Close() }()
+
+	pool := deps.pool
+	rdb := deps.rdb
+	minioClient := deps.minioClient
 
 	publicQueries := publicdb.New(pool)
 	migrationSource, err := tenancy.EmbeddedMigrations()
