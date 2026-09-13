@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -166,13 +165,20 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
 		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Documents: documents, Invitations: invitations, ResourceBookings: resourceBookings,
 		Keys: keyService, Files: fileService, Chat: chat,
-		KeyAccess:   keyAccess,
-		AI:          ai,
-		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
-		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
-		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
+		KeyAccess:                  keyAccess,
+		AI:                         ai,
+		Environment:                cfg.Environment,
+		Origins:                    cfg.HTTPOrigins,
+		TrustedProxies:             cfg.TrustedProxies,
+		Logger:                     logger,
+		LoginGuard:                 loginGuard,
+		RegistrationGuard:          registrationGuard,
+		Administrative:             administrative,
+		ReadinessChecks:            readiness,
+		ReadinessTimeout:           cfg.DependencyTimeout,
 		CollaborationServiceSecret: []byte(cfg.CollaborationServiceSecret),
 	})
+
 	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
 		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
 		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
@@ -183,20 +189,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	slog.Info("core-api listening", "addr", listener.Addr().String())
 	bindings := []serverBinding{{name: "API", server: server, listener: listener}}
-	if cfg.PprofEnabled {
-		diagnostic, diagnosticErr := newDiagnosticServer(cfg, logger)
-		if diagnosticErr != nil {
-			_ = listener.Close()
-			return diagnosticErr
-		}
-		diagnosticListener, listenErr := net.Listen("tcp", cfg.PprofAddr)
-		if listenErr != nil {
-			_ = listener.Close()
-			return fmt.Errorf("listen for diagnostics on %s: %w", cfg.PprofAddr, listenErr)
-		}
-		slog.Info("diagnostics listening", "addr", diagnosticListener.Addr().String())
-		bindings = append(bindings, serverBinding{name: "diagnostics", server: diagnostic, listener: diagnosticListener})
-	}
 	return serveAll(ctx, bindings, cfg.ShutdownTimeout)
 }
 
@@ -218,23 +210,6 @@ func runInvitationCleanup(ctx context.Context, logger *slog.Logger, invitations 
 			}
 		}
 	}
-}
-
-func newDiagnosticServer(cfg config.Config, logger *slog.Logger) (*http.Server, error) {
-	if !cfg.PprofEnabled || cfg.Environment == "production" {
-		return nil, errors.New("diagnostics are not permitted")
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
-	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("POST /debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
-	return httpx.NewServer(cfg.PprofAddr, mux, httpx.ServerTimeouts{
-		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
-		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
-	}, logger), nil
 }
 
 func dependencyCheck(parent context.Context, timeout time.Duration, check func(context.Context) error) error {
