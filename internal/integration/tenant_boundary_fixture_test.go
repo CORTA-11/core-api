@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/CORTA-11/core-api/internal/dbroles"
-	"github.com/CORTA-11/core-api/internal/service"
+	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/CORTA-11/core-api/internal/testsupport"
 	"github.com/google/uuid"
@@ -48,8 +48,6 @@ type tenantBoundaryFixture struct {
 	source      tenancy.MigrationSet
 	resolver    *tenancy.Resolver
 	executor    *tenancy.Executor
-	teamService service.TeamService
-	taskService service.TaskService
 	users       tenantBoundaryUserSet
 	orgs        [2]tenantBoundaryOrganization
 }
@@ -109,8 +107,6 @@ func newTenantBoundaryFixture(t *testing.T) *tenantBoundaryFixture {
 	fixture.runtimePool = openRuntimePool(t, databaseURL)
 	fixture.resolver = tenancy.NewResolver(fixture.runtimePool, source)
 	fixture.executor = tenancy.NewExecutor(fixture.runtimePool)
-	fixture.teamService = service.NewTeamService(fixture.executor)
-	fixture.taskService = service.NewTaskService(fixture.executor)
 	return fixture
 }
 
@@ -257,4 +253,16 @@ func assertRuntimePoolClean(t *testing.T, pool *pgxpool.Pool) {
 		assert.Empty(t, userSetting.String)
 		assert.Empty(t, teamSetting.String)
 	}
+}
+
+// readTasks exercises RLS with an already resolved context, including contexts
+// whose membership has since been revoked. Application calls resolve anew.
+func (fixture *tenantBoundaryFixture) readTasks(ctx context.Context, team tenancy.TeamContext) ([]tenantdb.Task, error) {
+	var tasks []tenantdb.Task
+	err := fixture.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {
+		var err error
+		tasks, err = queries.GetTasks(ctx, 100)
+		return err
+	})
+	return tasks, err
 }
