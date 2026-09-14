@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -13,113 +12,28 @@ import (
 	"github.com/CORTA-11/core-api/internal/apicontract"
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
-	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type ReadinessCheck func(context.Context) error
-
-type OrganizationService interface {
-	List(context.Context, session.Principal, pagination.Parameters) (service.OrganizationPage, error)
-	Create(context.Context, session.Principal, string) (service.OrganizationView, error)
-	Get(context.Context, session.Principal, uuid.UUID) (service.OrganizationView, error)
-	Update(context.Context, session.Principal, uuid.UUID, string) (service.OrganizationView, error)
-	Delete(context.Context, session.Principal, uuid.UUID) error
-	Restore(context.Context, session.Principal, uuid.UUID) (service.OrganizationView, error)
-}
-
-type OrganizationMemberService interface {
-	ListMembers(context.Context, session.Principal, uuid.UUID) ([]service.OrganizationMemberView, error)
-}
-
-type TeamTaskService interface {
-	ListTeams(context.Context, session.Principal, uuid.UUID, pagination.Parameters) (service.TeamPage, error)
-	CreateTeam(context.Context, session.Principal, uuid.UUID, string, string) (service.TeamView, error)
-	ListTasks(context.Context, session.Principal, uuid.UUID, uuid.UUID, pagination.Parameters) (service.TaskPage, error)
-	CreateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, string, *uuid.UUID) (service.TaskView, error)
-	UpdateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, bool) (service.TaskView, error)
-	DeleteTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
-	ListTeamMembers(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.TeamMemberView, error)
-	AddTeamMember(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.TeamMemberView, error)
-}
-
-type DocumentService interface {
-	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error)
-	Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error)
-	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
-	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error)
-	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
-	IssueSocketTicket(context.Context, session.Principal, string, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
-	LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentState, error)
-	StoreState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentStateWrite) (service.DocumentState, error)
-}
-
-type InvitationService interface {
-	List(context.Context, session.Principal, uuid.UUID) ([]service.InvitationView, error)
-	Create(context.Context, session.Principal, uuid.UUID, string) (service.InvitationCreatedView, error)
-	Revoke(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
-	Preview(context.Context, string) (service.InvitationPreview, error)
-	Consume(context.Context, session.Principal, string, bool) error
-}
-
-type ResourceBookingService interface {
-	List(context.Context, session.Principal, uuid.UUID) ([]service.ResourceView, error)
-	Create(context.Context, session.Principal, uuid.UUID, service.ResourceWrite) (service.ResourceView, error)
-	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.ResourcePatch) (service.ResourceView, error)
-	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
-	ListBookings(context.Context, session.Principal, uuid.UUID) ([]service.BookingView, error)
-	Request(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, time.Time, time.Time, string) (service.ResourceRequestView, error)
-	ListRequests(context.Context, session.Principal, uuid.UUID) ([]service.ResourceRequestView, error)
-	Decide(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.ResourceRequestView, error)
-}
-
-type KeyService interface {
-	UpsertUserKeys(ctx context.Context, p session.Principal, input service.UserKeyUpdate) (*service.UserKey, error)
-	GetUserKeys(ctx context.Context, p session.Principal) (*service.UserKey, error)
-	GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.UserPublicKey, error)
-	CreateTeamKey(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, input service.TeamKeyVersionInput) (*service.TeamKey, error)
-	ListTeamKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.TeamKey, error)
-	AddTeamKeyMemberWrap(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, version int32, wrap service.TeamKeyWrap) (*service.TeamKey, error)
-}
-
-type FileService interface {
-	UploadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, name string, contentType string, reader io.Reader, size int64, iv []byte, keyVersion int32) (*service.FileView, error)
-	DownloadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) (*service.FileView, io.ReadCloser, error)
-	ListFiles(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.FileView, error)
-	DeleteFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) error
-}
-
-type KeyAccessService interface {
-	CreateKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) (service.KeyAccessRequestView, error)
-	ListKeyAccessRequests(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.KeyAccessRequestView, error)
-	DecideKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, requestID uuid.UUID, status string) (service.KeyAccessRequestView, error)
-}
-
-type ChatService interface {
-	ListMessages(context.Context, session.Principal, uuid.UUID, uuid.UUID, int32, *time.Time) ([]service.ChatMessageView, error)
-	SendMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, *uuid.UUID, []uuid.UUID) (service.ChatMessageView, error)
-	DeleteMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.ChatMessageView, error)
-	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID) (string, error)
-}
 
 type RouterConfig struct {
 	Manager                    *session.Manager
 	Verifier                   identity.CredentialVerifier
 	Hasher                     identity.PasswordHasher
-	Organizations              OrganizationService
-	OrganizationMembers        OrganizationMemberService
-	TeamTasks                  TeamTaskService
-	Documents                  DocumentService
-	Invitations                InvitationService
-	ResourceBookings           ResourceBookingService
-	Keys                       KeyService
-	KeyAccess                  KeyAccessService
-	Files                      FileService
-	Chat                       ChatService
+	Organizations              service.OrganizationService
+	OrganizationMembers        service.OrganizationMemberService
+	TeamTasks                  service.TeamTaskService
+	Documents                  service.DocumentService
+	Invitations                service.InvitationService
+	ResourceBookings           service.ResourceBookingService
+	Keys                       service.KeyService
+	KeyAccess                  service.KeyAccessService
+	Files                      service.FileService
+	Chat                       service.ChatService
 	Environment                string
 	Origins                    httpx.OriginPolicy
 	TrustedProxies             httpx.TrustedProxies
@@ -206,136 +120,90 @@ func (router *Router) compose() {
 }
 
 func (router *Router) operation(operationID string) http.Handler {
-	switch operationID {
-	case "register":
-		return http.HandlerFunc(router.auth.register)
-	case "login":
-		return http.HandlerFunc(router.auth.login)
-	case "getCurrentSession":
-		return http.HandlerFunc(router.auth.authenticated(false, router.auth.current))
-	case "logout":
-		return http.HandlerFunc(router.auth.logout)
-	case "listSessions":
-		return http.HandlerFunc(router.auth.authenticated(false, router.auth.list))
-	case "revokeAllSessions":
-		return http.HandlerFunc(router.auth.authenticated(true, router.auth.revokeAll))
-	case "revokeSession":
-		return http.HandlerFunc(router.auth.authenticated(true, router.auth.revokeSpecific))
-	case "changePassword":
-		return http.HandlerFunc(router.auth.authenticated(true, router.auth.changePassword))
-	case "listOrganizations":
-		return http.HandlerFunc(router.resources.listOrganizations)
-	case "createOrganization":
-		return http.HandlerFunc(router.resources.createOrganization)
-	case "getOrganization":
-		return http.HandlerFunc(router.resources.getOrganization)
-	case "updateOrganization":
-		return http.HandlerFunc(router.resources.updateOrganization)
-	case "deleteOrganization":
-		return http.HandlerFunc(router.resources.deleteOrganization)
-	case "restoreOrganization":
-		return http.HandlerFunc(router.resources.restoreOrganization)
-	case "listTeams":
-		return http.HandlerFunc(router.resources.listTeams)
-	case "createTeam":
-		return http.HandlerFunc(router.resources.createTeam)
-	case "listTasks":
-		return http.HandlerFunc(router.resources.listTasks)
-	case "createTask":
-		return http.HandlerFunc(router.resources.createTask)
-	case "updateTask":
-		return http.HandlerFunc(router.resources.updateTask)
-	case "deleteTask":
-		return http.HandlerFunc(router.resources.deleteTask)
-	case "listOrganizationInvitations":
-		return http.HandlerFunc(router.resources.listInvitations)
-	case "listOrganizationMembers":
-		return http.HandlerFunc(router.resources.listOrganizationMembers)
-	case "createOrganizationInvitation":
-		return http.HandlerFunc(router.resources.createInvitation)
-	case "revokeOrganizationInvitation":
-		return http.HandlerFunc(router.resources.revokeInvitation)
-	case "getCurrentOrganizationInvitation":
-		return http.HandlerFunc(router.resources.previewInvitation)
-	case "acceptCurrentOrganizationInvitation":
-		return http.HandlerFunc(router.resources.acceptInvitation)
-	case "declineCurrentOrganizationInvitation":
-		return http.HandlerFunc(router.resources.declineInvitation)
-	case "listTeamMembers":
-		return http.HandlerFunc(router.resources.listTeamMembers)
-	case "addTeamMember":
-		return http.HandlerFunc(router.resources.addTeamMember)
-	case "listResources":
-		return http.HandlerFunc(router.resources.listResources)
-	case "createResource":
-		return http.HandlerFunc(router.resources.createResource)
-	case "updateResource":
-		return http.HandlerFunc(router.resources.updateResource)
-	case "deleteResource":
-		return http.HandlerFunc(router.resources.deleteResource)
-	case "listBookings":
-		return http.HandlerFunc(router.resources.listBookings)
-	case "createResourceRequest":
-		return http.HandlerFunc(router.resources.createResourceRequest)
-	case "listResourceRequests":
-		return http.HandlerFunc(router.resources.listResourceRequests)
-	case "decideResourceRequest":
-		return http.HandlerFunc(router.resources.decideResourceRequest)
-	case "upsertUserKeys":
-		return http.HandlerFunc(router.auth.upsertUserKeys)
-	case "getUserKeys":
-		return http.HandlerFunc(router.auth.getUserKeys)
-	case "getPublicKeysForTeam":
-		return http.HandlerFunc(router.resources.getPublicKeysForTeam)
-	case "createTeamKey":
-		return http.HandlerFunc(router.resources.createTeamKey)
-	case "listTeamKeys":
-		return http.HandlerFunc(router.resources.listTeamKeys)
-	case "addTeamKeyMemberWrap":
-		return http.HandlerFunc(router.resources.addTeamKeyMemberWrap)
-	case "createKeyAccessRequest":
-		return http.HandlerFunc(router.resources.createKeyAccessRequest)
-	case "listKeyAccessRequests":
-		return http.HandlerFunc(router.resources.listKeyAccessRequests)
-	case "approveKeyAccessRequest":
-		return http.HandlerFunc(router.resources.approveKeyAccessRequest)
-	case "denyKeyAccessRequest":
-		return http.HandlerFunc(router.resources.denyKeyAccessRequest)
-	case "uploadFile":
-		return http.HandlerFunc(router.resources.uploadFile)
-	case "listFiles":
-		return http.HandlerFunc(router.resources.listFiles)
-	case "downloadFile":
-		return http.HandlerFunc(router.resources.downloadFile)
-	case "deleteFile":
-		return http.HandlerFunc(router.resources.deleteFile)
-	case "listChatMessages":
-		return http.HandlerFunc(router.resources.listChatMessages)
-	case "createChatMessage":
-		return http.HandlerFunc(router.resources.createChatMessage)
-	case "deleteChatMessage":
-		return http.HandlerFunc(router.resources.deleteChatMessage)
-	case "issueChatSocketTicket":
-		return http.HandlerFunc(router.resources.issueChatSocketTicket)
-	case "listDocuments":
-		return http.HandlerFunc(router.resources.listDocuments)
-	case "createDocument":
-		return http.HandlerFunc(router.resources.createDocument)
-	case "getDocument":
-		return http.HandlerFunc(router.resources.getDocument)
-	case "updateDocument":
-		return http.HandlerFunc(router.resources.updateDocument)
-	case "deleteDocument":
-		return http.HandlerFunc(router.resources.deleteDocument)
-	case "issueDocumentSocketTicket":
-		return http.HandlerFunc(router.resources.issueDocumentSocketTicket)
-	case "loadDocumentState":
-		return http.HandlerFunc(router.resources.loadDocumentState)
-	case "storeDocumentState":
-		return http.HandlerFunc(router.resources.storeDocumentState)
-	default:
-		return problemHandler(httpx.ProblemInternalFailure)
+	// It is of utmost importance that the 's' in 'operations' must be lowercase
+	operationsLUT := map[string]http.HandlerFunc{
+		"register": router.auth.register,
+		"login":    router.auth.login,
+
+		"getCurrentSession": router.auth.authenticated(false, router.auth.current),
+		"logout":            router.auth.logout,
+		"listSessions":      router.auth.authenticated(false, router.auth.list),
+		"revokeAllSessions": router.auth.authenticated(true, router.auth.revokeAll),
+		"revokeSession":     router.auth.authenticated(true, router.auth.revokeSpecific),
+		"changePassword":    router.auth.authenticated(true, router.auth.changePassword),
+
+		"listOrganizations":   router.resources.listOrganizations,
+		"createOrganization":  router.resources.createOrganization,
+		"getOrganization":     router.resources.getOrganization,
+		"updateOrganization":  router.resources.updateOrganization,
+		"deleteOrganization":  router.resources.deleteOrganization,
+		"restoreOrganization": router.resources.restoreOrganization,
+
+		"listTeams":  router.resources.listTeams,
+		"createTeam": router.resources.createTeam,
+		"listTasks":  router.resources.listTasks,
+		"createTask": router.resources.createTask,
+		"updateTask": router.resources.updateTask,
+		"deleteTask": router.resources.deleteTask,
+
+		"listOrganizationInvitations":          router.resources.listInvitations,
+		"listOrganizationMembers":              router.resources.listOrganizationMembers,
+		"createOrganizationInvitation":         router.resources.createInvitation,
+		"revokeOrganizationInvitation":         router.resources.revokeInvitation,
+		"getCurrentOrganizationInvitation":     router.resources.previewInvitation,
+		"acceptCurrentOrganizationInvitation":  router.resources.acceptInvitation,
+		"declineCurrentOrganizationInvitation": router.resources.declineInvitation,
+
+		"listTeamMembers": router.resources.listTeamMembers,
+		"addTeamMember":   router.resources.addTeamMember,
+
+		"listResources":         router.resources.listResources,
+		"createResource":        router.resources.createResource,
+		"updateResource":        router.resources.updateResource,
+		"deleteResource":        router.resources.deleteResource,
+		"listBookings":          router.resources.listBookings,
+		"createResourceRequest": router.resources.createResourceRequest,
+		"listResourceRequests":  router.resources.listResourceRequests,
+		"decideResourceRequest": router.resources.decideResourceRequest,
+
+		"upsertUserKeys":       router.auth.upsertUserKeys,
+		"getUserKeys":          router.auth.getUserKeys,
+		"getPublicKeysForTeam": router.resources.getPublicKeysForTeam,
+
+		"createTeamKey":        router.resources.createTeamKey,
+		"listTeamKeys":         router.resources.listTeamKeys,
+		"addTeamKeyMemberWrap": router.resources.addTeamKeyMemberWrap,
+
+		"createKeyAccessRequest":  router.resources.createKeyAccessRequest,
+		"listKeyAccessRequests":   router.resources.listKeyAccessRequests,
+		"approveKeyAccessRequest": router.resources.approveKeyAccessRequest,
+		"denyKeyAccessRequest":    router.resources.denyKeyAccessRequest,
+
+		"uploadFile":   router.resources.uploadFile,
+		"listFiles":    router.resources.listFiles,
+		"downloadFile": router.resources.downloadFile,
+		"deleteFile":   router.resources.deleteFile,
+
+		"listChatMessages":      router.resources.listChatMessages,
+		"createChatMessage":     router.resources.createChatMessage,
+		"deleteChatMessage":     router.resources.deleteChatMessage,
+		"issueChatSocketTicket": router.resources.issueChatSocketTicket,
+
+		"listDocuments":             router.resources.listDocuments,
+		"createDocument":            router.resources.createDocument,
+		"getDocument":               router.resources.getDocument,
+		"updateDocument":            router.resources.updateDocument,
+		"deleteDocument":            router.resources.deleteDocument,
+		"issueDocumentSocketTicket": router.resources.issueDocumentSocketTicket,
+		"loadDocumentState":         router.resources.loadDocumentState,
+		"storeDocumentState":        router.resources.storeDocumentState,
 	}
+
+	if handler, ok := operationsLUT[operationID]; ok {
+		return handler
+	}
+
+	return problemHandler(httpx.ProblemInternalFailure)
 }
 
 type authenticationContextKey struct{}

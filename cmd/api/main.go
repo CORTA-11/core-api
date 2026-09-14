@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -30,6 +29,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/tenancy"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/minio/minio-go/v7"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -50,58 +50,131 @@ func realMain() int {
 	return 0
 }
 
-func run(ctx context.Context, logger *slog.Logger) error {
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
+type dependencySet struct {
+	pool        *pgxpool.Pool
+	rdb         *redis.Client
+	minioClient *minio.Client
+}
+
+func setupDependencies(ctx context.Context, cfg config.Config) (*dependencySet, error) {
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		return fmt.Errorf("create PostgreSQL pool: %w", err)
+		return nil, fmt.Errorf("create PostgreSQL pool: %w", err)
 	}
-	defer pool.Close()
 	if err := dependencyCheck(ctx, cfg.DependencyTimeout, pool.Ping); err != nil {
-		return fmt.Errorf("ping PostgreSQL: %w", err)
+		pool.Close()
+		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
 	}
 
 	redisOptions, err := redis.ParseURL(cfg.RedisURL)
 	if err != nil {
-		return fmt.Errorf("parse Redis URL: %w", err)
+		pool.Close()
+		return nil, fmt.Errorf("parse Redis URL: %w", err)
 	}
 	rdb := redis.NewClient(redisOptions)
-	defer func() { _ = rdb.Close() }()
 
 	minioClient, err := appMinio.NewClient(cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey, cfg.MinIO.UseSSL)
 	if err != nil {
-		return err
+		pool.Close()
+		_ = rdb.Close()
+		return nil, err
 	}
 	if err := dependencyCheck(ctx, cfg.DependencyTimeout, func(checkCtx context.Context) error {
 		return appMinio.VerifyBucket(checkCtx, minioClient, cfg.MinIO.Bucket)
 	}); err != nil {
-		return fmt.Errorf("verify MinIO: %w", err)
+		pool.Close()
+		_ = rdb.Close()
+		return nil, fmt.Errorf("verify MinIO: %w", err)
 	}
 
-	publicQueries := publicdb.New(pool)
-	migrationSource, err := tenancy.EmbeddedMigrations()
-	if err != nil {
-		return err
-	}
-	tenantExecutor := tenancy.NewExecutor(pool)
-	tenantResolver := tenancy.NewResolver(pool, migrationSource)
-	authorizer := authorization.NewAuthorizer(tenantResolver, tenantExecutor)
+	return &dependencySet{
+		pool:        pool,
+		rdb:         rdb,
+		minioClient: minioClient,
+	}, nil
+}
+
+type domainModels struct {
+	organizations    *service.OrganizationApplication
+	invitations      *service.InvitationApplication
+	teamTasks        *service.TeamTaskApplication
+	documents        *service.DocumentApplication
+	resourceBookings *service.ResourceApplication
+	keyService       service.KeyService
+	keyAccess        service.KeyAccessService
+	fileService      service.FileService
+	chat             *service.ChatApplication
+}
+
+type securityServices struct {
+	passwordHasher     identity.PasswordHasher
+	credentialVerifier identity.CredentialVerifier
+	sessionManager     *session.Manager
+	loginGuard         *ratelimit.LoginGuard
+	registrationGuard  *ratelimit.RegistrationGuard
+	administrative     func(http.Handler) http.Handler
+	readiness          map[string]v1.ReadinessCheck
+}
+
+func setupSecurityServices(ctx context.Context, cfg config.Config, deps *dependencySet) (*securityServices, error) {
+	publicQueries := publicdb.New(deps.pool)
 	passwordHasher, err := identity.NewPasswordHasher(identity.HashConfig{})
 	if err != nil {
-		return fmt.Errorf("configure password hasher: %w", err)
+		return nil, fmt.Errorf("configure password hasher: %w", err)
 	}
 	credentialStore := identity.NewPostgresCredentialStore(publicQueries)
 	credentialVerifier, err := identity.NewCredentialVerifier(ctx, credentialStore, passwordHasher)
 	if err != nil {
-		return fmt.Errorf("initialize credential verifier: %w", err)
+		return nil, fmt.Errorf("initialize credential verifier: %w", err)
 	}
-	sessionManager, err := session.NewManager(pool, []byte(cfg.CSRFSecret))
+	sessionManager, err := session.NewManager(deps.pool, []byte(cfg.CSRFSecret))
 	if err != nil {
-		return fmt.Errorf("configure session manager: %w", err)
+		return nil, fmt.Errorf("configure session manager: %w", err)
 	}
+	rateLimiter, err := ratelimit.NewRedis(deps.rdb, []byte(cfg.RateLimitSecret), cfg.RateLimitTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("configure rate limiter: %w", err)
+	}
+	loginGuard, err := ratelimit.NewLoginGuard(rateLimiter, cfg.RateLimits)
+	if err != nil {
+		return nil, fmt.Errorf("configure login rate limit: %w", err)
+	}
+	registrationGuard, err := ratelimit.NewRegistrationGuard(rateLimiter, cfg.RateLimits.RegistrationIP)
+	if err != nil {
+		return nil, fmt.Errorf("configure registration rate limit: %w", err)
+	}
+	administrative, err := ratelimit.NewAdministrativeMiddleware(rateLimiter, cfg.RateLimits.Administrative)
+	if err != nil {
+		return nil, fmt.Errorf("configure administrative rate limit: %w", err)
+	}
+	readiness := map[string]v1.ReadinessCheck{
+		"postgres": deps.pool.Ping,
+		"minio": func(checkCtx context.Context) error {
+			return appMinio.VerifyBucket(checkCtx, deps.minioClient, cfg.MinIO.Bucket)
+		},
+	}
+
+	return &securityServices{
+		passwordHasher:     passwordHasher,
+		credentialVerifier: credentialVerifier,
+		sessionManager:     sessionManager,
+		loginGuard:         loginGuard,
+		registrationGuard:  registrationGuard,
+		administrative:     administrative,
+		readiness:          readiness,
+	}, nil
+}
+
+func setupDomainModels(cfg config.Config, deps *dependencySet) (*domainModels, error) {
+	migrationSource, err := tenancy.EmbeddedMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	tenantExecutor := tenancy.NewExecutor(deps.pool)
+	tenantResolver := tenancy.NewResolver(deps.pool, migrationSource)
+	authorizer := authorization.NewAuthorizer(tenantResolver, tenantExecutor)
+
 	cursorConfig := pagination.CodecConfig{Active: pagination.Key{
 		ID: cfg.Cursor.ActiveKeyID, Secret: []byte(cfg.Cursor.ActiveSecret),
 	}}
@@ -112,85 +185,124 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	cursorCodec, err := pagination.NewCodec(cursorConfig)
 	if err != nil {
-		return fmt.Errorf("configure cursor codec: %w", err)
+		return nil, fmt.Errorf("configure cursor codec: %w", err)
 	}
-	rateLimiter, err := ratelimit.NewRedis(rdb, []byte(cfg.RateLimitSecret), cfg.RateLimitTimeout)
-	if err != nil {
-		return fmt.Errorf("configure rate limiter: %w", err)
-	}
-	loginGuard, err := ratelimit.NewLoginGuard(rateLimiter, cfg.RateLimits)
-	if err != nil {
-		return fmt.Errorf("configure login rate limit: %w", err)
-	}
-	registrationGuard, err := ratelimit.NewRegistrationGuard(rateLimiter, cfg.RateLimits.RegistrationIP)
-	if err != nil {
-		return fmt.Errorf("configure registration rate limit: %w", err)
-	}
-	administrative, err := ratelimit.NewAdministrativeMiddleware(rateLimiter, cfg.RateLimits.Administrative)
-	if err != nil {
-		return fmt.Errorf("configure administrative rate limit: %w", err)
-	}
-	organizations := service.NewOrganizationApplication(pool, cursorCodec)
+
+	organizations := service.NewOrganizationApplication(deps.pool, cursorCodec)
+
 	invitationBinding, err := invitation.NewBinding([]byte(cfg.InvitationBindingSecret))
 	if err != nil {
-		return fmt.Errorf("configure invitation binding: %w", err)
+		return nil, fmt.Errorf("configure invitation binding: %w", err)
 	}
-	invitations := service.NewInvitationApplication(pool, invitationBinding)
-	go runInvitationCleanup(ctx, logger, invitations)
+	invitations := service.NewInvitationApplication(deps.pool, invitationBinding)
+
 	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
+
 	roomCloser, err := realtime.NewDocumentRoomCloser(
 		os.Getenv("COLLABORATION_INTERNAL_URL"), cfg.CollaborationServiceSecret,
 		&http.Client{Timeout: cfg.DependencyTimeout},
 	)
 	if err != nil {
-		return fmt.Errorf("configure collaboration room closer: %w", err)
+		return nil, fmt.Errorf("configure collaboration room closer: %w", err)
 	}
+
 	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")), roomCloser)
+
 	resourceBookings := service.NewResourceApplication(authorizer)
-	keyService := service.NewKeyService(pool, authorizer)
+
+	keyService := service.NewKeyService(deps.pool, authorizer)
+
 	keyAccess := service.NewKeyAccessApplication(authorizer)
-	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
-	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
-	readiness := map[string]v1.ReadinessCheck{
-		"postgres": pool.Ping,
-		"minio": func(checkCtx context.Context) error {
-			return appMinio.VerifyBucket(checkCtx, minioClient, cfg.MinIO.Bucket)
-		},
+
+	fileService := service.NewFileService(deps.minioClient, cfg.MinIO.Bucket, authorizer)
+
+	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(deps.rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
+
+	return &domainModels{
+		organizations:    organizations,
+		invitations:      invitations,
+		teamTasks:        teamTasks,
+		documents:        documents,
+		resourceBookings: resourceBookings,
+		keyService:       keyService,
+		keyAccess:        keyAccess,
+		fileService:      fileService,
+		chat:             chat,
+	}, nil
+}
+
+func run(ctx context.Context, logger *slog.Logger) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
 	}
-	router := v1.NewRouter(v1.RouterConfig{
-		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
-		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Documents: documents, Invitations: invitations, ResourceBookings: resourceBookings,
-		Keys: keyService, Files: fileService, Chat: chat,
-		KeyAccess:   keyAccess,
-		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
-		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
-		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
+
+	deps, err := setupDependencies(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer deps.pool.Close()
+	defer func() { _ = deps.rdb.Close() }()
+
+	domain, err := setupDomainModels(cfg, deps)
+	if err != nil {
+		return err
+	}
+
+	go runInvitationCleanup(ctx, logger, domain.invitations)
+
+	security, err := setupSecurityServices(ctx, cfg, deps)
+	if err != nil {
+		return err
+	}
+
+	routerConfig := v1.RouterConfig{
+		Manager:                    security.sessionManager,
+		Verifier:                   security.credentialVerifier,
+		Hasher:                     security.passwordHasher,
+		Organizations:              domain.organizations,
+		OrganizationMembers:        domain.organizations,
+		TeamTasks:                  domain.teamTasks,
+		Documents:                  domain.documents,
+		Invitations:                domain.invitations,
+		ResourceBookings:           domain.resourceBookings,
+		Keys:                       domain.keyService,
+		Files:                      domain.fileService,
+		Chat:                       domain.chat,
+		KeyAccess:                  domain.keyAccess,
+		Environment:                cfg.Environment,
+		Origins:                    cfg.HTTPOrigins,
+		TrustedProxies:             cfg.TrustedProxies,
+		Logger:                     logger,
+		LoginGuard:                 security.loginGuard,
+		RegistrationGuard:          security.registrationGuard,
+		Administrative:             security.administrative,
+		ReadinessChecks:            security.readiness,
+		ReadinessTimeout:           cfg.DependencyTimeout,
 		CollaborationServiceSecret: []byte(cfg.CollaborationServiceSecret),
-	})
-	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
-		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
-		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
-	}, logger)
+	}
+
+	router := v1.NewRouter(routerConfig)
+
+	server := httpx.NewServer(
+		cfg.HTTPAddr,
+		router.Handler(),
+		httpx.ServerTimeouts{
+			ReadHeader: cfg.HTTPReadHeaderTimeout,
+			Read:       cfg.HTTPReadTimeout,
+			Write:      cfg.HTTPWriteTimeout,
+			Idle:       cfg.HTTPIdleTimeout,
+		},
+		logger)
+
 	listener, err := net.Listen("tcp", cfg.HTTPAddr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.HTTPAddr, err)
 	}
+
 	slog.Info("core-api listening", "addr", listener.Addr().String())
 	bindings := []serverBinding{{name: "API", server: server, listener: listener}}
-	if cfg.PprofEnabled {
-		diagnostic, diagnosticErr := newDiagnosticServer(cfg, logger)
-		if diagnosticErr != nil {
-			_ = listener.Close()
-			return diagnosticErr
-		}
-		diagnosticListener, listenErr := net.Listen("tcp", cfg.PprofAddr)
-		if listenErr != nil {
-			_ = listener.Close()
-			return fmt.Errorf("listen for diagnostics on %s: %w", cfg.PprofAddr, listenErr)
-		}
-		slog.Info("diagnostics listening", "addr", diagnosticListener.Addr().String())
-		bindings = append(bindings, serverBinding{name: "diagnostics", server: diagnostic, listener: diagnosticListener})
-	}
+
 	return serveAll(ctx, bindings, cfg.ShutdownTimeout)
 }
 
@@ -212,23 +324,6 @@ func runInvitationCleanup(ctx context.Context, logger *slog.Logger, invitations 
 			}
 		}
 	}
-}
-
-func newDiagnosticServer(cfg config.Config, logger *slog.Logger) (*http.Server, error) {
-	if !cfg.PprofEnabled || cfg.Environment == "production" {
-		return nil, errors.New("diagnostics are not permitted")
-	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
-	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
-	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
-	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("POST /debug/pprof/symbol", pprof.Symbol)
-	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
-	return httpx.NewServer(cfg.PprofAddr, mux, httpx.ServerTimeouts{
-		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
-		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
-	}, logger), nil
 }
 
 func dependencyCheck(parent context.Context, timeout time.Duration, check func(context.Context) error) error {
