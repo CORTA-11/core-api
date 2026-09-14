@@ -13,6 +13,13 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type ChatService interface {
+	ListMessages(context.Context, session.Principal, uuid.UUID, uuid.UUID, int32, *time.Time) ([]ChatMessageView, error)
+	SendMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, *uuid.UUID, []uuid.UUID) (ChatMessageView, error)
+	DeleteMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (ChatMessageView, error)
+	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID) (string, error)
+}
+
 type ChatApplication struct {
 	authorizer   applicationAuthorizer
 	publisher    ChatPublisher

@@ -3,7 +3,6 @@ package v1
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -13,113 +12,28 @@ import (
 	"github.com/CORTA-11/core-api/internal/apicontract"
 	"github.com/CORTA-11/core-api/internal/httpx"
 	"github.com/CORTA-11/core-api/internal/identity"
-	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 type ReadinessCheck func(context.Context) error
-
-type OrganizationService interface {
-	List(context.Context, session.Principal, pagination.Parameters) (service.OrganizationPage, error)
-	Create(context.Context, session.Principal, string) (service.OrganizationView, error)
-	Get(context.Context, session.Principal, uuid.UUID) (service.OrganizationView, error)
-	Update(context.Context, session.Principal, uuid.UUID, string) (service.OrganizationView, error)
-	Delete(context.Context, session.Principal, uuid.UUID) error
-	Restore(context.Context, session.Principal, uuid.UUID) (service.OrganizationView, error)
-}
-
-type OrganizationMemberService interface {
-	ListMembers(context.Context, session.Principal, uuid.UUID) ([]service.OrganizationMemberView, error)
-}
-
-type TeamTaskService interface {
-	ListTeams(context.Context, session.Principal, uuid.UUID, pagination.Parameters) (service.TeamPage, error)
-	CreateTeam(context.Context, session.Principal, uuid.UUID, string, string) (service.TeamView, error)
-	ListTasks(context.Context, session.Principal, uuid.UUID, uuid.UUID, pagination.Parameters) (service.TaskPage, error)
-	CreateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, string, *uuid.UUID) (service.TaskView, error)
-	UpdateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, bool) (service.TaskView, error)
-	DeleteTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
-	ListTeamMembers(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.TeamMemberView, error)
-	AddTeamMember(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.TeamMemberView, error)
-}
-
-type DocumentService interface {
-	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error)
-	Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentProjection, error)
-	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.DocumentView, error)
-	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error)
-	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
-	IssueSocketTicket(context.Context, session.Principal, string, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
-	LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentState, error)
-	StoreState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentStateWrite) (service.DocumentState, error)
-}
-
-type InvitationService interface {
-	List(context.Context, session.Principal, uuid.UUID) ([]service.InvitationView, error)
-	Create(context.Context, session.Principal, uuid.UUID, string) (service.InvitationCreatedView, error)
-	Revoke(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
-	Preview(context.Context, string) (service.InvitationPreview, error)
-	Consume(context.Context, session.Principal, string, bool) error
-}
-
-type ResourceBookingService interface {
-	List(context.Context, session.Principal, uuid.UUID) ([]service.ResourceView, error)
-	Create(context.Context, session.Principal, uuid.UUID, service.ResourceWrite) (service.ResourceView, error)
-	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.ResourcePatch) (service.ResourceView, error)
-	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
-	ListBookings(context.Context, session.Principal, uuid.UUID) ([]service.BookingView, error)
-	Request(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, time.Time, time.Time, string) (service.ResourceRequestView, error)
-	ListRequests(context.Context, session.Principal, uuid.UUID) ([]service.ResourceRequestView, error)
-	Decide(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.ResourceRequestView, error)
-}
-
-type KeyService interface {
-	UpsertUserKeys(ctx context.Context, p session.Principal, input service.UserKeyUpdate) (*service.UserKey, error)
-	GetUserKeys(ctx context.Context, p session.Principal) (*service.UserKey, error)
-	GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.UserPublicKey, error)
-	CreateTeamKey(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, input service.TeamKeyVersionInput) (*service.TeamKey, error)
-	ListTeamKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.TeamKey, error)
-	AddTeamKeyMemberWrap(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, version int32, wrap service.TeamKeyWrap) (*service.TeamKey, error)
-}
-
-type FileService interface {
-	UploadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, name string, contentType string, reader io.Reader, size int64, iv []byte, keyVersion int32) (*service.FileView, error)
-	DownloadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) (*service.FileView, io.ReadCloser, error)
-	ListFiles(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.FileView, error)
-	DeleteFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) error
-}
-
-type KeyAccessService interface {
-	CreateKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) (service.KeyAccessRequestView, error)
-	ListKeyAccessRequests(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.KeyAccessRequestView, error)
-	DecideKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, requestID uuid.UUID, status string) (service.KeyAccessRequestView, error)
-}
-
-type ChatService interface {
-	ListMessages(context.Context, session.Principal, uuid.UUID, uuid.UUID, int32, *time.Time) ([]service.ChatMessageView, error)
-	SendMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, *uuid.UUID, []uuid.UUID) (service.ChatMessageView, error)
-	DeleteMessage(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (service.ChatMessageView, error)
-	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID) (string, error)
-}
 
 type RouterConfig struct {
 	Manager                    *session.Manager
 	Verifier                   identity.CredentialVerifier
 	Hasher                     identity.PasswordHasher
-	Organizations              OrganizationService
-	OrganizationMembers        OrganizationMemberService
-	TeamTasks                  TeamTaskService
-	Documents                  DocumentService
-	Invitations                InvitationService
-	ResourceBookings           ResourceBookingService
-	Keys                       KeyService
-	KeyAccess                  KeyAccessService
-	Files                      FileService
-	Chat                       ChatService
+	Organizations              service.OrganizationService
+	OrganizationMembers        service.OrganizationMemberService
+	TeamTasks                  service.TeamTaskService
+	Documents                  service.DocumentService
+	Invitations                service.InvitationService
+	ResourceBookings           service.ResourceBookingService
+	Keys                       service.KeyService
+	KeyAccess                  service.KeyAccessService
+	Files                      service.FileService
+	Chat                       service.ChatService
 	Environment                string
 	Origins                    httpx.OriginPolicy
 	TrustedProxies             httpx.TrustedProxies

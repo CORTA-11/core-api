@@ -19,16 +19,16 @@ import (
 const maximumResourceBodyBytes = 64 << 10
 
 type ResourceHandler struct {
-	organizations              OrganizationService
-	organizationMembers        OrganizationMemberService
-	teamTasks                  TeamTaskService
-	invitations                InvitationService
-	resourceBookings           ResourceBookingService
-	keys                       KeyService
-	keyAccess                  KeyAccessService
-	files                      FileService
-	chat                       ChatService
-	documents                  DocumentService
+	organizations              service.OrganizationService
+	organizationMembers        service.OrganizationMemberService
+	teamTasks                  service.TeamTaskService
+	invitations                service.InvitationService
+	resourceBookings           service.ResourceBookingService
+	keys                       service.KeyService
+	keyAccess                  service.KeyAccessService
+	files                      service.FileService
+	chat                       service.ChatService
+	documents                  service.DocumentService
 	collaborationServiceSecret []byte
 }
 

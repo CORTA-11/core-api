@@ -32,7 +32,7 @@ type KeyAccessRequestView struct {
 	DecidedAt       *time.Time `json:"decided_at,omitempty"`
 }
 
-type KeyAccessRequestService interface {
+type KeyAccessService interface {
 	CreateKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) (KeyAccessRequestView, error)
 	ListKeyAccessRequests(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]KeyAccessRequestView, error)
 	DecideKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, requestID uuid.UUID, status string) (KeyAccessRequestView, error)
@@ -42,7 +42,7 @@ type keyAccessApplication struct {
 	authorizer applicationAuthorizer
 }
 
-func NewKeyAccessApplication(authorizer applicationAuthorizer) KeyAccessRequestService {
+func NewKeyAccessApplication(authorizer applicationAuthorizer) KeyAccessService {
 	return &keyAccessApplication{authorizer: authorizer}
 }
 

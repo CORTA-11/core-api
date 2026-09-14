@@ -101,7 +101,7 @@ type domainModels struct {
 	documents        *service.DocumentApplication
 	resourceBookings *service.ResourceApplication
 	keyService       service.KeyService
-	keyAccess        service.KeyAccessRequestService
+	keyAccess        service.KeyAccessService
 	fileService      service.FileService
 	chat             *service.ChatApplication
 }

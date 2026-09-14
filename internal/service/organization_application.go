@@ -51,6 +51,19 @@ type OrganizationMemberView struct {
 	JoinedAt    time.Time `json:"joined_at"`
 }
 
+type OrganizationService interface {
+	List(context.Context, session.Principal, pagination.Parameters) (OrganizationPage, error)
+	Create(context.Context, session.Principal, string) (OrganizationView, error)
+	Get(context.Context, session.Principal, uuid.UUID) (OrganizationView, error)
+	Update(context.Context, session.Principal, uuid.UUID, string) (OrganizationView, error)
+	Delete(context.Context, session.Principal, uuid.UUID) error
+	Restore(context.Context, session.Principal, uuid.UUID) (OrganizationView, error)
+}
+
+type OrganizationMemberService interface {
+	ListMembers(context.Context, session.Principal, uuid.UUID) ([]OrganizationMemberView, error)
+}
+
 func (application *OrganizationApplication) ListMembers(ctx context.Context, principal session.Principal, organizationID uuid.UUID) ([]OrganizationMemberView, error) {
 	if !validPrincipal(principal) {
 		return nil, authorization.ErrUnauthenticated
