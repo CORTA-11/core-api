@@ -94,6 +94,84 @@ func setupDependencies(ctx context.Context, cfg config.Config) (*dependencySet, 
 	}, nil
 }
 
+type domainModels struct {
+	organizations    *service.OrganizationApplication
+	invitations      *service.InvitationApplication
+	teamTasks        *service.TeamTaskApplication
+	documents        *service.DocumentApplication
+	resourceBookings *service.ResourceApplication
+	keyService       service.KeyService
+	keyAccess        service.KeyAccessRequestService
+	fileService      service.FileService
+	chat             *service.ChatApplication
+}
+
+func setupDomainModels(cfg config.Config, deps *dependencySet) (*domainModels, error) {
+	migrationSource, err := tenancy.EmbeddedMigrations()
+	if err != nil {
+		return nil, err
+	}
+
+	tenantExecutor := tenancy.NewExecutor(deps.pool)
+	tenantResolver := tenancy.NewResolver(deps.pool, migrationSource)
+	authorizer := authorization.NewAuthorizer(tenantResolver, tenantExecutor)
+
+	cursorConfig := pagination.CodecConfig{Active: pagination.Key{
+		ID: cfg.Cursor.ActiveKeyID, Secret: []byte(cfg.Cursor.ActiveSecret),
+	}}
+	if cfg.Cursor.PreviousKeyID != "" {
+		cursorConfig.Previous = &pagination.Key{
+			ID: cfg.Cursor.PreviousKeyID, Secret: []byte(cfg.Cursor.PreviousSecret),
+		}
+	}
+	cursorCodec, err := pagination.NewCodec(cursorConfig)
+	if err != nil {
+		return nil, fmt.Errorf("configure cursor codec: %w", err)
+	}
+
+	organizations := service.NewOrganizationApplication(deps.pool, cursorCodec)
+
+	invitationBinding, err := invitation.NewBinding([]byte(cfg.InvitationBindingSecret))
+	if err != nil {
+		return nil, fmt.Errorf("configure invitation binding: %w", err)
+	}
+	invitations := service.NewInvitationApplication(deps.pool, invitationBinding)
+
+	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
+
+	roomCloser, err := realtime.NewDocumentRoomCloser(
+		os.Getenv("COLLABORATION_INTERNAL_URL"), cfg.CollaborationServiceSecret,
+		&http.Client{Timeout: cfg.DependencyTimeout},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure collaboration room closer: %w", err)
+	}
+
+	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")), roomCloser)
+
+	resourceBookings := service.NewResourceApplication(authorizer)
+
+	keyService := service.NewKeyService(deps.pool, authorizer)
+
+	keyAccess := service.NewKeyAccessApplication(authorizer)
+
+	fileService := service.NewFileService(deps.minioClient, cfg.MinIO.Bucket, authorizer)
+
+	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(deps.rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
+
+	return &domainModels{
+		organizations:    organizations,
+		invitations:      invitations,
+		teamTasks:        teamTasks,
+		documents:        documents,
+		resourceBookings: resourceBookings,
+		keyService:       keyService,
+		keyAccess:        keyAccess,
+		fileService:      fileService,
+		chat:             chat,
+	}, nil
+}
+
 func run(ctx context.Context, logger *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -107,18 +185,17 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	defer deps.pool.Close()
 	defer func() { _ = deps.rdb.Close() }()
 
+	domain, err := setupDomainModels(cfg, deps)
+	if err != nil {
+		return err
+	}
+	go runInvitationCleanup(ctx, logger, domain.invitations)
+
 	pool := deps.pool
 	rdb := deps.rdb
 	minioClient := deps.minioClient
 
 	publicQueries := publicdb.New(pool)
-	migrationSource, err := tenancy.EmbeddedMigrations()
-	if err != nil {
-		return err
-	}
-	tenantExecutor := tenancy.NewExecutor(pool)
-	tenantResolver := tenancy.NewResolver(pool, migrationSource)
-	authorizer := authorization.NewAuthorizer(tenantResolver, tenantExecutor)
 	passwordHasher, err := identity.NewPasswordHasher(identity.HashConfig{})
 	if err != nil {
 		return fmt.Errorf("configure password hasher: %w", err)
@@ -131,18 +208,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	sessionManager, err := session.NewManager(pool, []byte(cfg.CSRFSecret))
 	if err != nil {
 		return fmt.Errorf("configure session manager: %w", err)
-	}
-	cursorConfig := pagination.CodecConfig{Active: pagination.Key{
-		ID: cfg.Cursor.ActiveKeyID, Secret: []byte(cfg.Cursor.ActiveSecret),
-	}}
-	if cfg.Cursor.PreviousKeyID != "" {
-		cursorConfig.Previous = &pagination.Key{
-			ID: cfg.Cursor.PreviousKeyID, Secret: []byte(cfg.Cursor.PreviousSecret),
-		}
-	}
-	cursorCodec, err := pagination.NewCodec(cursorConfig)
-	if err != nil {
-		return fmt.Errorf("configure cursor codec: %w", err)
 	}
 	rateLimiter, err := ratelimit.NewRedis(rdb, []byte(cfg.RateLimitSecret), cfg.RateLimitTimeout)
 	if err != nil {
@@ -160,27 +225,6 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("configure administrative rate limit: %w", err)
 	}
-	organizations := service.NewOrganizationApplication(pool, cursorCodec)
-	invitationBinding, err := invitation.NewBinding([]byte(cfg.InvitationBindingSecret))
-	if err != nil {
-		return fmt.Errorf("configure invitation binding: %w", err)
-	}
-	invitations := service.NewInvitationApplication(pool, invitationBinding)
-	go runInvitationCleanup(ctx, logger, invitations)
-	teamTasks := service.NewTeamTaskApplication(authorizer, cursorCodec)
-	roomCloser, err := realtime.NewDocumentRoomCloser(
-		os.Getenv("COLLABORATION_INTERNAL_URL"), cfg.CollaborationServiceSecret,
-		&http.Client{Timeout: cfg.DependencyTimeout},
-	)
-	if err != nil {
-		return fmt.Errorf("configure collaboration room closer: %w", err)
-	}
-	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")), roomCloser)
-	resourceBookings := service.NewResourceApplication(authorizer)
-	keyService := service.NewKeyService(pool, authorizer)
-	keyAccess := service.NewKeyAccessApplication(authorizer)
-	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
-	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
 	readiness := map[string]v1.ReadinessCheck{
 		"postgres": pool.Ping,
 		"minio": func(checkCtx context.Context) error {
@@ -192,16 +236,16 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Manager:                    sessionManager,
 		Verifier:                   credentialVerifier,
 		Hasher:                     passwordHasher,
-		Organizations:              organizations,
-		OrganizationMembers:        organizations,
-		TeamTasks:                  teamTasks,
-		Documents:                  documents,
-		Invitations:                invitations,
-		ResourceBookings:           resourceBookings,
-		Keys:                       keyService,
-		Files:                      fileService,
-		Chat:                       chat,
-		KeyAccess:                  keyAccess,
+		Organizations:              domain.organizations,
+		OrganizationMembers:        domain.organizations,
+		TeamTasks:                  domain.teamTasks,
+		Documents:                  domain.documents,
+		Invitations:                domain.invitations,
+		ResourceBookings:           domain.resourceBookings,
+		Keys:                       domain.keyService,
+		Files:                      domain.fileService,
+		Chat:                       domain.chat,
+		KeyAccess:                  domain.keyAccess,
 		Environment:                cfg.Environment,
 		Origins:                    cfg.HTTPOrigins,
 		TrustedProxies:             cfg.TrustedProxies,
