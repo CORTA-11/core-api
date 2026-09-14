@@ -106,6 +106,65 @@ type domainModels struct {
 	chat             *service.ChatApplication
 }
 
+type securityServices struct {
+	passwordHasher     identity.PasswordHasher
+	credentialVerifier identity.CredentialVerifier
+	sessionManager     *session.Manager
+	loginGuard         *ratelimit.LoginGuard
+	registrationGuard  *ratelimit.RegistrationGuard
+	administrative     func(http.Handler) http.Handler
+	readiness          map[string]v1.ReadinessCheck
+}
+
+func setupSecurityServices(ctx context.Context, cfg config.Config, deps *dependencySet) (*securityServices, error) {
+	publicQueries := publicdb.New(deps.pool)
+	passwordHasher, err := identity.NewPasswordHasher(identity.HashConfig{})
+	if err != nil {
+		return nil, fmt.Errorf("configure password hasher: %w", err)
+	}
+	credentialStore := identity.NewPostgresCredentialStore(publicQueries)
+	credentialVerifier, err := identity.NewCredentialVerifier(ctx, credentialStore, passwordHasher)
+	if err != nil {
+		return nil, fmt.Errorf("initialize credential verifier: %w", err)
+	}
+	sessionManager, err := session.NewManager(deps.pool, []byte(cfg.CSRFSecret))
+	if err != nil {
+		return nil, fmt.Errorf("configure session manager: %w", err)
+	}
+	rateLimiter, err := ratelimit.NewRedis(deps.rdb, []byte(cfg.RateLimitSecret), cfg.RateLimitTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("configure rate limiter: %w", err)
+	}
+	loginGuard, err := ratelimit.NewLoginGuard(rateLimiter, cfg.RateLimits)
+	if err != nil {
+		return nil, fmt.Errorf("configure login rate limit: %w", err)
+	}
+	registrationGuard, err := ratelimit.NewRegistrationGuard(rateLimiter, cfg.RateLimits.RegistrationIP)
+	if err != nil {
+		return nil, fmt.Errorf("configure registration rate limit: %w", err)
+	}
+	administrative, err := ratelimit.NewAdministrativeMiddleware(rateLimiter, cfg.RateLimits.Administrative)
+	if err != nil {
+		return nil, fmt.Errorf("configure administrative rate limit: %w", err)
+	}
+	readiness := map[string]v1.ReadinessCheck{
+		"postgres": deps.pool.Ping,
+		"minio": func(checkCtx context.Context) error {
+			return appMinio.VerifyBucket(checkCtx, deps.minioClient, cfg.MinIO.Bucket)
+		},
+	}
+
+	return &securityServices{
+		passwordHasher:     passwordHasher,
+		credentialVerifier: credentialVerifier,
+		sessionManager:     sessionManager,
+		loginGuard:         loginGuard,
+		registrationGuard:  registrationGuard,
+		administrative:     administrative,
+		readiness:          readiness,
+	}, nil
+}
+
 func setupDomainModels(cfg config.Config, deps *dependencySet) (*domainModels, error) {
 	migrationSource, err := tenancy.EmbeddedMigrations()
 	if err != nil {
@@ -189,53 +248,18 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+
 	go runInvitationCleanup(ctx, logger, domain.invitations)
 
-	pool := deps.pool
-	rdb := deps.rdb
-	minioClient := deps.minioClient
-
-	publicQueries := publicdb.New(pool)
-	passwordHasher, err := identity.NewPasswordHasher(identity.HashConfig{})
+	security, err := setupSecurityServices(ctx, cfg, deps)
 	if err != nil {
-		return fmt.Errorf("configure password hasher: %w", err)
-	}
-	credentialStore := identity.NewPostgresCredentialStore(publicQueries)
-	credentialVerifier, err := identity.NewCredentialVerifier(ctx, credentialStore, passwordHasher)
-	if err != nil {
-		return fmt.Errorf("initialize credential verifier: %w", err)
-	}
-	sessionManager, err := session.NewManager(pool, []byte(cfg.CSRFSecret))
-	if err != nil {
-		return fmt.Errorf("configure session manager: %w", err)
-	}
-	rateLimiter, err := ratelimit.NewRedis(rdb, []byte(cfg.RateLimitSecret), cfg.RateLimitTimeout)
-	if err != nil {
-		return fmt.Errorf("configure rate limiter: %w", err)
-	}
-	loginGuard, err := ratelimit.NewLoginGuard(rateLimiter, cfg.RateLimits)
-	if err != nil {
-		return fmt.Errorf("configure login rate limit: %w", err)
-	}
-	registrationGuard, err := ratelimit.NewRegistrationGuard(rateLimiter, cfg.RateLimits.RegistrationIP)
-	if err != nil {
-		return fmt.Errorf("configure registration rate limit: %w", err)
-	}
-	administrative, err := ratelimit.NewAdministrativeMiddleware(rateLimiter, cfg.RateLimits.Administrative)
-	if err != nil {
-		return fmt.Errorf("configure administrative rate limit: %w", err)
-	}
-	readiness := map[string]v1.ReadinessCheck{
-		"postgres": pool.Ping,
-		"minio": func(checkCtx context.Context) error {
-			return appMinio.VerifyBucket(checkCtx, minioClient, cfg.MinIO.Bucket)
-		},
+		return err
 	}
 
 	routerConfig := v1.RouterConfig{
-		Manager:                    sessionManager,
-		Verifier:                   credentialVerifier,
-		Hasher:                     passwordHasher,
+		Manager:                    security.sessionManager,
+		Verifier:                   security.credentialVerifier,
+		Hasher:                     security.passwordHasher,
 		Organizations:              domain.organizations,
 		OrganizationMembers:        domain.organizations,
 		TeamTasks:                  domain.teamTasks,
@@ -250,26 +274,35 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Origins:                    cfg.HTTPOrigins,
 		TrustedProxies:             cfg.TrustedProxies,
 		Logger:                     logger,
-		LoginGuard:                 loginGuard,
-		RegistrationGuard:          registrationGuard,
-		Administrative:             administrative,
-		ReadinessChecks:            readiness,
+		LoginGuard:                 security.loginGuard,
+		RegistrationGuard:          security.registrationGuard,
+		Administrative:             security.administrative,
+		ReadinessChecks:            security.readiness,
 		ReadinessTimeout:           cfg.DependencyTimeout,
 		CollaborationServiceSecret: []byte(cfg.CollaborationServiceSecret),
 	}
 
 	router := v1.NewRouter(routerConfig)
 
-	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
-		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
-		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
-	}, logger)
+	server := httpx.NewServer(
+		cfg.HTTPAddr,
+		router.Handler(),
+		httpx.ServerTimeouts{
+			ReadHeader: cfg.HTTPReadHeaderTimeout,
+			Read:       cfg.HTTPReadTimeout,
+			Write:      cfg.HTTPWriteTimeout,
+			Idle:       cfg.HTTPIdleTimeout,
+		},
+		logger)
+
 	listener, err := net.Listen("tcp", cfg.HTTPAddr)
 	if err != nil {
 		return fmt.Errorf("listen on %s: %w", cfg.HTTPAddr, err)
 	}
+
 	slog.Info("core-api listening", "addr", listener.Addr().String())
 	bindings := []serverBinding{{name: "API", server: server, listener: listener}}
+
 	return serveAll(ctx, bindings, cfg.ShutdownTimeout)
 }
 
