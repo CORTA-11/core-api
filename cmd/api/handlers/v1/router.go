@@ -206,136 +206,90 @@ func (router *Router) compose() {
 }
 
 func (router *Router) operation(operationID string) http.Handler {
-	switch operationID {
-	case "register":
-		return http.HandlerFunc(router.auth.register)
-	case "login":
-		return http.HandlerFunc(router.auth.login)
-	case "getCurrentSession":
-		return http.HandlerFunc(router.auth.authenticated(false, router.auth.current))
-	case "logout":
-		return http.HandlerFunc(router.auth.logout)
-	case "listSessions":
-		return http.HandlerFunc(router.auth.authenticated(false, router.auth.list))
-	case "revokeAllSessions":
-		return http.HandlerFunc(router.auth.authenticated(true, router.auth.revokeAll))
-	case "revokeSession":
-		return http.HandlerFunc(router.auth.authenticated(true, router.auth.revokeSpecific))
-	case "changePassword":
-		return http.HandlerFunc(router.auth.authenticated(true, router.auth.changePassword))
-	case "listOrganizations":
-		return http.HandlerFunc(router.resources.listOrganizations)
-	case "createOrganization":
-		return http.HandlerFunc(router.resources.createOrganization)
-	case "getOrganization":
-		return http.HandlerFunc(router.resources.getOrganization)
-	case "updateOrganization":
-		return http.HandlerFunc(router.resources.updateOrganization)
-	case "deleteOrganization":
-		return http.HandlerFunc(router.resources.deleteOrganization)
-	case "restoreOrganization":
-		return http.HandlerFunc(router.resources.restoreOrganization)
-	case "listTeams":
-		return http.HandlerFunc(router.resources.listTeams)
-	case "createTeam":
-		return http.HandlerFunc(router.resources.createTeam)
-	case "listTasks":
-		return http.HandlerFunc(router.resources.listTasks)
-	case "createTask":
-		return http.HandlerFunc(router.resources.createTask)
-	case "updateTask":
-		return http.HandlerFunc(router.resources.updateTask)
-	case "deleteTask":
-		return http.HandlerFunc(router.resources.deleteTask)
-	case "listOrganizationInvitations":
-		return http.HandlerFunc(router.resources.listInvitations)
-	case "listOrganizationMembers":
-		return http.HandlerFunc(router.resources.listOrganizationMembers)
-	case "createOrganizationInvitation":
-		return http.HandlerFunc(router.resources.createInvitation)
-	case "revokeOrganizationInvitation":
-		return http.HandlerFunc(router.resources.revokeInvitation)
-	case "getCurrentOrganizationInvitation":
-		return http.HandlerFunc(router.resources.previewInvitation)
-	case "acceptCurrentOrganizationInvitation":
-		return http.HandlerFunc(router.resources.acceptInvitation)
-	case "declineCurrentOrganizationInvitation":
-		return http.HandlerFunc(router.resources.declineInvitation)
-	case "listTeamMembers":
-		return http.HandlerFunc(router.resources.listTeamMembers)
-	case "addTeamMember":
-		return http.HandlerFunc(router.resources.addTeamMember)
-	case "listResources":
-		return http.HandlerFunc(router.resources.listResources)
-	case "createResource":
-		return http.HandlerFunc(router.resources.createResource)
-	case "updateResource":
-		return http.HandlerFunc(router.resources.updateResource)
-	case "deleteResource":
-		return http.HandlerFunc(router.resources.deleteResource)
-	case "listBookings":
-		return http.HandlerFunc(router.resources.listBookings)
-	case "createResourceRequest":
-		return http.HandlerFunc(router.resources.createResourceRequest)
-	case "listResourceRequests":
-		return http.HandlerFunc(router.resources.listResourceRequests)
-	case "decideResourceRequest":
-		return http.HandlerFunc(router.resources.decideResourceRequest)
-	case "upsertUserKeys":
-		return http.HandlerFunc(router.auth.upsertUserKeys)
-	case "getUserKeys":
-		return http.HandlerFunc(router.auth.getUserKeys)
-	case "getPublicKeysForTeam":
-		return http.HandlerFunc(router.resources.getPublicKeysForTeam)
-	case "createTeamKey":
-		return http.HandlerFunc(router.resources.createTeamKey)
-	case "listTeamKeys":
-		return http.HandlerFunc(router.resources.listTeamKeys)
-	case "addTeamKeyMemberWrap":
-		return http.HandlerFunc(router.resources.addTeamKeyMemberWrap)
-	case "createKeyAccessRequest":
-		return http.HandlerFunc(router.resources.createKeyAccessRequest)
-	case "listKeyAccessRequests":
-		return http.HandlerFunc(router.resources.listKeyAccessRequests)
-	case "approveKeyAccessRequest":
-		return http.HandlerFunc(router.resources.approveKeyAccessRequest)
-	case "denyKeyAccessRequest":
-		return http.HandlerFunc(router.resources.denyKeyAccessRequest)
-	case "uploadFile":
-		return http.HandlerFunc(router.resources.uploadFile)
-	case "listFiles":
-		return http.HandlerFunc(router.resources.listFiles)
-	case "downloadFile":
-		return http.HandlerFunc(router.resources.downloadFile)
-	case "deleteFile":
-		return http.HandlerFunc(router.resources.deleteFile)
-	case "listChatMessages":
-		return http.HandlerFunc(router.resources.listChatMessages)
-	case "createChatMessage":
-		return http.HandlerFunc(router.resources.createChatMessage)
-	case "deleteChatMessage":
-		return http.HandlerFunc(router.resources.deleteChatMessage)
-	case "issueChatSocketTicket":
-		return http.HandlerFunc(router.resources.issueChatSocketTicket)
-	case "listDocuments":
-		return http.HandlerFunc(router.resources.listDocuments)
-	case "createDocument":
-		return http.HandlerFunc(router.resources.createDocument)
-	case "getDocument":
-		return http.HandlerFunc(router.resources.getDocument)
-	case "updateDocument":
-		return http.HandlerFunc(router.resources.updateDocument)
-	case "deleteDocument":
-		return http.HandlerFunc(router.resources.deleteDocument)
-	case "issueDocumentSocketTicket":
-		return http.HandlerFunc(router.resources.issueDocumentSocketTicket)
-	case "loadDocumentState":
-		return http.HandlerFunc(router.resources.loadDocumentState)
-	case "storeDocumentState":
-		return http.HandlerFunc(router.resources.storeDocumentState)
-	default:
-		return problemHandler(httpx.ProblemInternalFailure)
+	// It is of utmost importance that the 's' in 'operations' must be lowercase
+	operationsLUT := map[string]http.HandlerFunc{
+		"register": router.auth.register,
+		"login":    router.auth.login,
+
+		"getCurrentSession": router.auth.authenticated(false, router.auth.current),
+		"logout":            router.auth.logout,
+		"listSessions":      router.auth.authenticated(false, router.auth.list),
+		"revokeAllSessions": router.auth.authenticated(true, router.auth.revokeAll),
+		"revokeSession":     router.auth.authenticated(true, router.auth.revokeSpecific),
+		"changePassword":    router.auth.authenticated(true, router.auth.changePassword),
+
+		"listOrganizations":   router.resources.listOrganizations,
+		"createOrganization":  router.resources.createOrganization,
+		"getOrganization":     router.resources.getOrganization,
+		"updateOrganization":  router.resources.updateOrganization,
+		"deleteOrganization":  router.resources.deleteOrganization,
+		"restoreOrganization": router.resources.restoreOrganization,
+
+		"listTeams":  router.resources.listTeams,
+		"createTeam": router.resources.createTeam,
+		"listTasks":  router.resources.listTasks,
+		"createTask": router.resources.createTask,
+		"updateTask": router.resources.updateTask,
+		"deleteTask": router.resources.deleteTask,
+
+		"listOrganizationInvitations":          router.resources.listInvitations,
+		"listOrganizationMembers":              router.resources.listOrganizationMembers,
+		"createOrganizationInvitation":         router.resources.createInvitation,
+		"revokeOrganizationInvitation":         router.resources.revokeInvitation,
+		"getCurrentOrganizationInvitation":     router.resources.previewInvitation,
+		"acceptCurrentOrganizationInvitation":  router.resources.acceptInvitation,
+		"declineCurrentOrganizationInvitation": router.resources.declineInvitation,
+
+		"listTeamMembers": router.resources.listTeamMembers,
+		"addTeamMember":   router.resources.addTeamMember,
+
+		"listResources":         router.resources.listResources,
+		"createResource":        router.resources.createResource,
+		"updateResource":        router.resources.updateResource,
+		"deleteResource":        router.resources.deleteResource,
+		"listBookings":          router.resources.listBookings,
+		"createResourceRequest": router.resources.createResourceRequest,
+		"listResourceRequests":  router.resources.listResourceRequests,
+		"decideResourceRequest": router.resources.decideResourceRequest,
+
+		"upsertUserKeys":       router.auth.upsertUserKeys,
+		"getUserKeys":          router.auth.getUserKeys,
+		"getPublicKeysForTeam": router.resources.getPublicKeysForTeam,
+
+		"createTeamKey":        router.resources.createTeamKey,
+		"listTeamKeys":         router.resources.listTeamKeys,
+		"addTeamKeyMemberWrap": router.resources.addTeamKeyMemberWrap,
+
+		"createKeyAccessRequest":  router.resources.createKeyAccessRequest,
+		"listKeyAccessRequests":   router.resources.listKeyAccessRequests,
+		"approveKeyAccessRequest": router.resources.approveKeyAccessRequest,
+		"denyKeyAccessRequest":    router.resources.denyKeyAccessRequest,
+
+		"uploadFile":   router.resources.uploadFile,
+		"listFiles":    router.resources.listFiles,
+		"downloadFile": router.resources.downloadFile,
+		"deleteFile":   router.resources.deleteFile,
+
+		"listChatMessages":      router.resources.listChatMessages,
+		"createChatMessage":     router.resources.createChatMessage,
+		"deleteChatMessage":     router.resources.deleteChatMessage,
+		"issueChatSocketTicket": router.resources.issueChatSocketTicket,
+
+		"listDocuments":             router.resources.listDocuments,
+		"createDocument":            router.resources.createDocument,
+		"getDocument":               router.resources.getDocument,
+		"updateDocument":            router.resources.updateDocument,
+		"deleteDocument":            router.resources.deleteDocument,
+		"issueDocumentSocketTicket": router.resources.issueDocumentSocketTicket,
+		"loadDocumentState":         router.resources.loadDocumentState,
+		"storeDocumentState":        router.resources.storeDocumentState,
 	}
+
+	if handler, ok := operationsLUT[operationID]; ok {
+		return handler
+	}
+
+	return problemHandler(httpx.ProblemInternalFailure)
 }
 
 type authenticationContextKey struct{}
