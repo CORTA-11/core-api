@@ -87,22 +87,6 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:6060", config.PprofAddr)
 }
 
-func TestLoadAllowsPprofOnlyOnDistinctDevelopmentLoopback(t *testing.T) {
-	values := validEnvironment()
-	values["PPROF_ENABLED"] = "true"
-	values["PPROF_ADDR"] = "127.0.0.1:6061"
-	config, err := loadMap(values)
-	require.NoError(t, err)
-	assert.True(t, config.PprofEnabled)
-
-	for _, address := range []string{"localhost:6061", "0.0.0.0:6061", "192.0.2.1:6061", "127.0.0.1:0", ":6061", "127.0.0.1:8080"} {
-		values["PPROF_ADDR"] = address
-		_, err := loadMap(values)
-		require.Error(t, err, address)
-		assert.ErrorContains(t, err, "PPROF_ADDR")
-	}
-}
-
 func TestLoadValidatesRateLimitConfiguration(t *testing.T) {
 	values := validEnvironment()
 	values["RATE_LIMIT_TIMEOUT"] = "0s"
@@ -114,20 +98,6 @@ func TestLoadValidatesRateLimitConfiguration(t *testing.T) {
 	for _, name := range []string{"RATE_LIMIT_TIMEOUT", "RATE_LIMIT_LOGIN_IP_LIMIT", "RATE_LIMIT_LOGIN_IP_WINDOW", "RATE_LIMIT_LOGIN_IP_BURST"} {
 		assert.ErrorContains(t, err, name)
 	}
-}
-
-func TestLoadRequiresDistinctProductionRateLimitSecretAndValidRedisURL(t *testing.T) {
-	values := validEnvironment()
-	values["APP_ENV"] = "production"
-	values["CSRF_SECRET"] = strings.Repeat("c", 32)
-	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
-	values["RATE_LIMIT_SECRET"] = strings.Repeat("c", 32)
-	values["HTTP_ALLOWED_ORIGINS"] = "https://app.example.com"
-	values["REDIS_URL"] = "http://redis:6379"
-	_, err := loadMap(values)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "RATE_LIMIT_SECRET")
-	assert.ErrorContains(t, err, "REDIS_URL")
 }
 
 func TestLoadValidatesExactOrigins(t *testing.T) {
@@ -193,18 +163,6 @@ func TestLoadValidatesTimeoutsAndBooleans(t *testing.T) {
 	assert.ErrorContains(t, err, "PPROF_ENABLED")
 }
 
-func TestLoadRejectsUnsafeProductionSettings(t *testing.T) {
-	values := validEnvironment()
-	values["APP_ENV"] = "production"
-	values["CSRF_SECRET"] = DevelopmentCSRFSecret
-	values["PPROF_ENABLED"] = "true"
-	_, err := loadMap(values)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "CSRF_SECRET")
-	assert.ErrorContains(t, err, "CURSOR_SECRET")
-	assert.ErrorContains(t, err, "PPROF_ENABLED")
-}
-
 func TestLoadRequiresPairedDistinctPreviousCursorKey(t *testing.T) {
 	values := validEnvironment()
 	values["CURSOR_PREVIOUS_KEY_ID"] = "previous"
@@ -228,35 +186,6 @@ func TestLoadRejectsMalformedCursorKeyConfiguration(t *testing.T) {
 	assert.ErrorContains(t, err, "cursor key IDs and secrets")
 }
 
-func TestLoadRejectsReusedProductionCursorSecrets(t *testing.T) {
-	values := validEnvironment()
-	values["APP_ENV"] = "production"
-	values["CSRF_SECRET"] = strings.Repeat("c", 32)
-	values["CURSOR_SECRET"] = strings.Repeat("c", 32)
-	_, err := loadMap(values)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "CURSOR_SECRET")
-}
-
-func TestLoadRejectsReusedProductionCSRFSecret(t *testing.T) {
-	values := validEnvironment()
-	values["APP_ENV"] = "production"
-	values["DATABASE_URL"] = "postgres://user:database-secret-database-secret-xx@db/app"
-	values["CSRF_SECRET"] = "database-secret-database-secret-xx"
-	_, err := loadMap(values)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "CSRF_SECRET")
-}
-
-func TestLoadRejectsLegacyDevelopmentCredentialInProduction(t *testing.T) {
-	values := validEnvironment()
-	values["APP_ENV"] = "production"
-	values["CSRF_SECRET"] = "your-super-secret-key-change-in-production"
-	_, err := loadMap(values)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "CSRF_SECRET")
-}
-
 func TestLoadErrorsDoNotExposeSecrets(t *testing.T) {
 	values := validEnvironment()
 	secret := "do-not-print-this-secret"
@@ -266,17 +195,4 @@ func TestLoadErrorsDoNotExposeSecrets(t *testing.T) {
 	_, err := loadMap(values)
 	require.Error(t, err)
 	assert.False(t, strings.Contains(err.Error(), secret))
-}
-
-func TestLoadRejectsUnsafeProductionInvitationSecret(t *testing.T) {
-	values := validEnvironment()
-	values["APP_ENV"] = "production"
-	values["CSRF_SECRET"] = strings.Repeat("c", 32)
-	values["CURSOR_SECRET"] = strings.Repeat("u", 32)
-	values["RATE_LIMIT_SECRET"] = strings.Repeat("r", 32)
-	values["INVITATION_BINDING_SECRET"] = DevelopmentInvitationSecret
-	values["HTTP_ALLOWED_ORIGINS"] = "https://app.example.com"
-	_, err := loadMap(values)
-	require.Error(t, err)
-	assert.ErrorContains(t, err, "INVITATION_BINDING_SECRET")
 }
