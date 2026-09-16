@@ -41,6 +41,14 @@ type InvitationApplication struct {
 	random  io.Reader
 }
 
+type InvitationService interface {
+	List(context.Context, session.Principal, uuid.UUID) ([]InvitationView, error)
+	Create(context.Context, session.Principal, uuid.UUID, string) (InvitationCreatedView, error)
+	Revoke(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
+	Preview(context.Context, string) (InvitationPreview, error)
+	Consume(context.Context, session.Principal, string, bool) error
+}
+
 func NewInvitationApplication(pool *pgxpool.Pool, binding *invitation.Binding) *InvitationApplication {
 	return &InvitationApplication{pool: pool, binding: binding, random: rand.Reader}
 }

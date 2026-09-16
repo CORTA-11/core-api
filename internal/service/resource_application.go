@@ -80,6 +80,17 @@ type ResourceRequestView struct {
 	DecidedAt       *time.Time `json:"decided_at"`
 }
 
+type ResourceBookingService interface {
+	List(context.Context, session.Principal, uuid.UUID) ([]ResourceView, error)
+	Create(context.Context, session.Principal, uuid.UUID, ResourceWrite) (ResourceView, error)
+	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, ResourcePatch) (ResourceView, error)
+	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
+	ListBookings(context.Context, session.Principal, uuid.UUID) ([]BookingView, error)
+	Request(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, time.Time, time.Time, string) (ResourceRequestView, error)
+	ListRequests(context.Context, session.Principal, uuid.UUID) ([]ResourceRequestView, error)
+	Decide(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (ResourceRequestView, error)
+}
+
 type ResourceApplication struct {
 	authorizer applicationAuthorizer
 	now        func() time.Time

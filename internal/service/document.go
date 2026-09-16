@@ -57,6 +57,17 @@ type DocumentApplication struct {
 	ticketSecret []byte
 }
 
+type DocumentService interface {
+	List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]DocumentView, error)
+	Get(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (DocumentProjection, error)
+	Create(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (DocumentView, error)
+	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, DocumentPatch) (DocumentProjection, error)
+	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
+	IssueSocketTicket(context.Context, session.Principal, string, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
+	LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (DocumentState, error)
+	StoreState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, DocumentStateWrite) (DocumentState, error)
+}
+
 type documentRoomCloser interface {
 	CloseDocumentRoom(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) error
 }

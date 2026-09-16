@@ -55,6 +55,17 @@ type TeamMemberView struct {
 	JoinedAt time.Time `json:"joined_at"`
 }
 
+type TeamTaskService interface {
+	ListTeams(context.Context, session.Principal, uuid.UUID, pagination.Parameters) (TeamPage, error)
+	CreateTeam(context.Context, session.Principal, uuid.UUID, string, string) (TeamView, error)
+	ListTasks(context.Context, session.Principal, uuid.UUID, uuid.UUID, pagination.Parameters) (TaskPage, error)
+	CreateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, string, *uuid.UUID) (TaskView, error)
+	UpdateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, bool) (TaskView, error)
+	DeleteTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
+	ListTeamMembers(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]TeamMemberView, error)
+	AddTeamMember(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (TeamMemberView, error)
+}
+
 func (application *TeamTaskApplication) ListTeamMembers(ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID) ([]TeamMemberView, error) {
 	var result []TeamMemberView
 	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTeamMembersRead, func(queries *tenantdb.Queries) error {

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -236,9 +235,6 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	if config.Environment != "development" && config.Environment != "test" && config.Environment != "production" {
 		problems = append(problems, errors.New("APP_ENV must be development, test, or production"))
 	}
-	if err := validatePprofAddress(config.HTTPAddr, config.PprofAddr); err != nil {
-		problems = append(problems, err)
-	}
 	if _, parseErr := redis.ParseURL(config.RedisURL); parseErr != nil {
 		problems = append(problems, errors.New("REDIS_URL must be a valid redis or rediss URL"))
 	}
@@ -259,70 +255,11 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 	if _, err := pagination.NewCodec(cursorCodecConfig); err != nil {
 		problems = append(problems, errors.New("cursor key IDs and secrets are invalid"))
 	}
-	if config.Environment == "production" {
-		if len([]byte(config.CSRFSecret)) < 32 || isDevelopmentSecret(config.CSRFSecret) ||
-			config.CSRFSecret == databasePassword(config.DatabaseURL) {
-			problems = append(problems, errors.New("CSRF_SECRET must be a distinct non-development value of at least 32 bytes in production"))
-		}
-		if len([]byte(config.Cursor.ActiveSecret)) < 32 || isDevelopmentSecret(config.Cursor.ActiveSecret) ||
-			config.Cursor.ActiveSecret == config.CSRFSecret ||
-			config.Cursor.ActiveSecret == databasePassword(config.DatabaseURL) {
-			problems = append(problems, errors.New("CURSOR_SECRET must be a distinct non-development value of at least 32 bytes in production"))
-		}
-		if config.Cursor.PreviousSecret != "" && (len([]byte(config.Cursor.PreviousSecret)) < 32 ||
-			isDevelopmentSecret(config.Cursor.PreviousSecret) || config.Cursor.PreviousSecret == config.Cursor.ActiveSecret ||
-			config.Cursor.PreviousSecret == config.CSRFSecret ||
-			config.Cursor.PreviousSecret == databasePassword(config.DatabaseURL)) {
-			problems = append(problems, errors.New("CURSOR_PREVIOUS_SECRET must be a distinct non-development value of at least 32 bytes in production"))
-		}
-		if len([]byte(config.RateLimitSecret)) < 32 || isDevelopmentSecret(config.RateLimitSecret) ||
-			config.RateLimitSecret == config.CSRFSecret ||
-			config.RateLimitSecret == config.Cursor.ActiveSecret || config.RateLimitSecret == config.Cursor.PreviousSecret ||
-			config.RateLimitSecret == databasePassword(config.DatabaseURL) {
-			problems = append(problems, errors.New("RATE_LIMIT_SECRET must be a distinct non-development value of at least 32 bytes in production"))
-		}
-		if len([]byte(config.InvitationBindingSecret)) < 32 || isDevelopmentSecret(config.InvitationBindingSecret) ||
-			config.InvitationBindingSecret == config.CSRFSecret ||
-			config.InvitationBindingSecret == config.Cursor.ActiveSecret ||
-			config.InvitationBindingSecret == config.RateLimitSecret ||
-			config.InvitationBindingSecret == databasePassword(config.DatabaseURL) {
-			problems = append(problems, errors.New("INVITATION_BINDING_SECRET must be a distinct non-development value of at least 32 bytes in production"))
-		}
-		if len([]byte(config.CollaborationServiceSecret)) < 32 || isDevelopmentSecret(config.CollaborationServiceSecret) ||
-			config.CollaborationServiceSecret == config.CSRFSecret ||
-			config.CollaborationServiceSecret == config.Cursor.ActiveSecret ||
-			config.CollaborationServiceSecret == config.RateLimitSecret ||
-			config.CollaborationServiceSecret == config.InvitationBindingSecret ||
-			config.CollaborationServiceSecret == databasePassword(config.DatabaseURL) {
-			problems = append(problems, errors.New("COLLABORATION_SERVICE_SECRET must be a distinct non-development value of at least 32 bytes in production"))
-		}
-		if config.PprofEnabled {
-			problems = append(problems, errors.New("PPROF_ENABLED cannot be enabled in production"))
-		}
-	}
 
 	if len(problems) > 0 {
 		return Config{}, fmt.Errorf("invalid configuration: %w", errors.Join(problems...))
 	}
 	return config, nil
-}
-
-func validatePprofAddress(apiAddress, diagnosticAddress string) error {
-	host, portText, err := net.SplitHostPort(diagnosticAddress)
-	if err != nil {
-		return errors.New("PPROF_ADDR must contain a literal loopback IP and nonzero port")
-	}
-	address, err := netip.ParseAddr(host)
-	port, portErr := strconv.ParseUint(portText, 10, 16)
-	if err != nil || !address.IsLoopback() || portErr != nil || port == 0 {
-		return errors.New("PPROF_ADDR must contain a literal loopback IP and nonzero port")
-	}
-	apiHost, apiPort, apiErr := net.SplitHostPort(apiAddress)
-	if apiErr == nil && apiPort == portText &&
-		(apiHost == "" || apiHost == "0.0.0.0" || apiHost == "::" || apiHost == host) {
-		return errors.New("PPROF_ADDR must be distinct from HTTP_ADDR")
-	}
-	return nil
 }
 
 func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy, problems *[]error) {
@@ -353,21 +290,6 @@ func parseRatePolicy(lookup lookupFunc, prefix string, policy *ratelimit.Policy,
 	if err := policy.Validate(); err != nil {
 		*problems = append(*problems, fmt.Errorf("%s policy is invalid", prefix))
 	}
-}
-
-func databasePassword(databaseURL string) string {
-	parsed, err := url.Parse(databaseURL)
-	if err != nil || parsed.User == nil {
-		return ""
-	}
-	password, _ := parsed.User.Password()
-	return password
-}
-
-func isDevelopmentSecret(secret string) bool {
-	normalized := strings.ToLower(secret)
-	return secret == "your-super-secret-key-change-in-production" ||
-		strings.Contains(normalized, "change-me")
 }
 
 func value(lookup lookupFunc, name string) string {

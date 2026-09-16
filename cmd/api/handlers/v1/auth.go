@@ -31,7 +31,7 @@ type AuthHandler struct {
 	allowedOrigin map[string]struct{}
 	loginGuard    *ratelimit.LoginGuard
 	registerGuard *ratelimit.RegistrationGuard
-	keys          KeyService
+	keys          service.KeyService
 }
 
 func NewAuthRouter(
