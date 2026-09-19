@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/CORTA-11/core-api/internal/authorization"
 	"github.com/CORTA-11/core-api/internal/httpx"
@@ -18,16 +19,18 @@ import (
 const maximumResourceBodyBytes = 64 << 10
 
 type ResourceHandler struct {
-	organizations       OrganizationService
-	organizationMembers OrganizationMemberService
-	teamTasks           TeamTaskService
-	invitations         InvitationService
-	resourceBookings    ResourceBookingService
-	keys                KeyService
-	files               FileService
-	chat                ChatService
-	documents           DocumentService
-	ai                  AIService
+	organizations              OrganizationService
+	organizationMembers        OrganizationMemberService
+	teamTasks                  TeamTaskService
+	invitations                InvitationService
+	resourceBookings           ResourceBookingService
+	keys                       KeyService
+	keyAccess                  KeyAccessService
+	files                      FileService
+	chat                       ChatService
+	documents                  DocumentService
+	ai                         AIService
+	collaborationServiceSecret []byte
 }
 
 type nameRequest struct {
@@ -598,6 +601,12 @@ func (handler *ResourceHandler) scoped(request *http.Request, requireTeam bool) 
 func routeUUID(request *http.Request, name string) (uuid.UUID, bool) {
 	value, err := uuid.Parse(chi.URLParam(request, name))
 	return value, err == nil && value != uuid.Nil
+}
+
+// routeInt32 routes int32.
+func routeInt32(request *http.Request, name string) (int32, bool) {
+	value, err := strconv.ParseInt(chi.URLParam(request, name), 10, 32)
+	return int32(value), err == nil // #nosec G115 -- ParseInt enforces the int32 range.
 }
 
 // decodeTask decodes task.

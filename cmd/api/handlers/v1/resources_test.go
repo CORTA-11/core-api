@@ -46,6 +46,12 @@ func (stub documentServiceStub) Delete(context.Context, session.Principal, uuid.
 func (stub documentServiceStub) IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error) {
 	return stub.ticket, stub.err
 }
+func (stub documentServiceStub) LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentState, error) {
+	return service.DocumentState{}, stub.err
+}
+func (stub documentServiceStub) StoreState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentStateWrite) (service.DocumentState, error) {
+	return service.DocumentState{}, stub.err
+}
 
 func (stub organizationServiceStub) List(context.Context, session.Principal, pagination.Parameters) (service.OrganizationPage, error) {
 	return stub.page, nil

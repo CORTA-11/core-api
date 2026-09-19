@@ -54,6 +54,8 @@ type DocumentService interface {
 	Update(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentPatch) (service.DocumentProjection, error)
 	Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
 	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error)
+	LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentState, error)
+	StoreState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, service.DocumentStateWrite) (service.DocumentState, error)
 }
 
 type InvitationService interface {
@@ -81,6 +83,7 @@ type KeyService interface {
 	GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.UserPublicKey, error)
 	CreateTeamKey(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, input service.TeamKeyVersionInput) (*service.TeamKey, error)
 	ListTeamKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.TeamKey, error)
+	AddTeamKeyMemberWrap(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, version int32, wrap service.TeamKeyWrap) (*service.TeamKey, error)
 }
 
 type FileService interface {
@@ -88,6 +91,12 @@ type FileService interface {
 	DownloadFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) (*service.FileView, io.ReadCloser, error)
 	ListFiles(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.FileView, error)
 	DeleteFile(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, fileID uuid.UUID) error
+}
+
+type KeyAccessService interface {
+	CreateKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) (service.KeyAccessRequestView, error)
+	ListKeyAccessRequests(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]service.KeyAccessRequestView, error)
+	DecideKeyAccessRequest(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, requestID uuid.UUID, status string) (service.KeyAccessRequestView, error)
 }
 
 type ChatService interface {
@@ -102,28 +111,30 @@ type AIService interface {
 }
 
 type RouterConfig struct {
-	Manager             *session.Manager
-	Verifier            identity.CredentialVerifier
-	Hasher              identity.PasswordHasher
-	Organizations       OrganizationService
-	OrganizationMembers OrganizationMemberService
-	TeamTasks           TeamTaskService
-	Documents           DocumentService
-	Invitations         InvitationService
-	ResourceBookings    ResourceBookingService
-	Keys                KeyService
-	Files               FileService
-	Chat                ChatService
-	AI                  AIService
-	Environment         string
-	Origins             httpx.OriginPolicy
-	TrustedProxies      httpx.TrustedProxies
-	Logger              *slog.Logger
-	LoginGuard          *ratelimit.LoginGuard
-	RegistrationGuard   *ratelimit.RegistrationGuard
-	Administrative      func(http.Handler) http.Handler
-	ReadinessChecks     map[string]ReadinessCheck
-	ReadinessTimeout    time.Duration
+	Manager                    *session.Manager
+	Verifier                   identity.CredentialVerifier
+	Hasher                     identity.PasswordHasher
+	Organizations              OrganizationService
+	OrganizationMembers        OrganizationMemberService
+	TeamTasks                  TeamTaskService
+	Documents                  DocumentService
+	Invitations                InvitationService
+	ResourceBookings           ResourceBookingService
+	Keys                       KeyService
+	KeyAccess                  KeyAccessService
+	Files                      FileService
+	Chat                       ChatService
+	AI                         AIService
+	Environment                string
+	Origins                    httpx.OriginPolicy
+	TrustedProxies             httpx.TrustedProxies
+	Logger                     *slog.Logger
+	LoginGuard                 *ratelimit.LoginGuard
+	RegistrationGuard          *ratelimit.RegistrationGuard
+	Administrative             func(http.Handler) http.Handler
+	ReadinessChecks            map[string]ReadinessCheck
+	ReadinessTimeout           time.Duration
+	CollaborationServiceSecret []byte
 }
 
 type Router struct {
@@ -150,16 +161,18 @@ func NewRouter(config RouterConfig) *Router {
 	}
 	router := &Router{mux: chi.NewRouter(), config: config, auth: auth}
 	router.resources = &ResourceHandler{
-		organizations:       config.Organizations,
-		organizationMembers: config.OrganizationMembers,
-		teamTasks:           config.TeamTasks,
-		documents:           config.Documents,
-		invitations:         config.Invitations,
-		resourceBookings:    config.ResourceBookings,
-		keys:                config.Keys,
-		files:               config.Files,
-		chat:                config.Chat,
-		ai:                  config.AI,
+		organizations:              config.Organizations,
+		organizationMembers:        config.OrganizationMembers,
+		teamTasks:                  config.TeamTasks,
+		documents:                  config.Documents,
+		invitations:                config.Invitations,
+		resourceBookings:           config.ResourceBookings,
+		keys:                       config.Keys,
+		keyAccess:                  config.KeyAccess,
+		files:                      config.Files,
+		chat:                       config.Chat,
+		ai:                         config.AI,
+		collaborationServiceSecret: append([]byte(nil), config.CollaborationServiceSecret...),
 	}
 	router.compose()
 	return router
@@ -184,7 +197,6 @@ func (router *Router) compose() {
 		writer.WriteHeader(http.StatusNoContent)
 	})
 	router.mux.Get("/health/ready", router.ready)
-
 	for _, route := range apicontract.Routes {
 		handler := router.operation(route.OperationID)
 		handler = httpx.LimitBody(route.BodyLimit, handler)
@@ -289,6 +301,16 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.createTeamKey)
 	case "listTeamKeys":
 		return http.HandlerFunc(router.resources.listTeamKeys)
+	case "addTeamKeyMemberWrap":
+		return http.HandlerFunc(router.resources.addTeamKeyMemberWrap)
+	case "createKeyAccessRequest":
+		return http.HandlerFunc(router.resources.createKeyAccessRequest)
+	case "listKeyAccessRequests":
+		return http.HandlerFunc(router.resources.listKeyAccessRequests)
+	case "approveKeyAccessRequest":
+		return http.HandlerFunc(router.resources.approveKeyAccessRequest)
+	case "denyKeyAccessRequest":
+		return http.HandlerFunc(router.resources.denyKeyAccessRequest)
 	case "uploadFile":
 		return http.HandlerFunc(router.resources.uploadFile)
 	case "listFiles":
@@ -319,6 +341,10 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.deleteDocument)
 	case "issueDocumentSocketTicket":
 		return http.HandlerFunc(router.resources.issueDocumentSocketTicket)
+	case "loadDocumentState":
+		return http.HandlerFunc(router.resources.loadDocumentState)
+	case "storeDocumentState":
+		return http.HandlerFunc(router.resources.storeDocumentState)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -383,6 +409,9 @@ func isResourceOperation(operationID string) bool {
 		operationID == "upsertUserKeys" || operationID == "getUserKeys" ||
 		operationID == "getPublicKeysForTeam" ||
 		operationID == "createTeamKey" || operationID == "listTeamKeys" ||
+		operationID == "addTeamKeyMemberWrap" || operationID == "createKeyAccessRequest" ||
+		operationID == "listKeyAccessRequests" || operationID == "approveKeyAccessRequest" ||
+		operationID == "denyKeyAccessRequest" ||
 		operationID == "uploadFile" || operationID == "listFiles" ||
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||

@@ -37,6 +37,20 @@ type DocumentPatch struct {
 	BodyHTML *string
 }
 
+type DocumentState struct {
+	CanonicalState []byte    `json:"canonical_state"`
+	Title          string    `json:"title"`
+	BodyHTML       string    `json:"body_html"`
+	UpdatedBy      uuid.UUID `json:"updated_by"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+type DocumentStateWrite struct {
+	CanonicalState []byte `json:"canonical_state"`
+	Title          string `json:"title"`
+	BodyHTML       string `json:"body_html"`
+}
+
 type DocumentApplication struct {
 	authorizer   applicationAuthorizer
 	ticketSecret []byte
@@ -181,8 +195,86 @@ func (application *DocumentApplication) Delete(
 		})
 }
 
+func (application *DocumentApplication) LoadState(
+	ctx context.Context, editorID, organizationID, teamID, documentID uuid.UUID,
+) (DocumentState, error) {
+	row, err := application.collaborationDocument(ctx, editorID, organizationID, teamID, documentID,
+		authorization.PermissionDocumentRead, func(queries *tenantdb.Queries, resolvedTeamID int64) (tenantdb.Document, error) {
+			return queries.GetDocumentForTeam(ctx, tenantdb.GetDocumentForTeamParams{
+				TeamID: resolvedTeamID, PublicID: documentID,
+			})
+		})
+	if err != nil {
+		return DocumentState{}, fmt.Errorf("load Document collaboration state: %w", err)
+	}
+	return documentState(row), nil
+}
+
+func (application *DocumentApplication) StoreState(
+	ctx context.Context, editorID, organizationID, teamID, documentID uuid.UUID, state DocumentStateWrite,
+) (DocumentState, error) {
+	title, titleErr := normalizeDocumentTitle(state.Title)
+	if titleErr != nil || len(state.CanonicalState) == 0 {
+		return DocumentState{}, ErrInvalidInput
+	}
+	row, err := application.collaborationDocument(ctx, editorID, organizationID, teamID, documentID,
+		authorization.PermissionDocumentUpdate, func(queries *tenantdb.Queries, resolvedTeamID int64) (tenantdb.Document, error) {
+			return queries.StoreDocumentState(ctx, tenantdb.StoreDocumentStateParams{
+				CanonicalState: state.CanonicalState, Title: title, BodyHtml: state.BodyHTML,
+				LastUpdatedBy: editorID, TeamID: resolvedTeamID, PublicID: documentID,
+			})
+		})
+	if err != nil {
+		return DocumentState{}, fmt.Errorf("store Document collaboration state: %w", err)
+	}
+	return documentState(row), nil
+}
+
+func (application *DocumentApplication) collaborationDocument(
+	ctx context.Context,
+	editorID, organizationID, teamID, documentID uuid.UUID,
+	permission authorization.Permission,
+	query func(*tenantdb.Queries, int64) (tenantdb.Document, error),
+) (tenantdb.Document, error) {
+	principal, ok := collaborationPrincipal(editorID)
+	if application == nil || application.authorizer == nil || !ok || organizationID == uuid.Nil ||
+		teamID == uuid.Nil || documentID == uuid.Nil {
+		return tenantdb.Document{}, authorization.ErrResourceNotFound
+	}
+	var row tenantdb.Document
+	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, permission,
+		func(queries *tenantdb.Queries) error {
+			team, resolveErr := queries.ResolveTeamContext(ctx, tenantdb.ResolveTeamContextParams{
+				PublicID: teamID, UserPublicID: editorID,
+			})
+			if resolveErr != nil {
+				return resolveErr
+			}
+			row, resolveErr = query(queries, team.ID)
+			return resolveErr
+		})
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = authorization.ErrResourceNotFound
+	}
+	return row, err
+}
+
 func documentView(row tenantdb.Document) DocumentView {
 	return DocumentView{ID: row.PublicID, Title: row.Title, UpdatedBy: row.LastUpdatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+}
+
+func documentState(row tenantdb.Document) DocumentState {
+	return DocumentState{
+		CanonicalState: row.CanonicalState, Title: row.Title, BodyHTML: row.BodyHtml,
+		UpdatedBy: row.LastUpdatedBy, UpdatedAt: row.UpdatedAt,
+	}
+}
+
+func collaborationPrincipal(editorID uuid.UUID) (session.Principal, bool) {
+	if editorID == uuid.Nil {
+		return session.Principal{}, false
+	}
+	return session.Principal{UserID: editorID, SessionID: editorID}, true
 }
 
 func normalizeDocumentTitle(title string) (string, error) {

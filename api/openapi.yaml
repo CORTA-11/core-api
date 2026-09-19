@@ -3,7 +3,7 @@ info:
   title: Synodus Core API
   version: 1.0.0
   description: >-
-    The reviewed v1 browser API contract. Organization, team, and task
+    The reviewed v1 browser and private service API contract. Organization, team, and task
     operations remain dark until the D06 route cutover.
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 tags:
@@ -533,6 +533,54 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
         '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /internal/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/state:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+      - {$ref: '#/components/parameters/DocumentID'}
+      - {$ref: '#/components/parameters/EditorID'}
+    get:
+      tags: [Documents]
+      operationId: loadDocumentState
+      summary: Load canonical Document state for the collaboration service
+      security: [{serviceBearer: []}]
+      responses:
+        '200':
+          description: Canonical state and its materialized projections
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentState'}
+              examples: {empty: {$ref: '#/components/examples/DocumentState'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    put:
+      tags: [Documents]
+      operationId: storeDocumentState
+      summary: Atomically store canonical Document state and projections
+      security: [{serviceBearer: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DocumentStateWrite'}
+            example: {canonical_state: AAA=, title: Research notes, body_html: '<p>Persisted</p>'}
+      responses:
+        '200':
+          description: Stored canonical state and projections
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DocumentState'}
+              examples: {empty: {$ref: '#/components/examples/DocumentState'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/tasks:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}
@@ -926,6 +974,162 @@ paths:
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/keys/{version}/wraps:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: addTeamKeyMemberWrap
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: version, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id, key, algorithm]
+              properties:
+                user_id: {type: string}
+                key: {type: string}
+                algorithm: {type: string}
+      responses:
+        '200':
+          description: Team key version returned with the new member wrap appended
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: integer}
+                  team_id: {type: string}
+                  version: {type: integer}
+                  status: {type: string}
+                  algorithm: {type: string}
+                  wraps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id: {type: string}
+                        key: {type: string}
+                        algorithm: {type: string}
+                  wrapped_user_ids:
+                    type: array
+                    items: {type: string}
+                  created_by: {type: string}
+                  created_at: {type: string}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: createKeyAccessRequest
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      responses:
+        '201':
+          description: Key access request created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  team_id: {type: string}
+                  team_name: {type: string}
+                  requested_by: {type: string}
+                  requested_by_name: {type: string}
+                  status: {type: string}
+                  created_at: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+    get:
+      tags: [Teams]
+      operationId: listKeyAccessRequests
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Team key access requests
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: string}
+                        team_id: {type: string}
+                        team_name: {type: string}
+                        requested_by: {type: string}
+                        requested_by_name: {type: string}
+                        status: {type: string}
+                        created_at: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/{request_id}/approve:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: approveKeyAccessRequest
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: request_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Key access request granted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  team_id: {type: string}
+                  team_name: {type: string}
+                  requested_by: {type: string}
+                  requested_by_name: {type: string}
+                  status: {type: string}
+                  created_at: {type: string}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/{request_id}/deny:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: denyKeyAccessRequest
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: request_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Key access request denied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: {type: string}
+                  team_id: {type: string}
+                  team_name: {type: string}
+                  requested_by: {type: string}
+                  requested_by_name: {type: string}
+                  status: {type: string}
+                  created_at: {type: string}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
   /api/v1/orgs/{org_id}/teams/{team_id}/files:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
     post:
@@ -1128,6 +1332,10 @@ components:
       in: cookie
       name: __Host-synodus_session
       description: Production browser session cookie.
+    serviceBearer:
+      type: http
+      scheme: bearer
+      description: Private collaboration-service credential; never issued to browsers.
   headers:
     SessionCookie:
       description: HttpOnly, Secure, SameSite=Strict production session cookie.
@@ -1160,6 +1368,17 @@ components:
       name: team_id
       in: path
       required: true
+      schema: {$ref: '#/components/schemas/PublicID'}
+    DocumentID:
+      name: document_id
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/PublicID'}
+    EditorID:
+      name: X-Synodus-Editor-ID
+      in: header
+      required: true
+      description: User identity from the validated Document socket ticket.
       schema: {$ref: '#/components/schemas/PublicID'}
     TaskID:
       name: task_id
@@ -1405,6 +1624,24 @@ components:
       properties:
         title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\\S.*'}
         body_html: {type: string}
+    DocumentStateWrite:
+      type: object
+      additionalProperties: false
+      required: [canonical_state, title, body_html]
+      properties:
+        canonical_state: {type: string, format: byte, minLength: 1}
+        title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\S.*'}
+        body_html: {type: string}
+    DocumentState:
+      type: object
+      additionalProperties: false
+      required: [canonical_state, title, body_html, updated_by, updated_at]
+      properties:
+        canonical_state: {type: string, format: byte, minLength: 1}
+        title: {type: string, minLength: 1, maxLength: 255, pattern: '.*\S.*'}
+        body_html: {type: string}
+        updated_by: {$ref: '#/components/schemas/PublicID'}
+        updated_at: {$ref: '#/components/schemas/Timestamp'}
     DocumentPage:
       type: object
       additionalProperties: false
@@ -1649,6 +1886,8 @@ components:
           maxItems: 16
           items: {$ref: '#/components/schemas/Violation'}
   examples:
+    DocumentState:
+      value: {canonical_state: AAA=, title: Research notes, body_html: '<p>Persisted</p>', updated_by: 11111111-1111-4111-8111-111111111111, updated_at: '2026-09-07T09:30:00Z'}
     AuthResponse:
       value:
         user: {id: 11111111-1111-4111-8111-111111111111, email: researcher@example.com, display_name: Researcher}

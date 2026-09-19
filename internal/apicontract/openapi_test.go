@@ -21,7 +21,7 @@ func TestOpenAPISourceContractIsValidAndClosed(t *testing.T) {
 	document, err := Load(context.Background(), contractPath())
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.2", document.OpenAPI)
-	assert.Len(t, document.Paths.Map(), 36)
+	assert.Len(t, document.Paths.Map(), 41)
 
 	legacyFragments := []string{"/users", "/api/files", "/pprof", "/api/v1/user", "X-Org-ID", "bearer", "jwt"}
 	for path := range document.Paths.Map() {
@@ -73,7 +73,7 @@ func TestOpenAPIOperationIDsAreUnique(t *testing.T) {
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	assert.Len(t, seen, 57)
+	assert.Len(t, seen, 64)
 }
 
 func TestInventoryMatchesOpenAPIBidirectionally(t *testing.T) {
@@ -102,10 +102,18 @@ func TestInventoryPoliciesMatchOpenAPI(t *testing.T) {
 	for _, route := range Routes {
 		operation := document.Paths.Find(route.Pattern).GetOperation(route.Method)
 		require.NotNil(t, operation, "%s %s", route.Method, route.Pattern)
-		if route.Authentication == AuthenticationRequired {
+		switch route.Authentication {
+		case AuthenticationRequired:
 			require.NotNil(t, operation.Security, "%s must declare cookie authentication", route.OperationID)
 			require.NotEmpty(t, *operation.Security, "%s must declare cookie authentication", route.OperationID)
-		} else {
+			_, hasSessionCookie := (*operation.Security)[0]["sessionCookie"]
+			assert.True(t, hasSessionCookie, "%s must use cookie authentication", route.OperationID)
+		case AuthenticationService:
+			require.NotNil(t, operation.Security, "%s must declare service authentication", route.OperationID)
+			require.NotEmpty(t, *operation.Security, "%s must declare service authentication", route.OperationID)
+			_, hasServiceBearer := (*operation.Security)[0]["serviceBearer"]
+			assert.True(t, hasServiceBearer, "%s must use service authentication", route.OperationID)
+		default:
 			assert.True(t, operation.Security == nil || len(*operation.Security) == 0,
 				"%s must not require an authenticated session", route.OperationID)
 		}
@@ -123,9 +131,9 @@ func TestInventoryPoliciesMatchOpenAPI(t *testing.T) {
 
 func TestInventoryMetadataUsesClosedValues(t *testing.T) {
 	for _, route := range Routes {
-		assert.Contains(t, []AuthenticationPolicy{AuthenticationPublic, AuthenticationRequired, AuthenticationLogout}, route.Authentication)
+		assert.Contains(t, []AuthenticationPolicy{AuthenticationPublic, AuthenticationRequired, AuthenticationLogout, AuthenticationService}, route.Authentication)
 		assert.Contains(t, []CSRFPolicy{CSRFNone, CSRFRequired}, route.CSRF)
-		assert.Contains(t, []BodyLimitClass{BodyNone, BodyAuthJSON, BodyJSON, BodyFile, BodyAI}, route.BodyLimit)
+		assert.Contains(t, []BodyLimitClass{BodyNone, BodyAuthJSON, BodyJSON, BodyFile, BodyCollaborationJSON, BodyAI}, route.BodyLimit)
 		assert.Contains(t, []RateLimitClass{RateNone, RateLogin, RateRegistration, RateAdministrative}, route.RateLimit)
 		if route.Permission != "" {
 			assert.True(t, authorization.ValidPermission(route.Permission), "%s permission", route.OperationID)

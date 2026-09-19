@@ -110,6 +110,17 @@ type TeamKey struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type TeamKeyAccessRequest struct {
+	ID          int64              `json:"id"`
+	PublicID    uuid.UUID          `json:"public_id"`
+	TeamID      int64              `json:"team_id"`
+	RequestedBy uuid.UUID          `json:"requested_by"`
+	Status      string             `json:"status"`
+	CreatedAt   time.Time          `json:"created_at"`
+	DecidedBy   pgtype.UUID        `json:"decided_by"`
+	DecidedAt   pgtype.Timestamptz `json:"decided_at"`
+}
+
 type TeamMember struct {
 	TeamID       int64     `json:"team_id"`
 	UserPublicID uuid.UUID `json:"user_public_id"`

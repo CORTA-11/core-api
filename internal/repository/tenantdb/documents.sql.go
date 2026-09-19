@@ -136,6 +136,50 @@ func (q *Queries) ListDocumentsForTeam(ctx context.Context, arg ListDocumentsFor
 	return items, nil
 }
 
+const storeDocumentState = `-- name: StoreDocumentState :one
+UPDATE documents
+SET canonical_state = $1,
+    title = $2,
+    body_html = $3,
+    last_updated_by = $4,
+    updated_at = NOW()
+WHERE team_id = $5 AND public_id = $6
+RETURNING id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at
+`
+
+type StoreDocumentStateParams struct {
+	CanonicalState []byte    `json:"canonical_state"`
+	Title          string    `json:"title"`
+	BodyHtml       string    `json:"body_html"`
+	LastUpdatedBy  uuid.UUID `json:"last_updated_by"`
+	TeamID         int64     `json:"team_id"`
+	PublicID       uuid.UUID `json:"public_id"`
+}
+
+func (q *Queries) StoreDocumentState(ctx context.Context, arg StoreDocumentStateParams) (Document, error) {
+	row := q.db.QueryRow(ctx, storeDocumentState,
+		arg.CanonicalState,
+		arg.Title,
+		arg.BodyHtml,
+		arg.LastUpdatedBy,
+		arg.TeamID,
+		arg.PublicID,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.TeamID,
+		&i.CanonicalState,
+		&i.Title,
+		&i.BodyHtml,
+		&i.LastUpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateDocument = `-- name: UpdateDocument :one
 UPDATE documents
 SET title = COALESCE($1, title),

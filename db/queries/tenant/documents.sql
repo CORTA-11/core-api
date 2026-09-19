@@ -24,6 +24,16 @@ SET title = COALESCE(sqlc.narg('title'), title),
 WHERE public_id = sqlc.arg('public_id')
 RETURNING id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at;
 
+-- name: StoreDocumentState :one
+UPDATE documents
+SET canonical_state = sqlc.arg('canonical_state'),
+    title = sqlc.arg('title'),
+    body_html = sqlc.arg('body_html'),
+    last_updated_by = sqlc.arg('last_updated_by'),
+    updated_at = NOW()
+WHERE team_id = sqlc.arg('team_id') AND public_id = sqlc.arg('public_id')
+RETURNING id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at;
+
 -- name: DeleteDocument :execrows
 DELETE FROM documents
 WHERE public_id = sqlc.arg('public_id');

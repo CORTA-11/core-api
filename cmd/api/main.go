@@ -144,6 +144,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	documents := service.NewDocumentApplication(authorizer, service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
 	resourceBookings := service.NewResourceApplication(authorizer)
 	keyService := service.NewKeyService(pool, authorizer)
+	keyAccess := service.NewKeyAccessApplication(authorizer)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
 	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
 	aiClient, err := service.NewHTTPAIClient(cfg.AIServiceURL, cfg.AIServiceToken, cfg.AIServiceTimeout)
@@ -160,10 +161,13 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	router := v1.NewRouter(v1.RouterConfig{
 		Manager: sessionManager, Verifier: credentialVerifier, Hasher: passwordHasher,
 		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Documents: documents, Invitations: invitations, ResourceBookings: resourceBookings,
-		Keys: keyService, Files: fileService, Chat: chat, AI: ai,
+		Keys: keyService, Files: fileService, Chat: chat,
+		KeyAccess:   keyAccess,
+		AI:          ai,
 		Environment: cfg.Environment, Origins: cfg.HTTPOrigins, TrustedProxies: cfg.TrustedProxies,
 		Logger: logger, LoginGuard: loginGuard, RegistrationGuard: registrationGuard, Administrative: administrative,
 		ReadinessChecks: readiness, ReadinessTimeout: cfg.DependencyTimeout,
+		CollaborationServiceSecret: []byte(cfg.CollaborationServiceSecret),
 	})
 	server := httpx.NewServer(cfg.HTTPAddr, router.Handler(), httpx.ServerTimeouts{
 		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,

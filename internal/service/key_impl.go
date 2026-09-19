@@ -214,6 +214,47 @@ func (s *keyService) CreateTeamKey(ctx context.Context, p session.Principal, org
 	return &view, nil
 }
 
+// AddTeamKeyMemberWrap re-wraps an existing team key version for another current
+// member, so a joiner can read files sealed under that version. The server only
+// accepts the append when the caller is already wrapped in the version (i.e. can
+// unwrap it) and the target is a current team member — enforced inside the SQL.
+func (s *keyService) AddTeamKeyMemberWrap(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID, version int32, wrap TeamKeyWrap) (*TeamKey, error) {
+	if !validWraps([]TeamKeyWrap{wrap}) {
+		return nil, ErrInvalidInput
+	}
+	wrapJSON, err := json.Marshal(wrap)
+	if err != nil {
+		return nil, err
+	}
+
+	var row tenantdb.TeamKey
+	err = s.authorizer.WithinTeam(ctx, p, orgID, teamID, authorization.PermissionFileUpload, func(queries *tenantdb.Queries) error {
+		resolvedTeam, resolveErr := queries.ResolveTeamContext(ctx, tenantdb.ResolveTeamContextParams{
+			PublicID:     teamID,
+			UserPublicID: p.UserID,
+		})
+		if resolveErr != nil {
+			return resolveErr
+		}
+		row, err = queries.AppendTeamKeyWrap(ctx, tenantdb.AppendTeamKeyWrapParams{
+			CandidateTeamID:  resolvedTeam.ID,
+			CandidateVersion: version,
+			KeyWrap:          wrapJSON,
+			CallerUserID:     p.UserID,
+		})
+		return err
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, authorization.ErrResourceNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	view := s.teamKeyFrom(&row, teamID, p.UserID)
+	return &view, nil
+}
+
 // ListTeamKeys lists team key versions visible to the caller (RLS limits rows to
 // those wrapped for them); each row's wraps are filtered to the caller.
 func (s *keyService) ListTeamKeys(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]TeamKey, error) {

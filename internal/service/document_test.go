@@ -49,6 +49,16 @@ func TestDocumentApplicationUsesDocumentPermissions(t *testing.T) {
 	_, err = application.IssueSocketTicket(context.Background(), principal, organizationID, teamID, uuid.New())
 	assert.ErrorIs(t, err, denied)
 	assert.Equal(t, authorization.PermissionRealtimeConnect, authorizer.permission)
+
+	_, err = application.LoadState(context.Background(), principal.UserID, organizationID, teamID, uuid.New())
+	assert.ErrorIs(t, err, denied)
+	assert.Equal(t, authorization.PermissionDocumentRead, authorizer.permission)
+
+	_, err = application.StoreState(context.Background(), principal.UserID, organizationID, teamID, uuid.New(), DocumentStateWrite{
+		CanonicalState: []byte{1}, Title: "Converged notes", BodyHTML: "<p>Converged</p>",
+	})
+	assert.ErrorIs(t, err, denied)
+	assert.Equal(t, authorization.PermissionDocumentUpdate, authorizer.permission)
 }
 
 type documentAuthorizer struct {
@@ -76,4 +86,16 @@ func TestNormalizeDocumentTitleRejectsEmptyAndOversizedTitles(t *testing.T) {
 	}
 	_, err := normalizeDocumentTitle(strings.Repeat("界", 256))
 	assert.ErrorIs(t, err, ErrInvalidInput)
+}
+
+func TestStoreDocumentStateRejectsMissingCanonicalStateBeforeAuthorization(t *testing.T) {
+	t.Parallel()
+	principal := session.Principal{UserID: uuid.New(), SessionID: uuid.New()}
+	authorizer := &documentAuthorizer{err: errors.New("authorizer should not be called")}
+	application := NewDocumentApplication(authorizer, nil)
+
+	_, err := application.StoreState(context.Background(), principal.UserID, uuid.New(), uuid.New(), uuid.New(), DocumentStateWrite{Title: "Notes"})
+
+	assert.ErrorIs(t, err, ErrInvalidInput)
+	assert.Empty(t, authorizer.permission)
 }
