@@ -13,6 +13,71 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestIsResourceOperation(t *testing.T) {
+	t.Parallel()
+	operations := []string{
+		"listOrganizations",
+		"createOrganization",
+		"getOrganization",
+		"updateOrganization",
+		"deleteOrganization",
+		"restoreOrganization",
+		"listTeams",
+		"createTeam",
+		"listTasks",
+		"createTask",
+		"updateTask",
+		"deleteTask",
+		"listOrganizationInvitations",
+		"createOrganizationInvitation",
+		"listOrganizationMembers",
+		"revokeOrganizationInvitation",
+		"acceptCurrentOrganizationInvitation",
+		"declineCurrentOrganizationInvitation",
+		"listTeamMembers",
+		"addTeamMember",
+		"listResources",
+		"createResource",
+		"updateResource",
+		"deleteResource",
+		"listBookings",
+		"createResourceRequest",
+		"listResourceRequests",
+		"decideResourceRequest",
+		"upsertUserKeys",
+		"getUserKeys",
+		"getPublicKeysForTeam",
+		"createTeamKey",
+		"listTeamKeys",
+		"addTeamKeyMemberWrap",
+		"createKeyAccessRequest",
+		"listKeyAccessRequests",
+		"approveKeyAccessRequest",
+		"denyKeyAccessRequest",
+		"uploadFile",
+		"listFiles",
+		"downloadFile",
+		"deleteFile",
+		"listChatMessages",
+		"createChatMessage",
+		"deleteChatMessage",
+		"issueChatSocketTicket",
+		"listDocuments",
+		"createDocument",
+		"getDocument",
+		"updateDocument",
+		"deleteDocument",
+		"issueDocumentSocketTicket",
+	}
+	for _, operation := range operations {
+		operation := operation
+		t.Run(operation, func(t *testing.T) {
+			t.Parallel()
+			assert.True(t, isResourceOperation(operation))
+		})
+	}
+}
+
 func TestRouterMountsOnlyReviewedV1AndHealthOperations(t *testing.T) {
 	t.Parallel()
 	router := NewRouter(RouterConfig{Environment: "test"})

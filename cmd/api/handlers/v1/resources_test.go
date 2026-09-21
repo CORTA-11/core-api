@@ -23,9 +23,10 @@ type organizationServiceStub struct {
 }
 
 type documentServiceStub struct {
-	document service.DocumentProjection
-	ticket   string
-	err      error
+	document          service.DocumentProjection
+	ticket            string
+	err               error
+	ticketDisplayName string
 }
 
 func (stub documentServiceStub) List(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.DocumentView, error) {
@@ -43,7 +44,8 @@ func (stub documentServiceStub) Update(context.Context, session.Principal, uuid.
 func (stub documentServiceStub) Delete(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error {
 	return stub.err
 }
-func (stub documentServiceStub) IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) (string, error) {
+func (stub *documentServiceStub) IssueSocketTicket(_ context.Context, _ session.Principal, displayName string, _, _, _ uuid.UUID) (string, error) {
+	stub.ticketDisplayName = displayName
 	return stub.ticket, stub.err
 }
 func (stub documentServiceStub) LoadState(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (service.DocumentState, error) {
@@ -107,7 +109,7 @@ func TestGetDocumentReturnsPersistedProjection(t *testing.T) {
 	orgID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	teamID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
 	documentID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
-	handler := &ResourceHandler{documents: documentServiceStub{document: service.DocumentProjection{DocumentView: service.DocumentView{ID: documentID, TeamID: teamID, Title: "Notes"}, BodyHTML: "<p>Persisted</p>"}}}
+	handler := &ResourceHandler{documents: &documentServiceStub{document: service.DocumentProjection{DocumentView: service.DocumentView{ID: documentID, TeamID: teamID, Title: "Notes"}, BodyHTML: "<p>Persisted</p>"}}}
 	request := authenticatedResourceRequest(http.MethodGet, "/api/v1/orgs")
 	routeContext := chi.NewRouteContext()
 	routeContext.URLParams.Add("org_id", orgID.String())
@@ -124,7 +126,8 @@ func TestIssueDocumentSocketTicketReturnsShortLivedToken(t *testing.T) {
 	orgID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
 	teamID := uuid.MustParse("22222222-2222-4222-8222-222222222222")
 	documentID := uuid.MustParse("33333333-3333-4333-8333-333333333333")
-	handler := &ResourceHandler{documents: documentServiceStub{ticket: "signed-document-ticket"}}
+	documents := &documentServiceStub{ticket: "signed-document-ticket"}
+	handler := &ResourceHandler{documents: documents}
 	request := authenticatedResourceRequest(http.MethodPost, "/api/v1/orgs")
 	routeContext := chi.NewRouteContext()
 	routeContext.URLParams.Add("org_id", orgID.String())
@@ -137,6 +140,7 @@ func TestIssueDocumentSocketTicketReturnsShortLivedToken(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, response.Code)
 	assert.JSONEq(t, `{"token":"signed-document-ticket"}`, response.Body.String())
+	assert.Equal(t, "Authenticated Editor", documents.ticketDisplayName)
 }
 
 func authenticatedResourceRequest(method, target string) *http.Request {
@@ -144,6 +148,6 @@ func authenticatedResourceRequest(method, target string) *http.Request {
 	authentication := session.Authentication{Principal: session.Principal{
 		UserID:    uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
 		SessionID: uuid.MustParse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
-	}}
+	}, User: session.User{DisplayName: "Authenticated Editor"}}
 	return request.WithContext(context.WithValue(request.Context(), authenticationContextKey{}, authentication))
 }

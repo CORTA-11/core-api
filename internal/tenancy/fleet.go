@@ -2,14 +2,11 @@ package tenancy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ClaimDue atomically leases due or stale organizations to this process.
@@ -124,7 +121,6 @@ func (r *Reconciler) Run(ctx context.Context, emit func(Result)) error {
 	}
 }
 
-// scan handles the scan operation.
 func (r *Reconciler) scan(ctx context.Context, emit func(Result)) error {
 	// Drain full batches before sleeping so backlog throughput is bounded by
 	// worker concurrency rather than the polling interval.
@@ -229,50 +225,4 @@ func (r *Reconciler) Retry(ctx context.Context, id *uuid.UUID) (int64, error) {
 		return 0, fmt.Errorf("retry tenant reconciliation: %w", err)
 	}
 	return command.RowsAffected(), nil
-}
-
-// AvailabilityChecker gates tenant traffic on registry state and the exact
-// migration set embedded in the serving API binary.
-type AvailabilityChecker struct {
-	pool   *pgxpool.Pool
-	source MigrationSet
-}
-
-// NewAvailabilityChecker constructs an API-side tenant availability gate.
-func NewAvailabilityChecker(pool *pgxpool.Pool, source MigrationSet) *AvailabilityChecker {
-	return &AvailabilityChecker{pool: pool, source: source}
-}
-
-// Availability distinguishes an unknown organization from a known tenant that
-// must remain unavailable while provisioning, failed, deleting, or stale.
-type Availability int
-
-const (
-	// AvailabilityUnknown means no non-deleted registry row exists.
-	AvailabilityUnknown Availability = iota
-	// AvailabilityUnavailable means the registry row is not an exact current match.
-	AvailabilityUnavailable
-	// AvailabilityReady means the tenant is active at the exact embedded version
-	// and checksum.
-	AvailabilityReady
-)
-
-// Check resolves availability without exposing the internal schema name.
-func (c *AvailabilityChecker) Check(ctx context.Context, id uuid.UUID) (Availability, error) {
-	var state LifecycleState
-	var version int64
-	var checksum string
-	err := c.pool.QueryRow(ctx, `
-        SELECT lifecycle_state, tenant_version, tenant_checksum
-        FROM public.orgs WHERE public_id = $1 AND deleted_at IS NULL`, id).Scan(&state, &version, &checksum)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return AvailabilityUnknown, nil
-		}
-		return AvailabilityUnknown, fmt.Errorf("resolve organization availability: %w", err)
-	}
-	if state != StateActive || version != c.source.Version || trimChecksum(checksum) != c.source.Checksum {
-		return AvailabilityUnavailable, nil
-	}
-	return AvailabilityReady, nil
 }

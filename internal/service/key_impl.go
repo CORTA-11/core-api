@@ -36,7 +36,6 @@ type keyService struct {
 	authorizer applicationAuthorizer
 }
 
-// NewKeyService creates a new instance of KeyService.
 func NewKeyService(pool pgxPool, authorizer applicationAuthorizer) KeyService {
 	return &keyService{
 		pool:       pool,
@@ -117,7 +116,6 @@ func (s *keyService) GetUserKeys(ctx context.Context, p session.Principal) (*Use
 	}), tx.Commit(ctx)
 }
 
-// GetPublicKeysForTeam gets public keys for team.
 func (s *keyService) GetPublicKeysForTeam(ctx context.Context, p session.Principal, orgID uuid.UUID, teamID uuid.UUID) ([]UserPublicKey, error) {
 	var memberUUIDs []uuid.UUID
 	err := s.authorizer.WithinTeam(ctx, p, orgID, teamID, authorization.PermissionTeamRead, func(queries *tenantdb.Queries) error {

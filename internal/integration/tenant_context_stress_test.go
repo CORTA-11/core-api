@@ -58,7 +58,7 @@ func TestTenantContextStressCleansPooledConnections(t *testing.T) {
 			for operation := worker; operation < tenantContextStressOperations; operation += tenantContextStressWorkers {
 				scopeIndex := operation % len(scopes)
 				scope := scopes[scopeIndex]
-				tasks, err := fixture.taskService.GetTasks(ctx, scope.team)
+				tasks, err := fixture.readTasks(ctx, scope.team)
 				if err != nil {
 					result.err = fmt.Errorf("worker %d operation %d scope %s: %w", worker, operation, scope.name, err)
 					break

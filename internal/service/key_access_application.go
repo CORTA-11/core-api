@@ -42,7 +42,6 @@ type keyAccessApplication struct {
 	authorizer applicationAuthorizer
 }
 
-// NewKeyAccessApplication creates a KeyAccessRequestService.
 func NewKeyAccessApplication(authorizer applicationAuthorizer) KeyAccessRequestService {
 	return &keyAccessApplication{authorizer: authorizer}
 }

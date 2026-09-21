@@ -94,10 +94,13 @@ func TestTenantBoundaryRejectsForgedRegistryAndRechecksRevokedMembership(t *test
 		team.id, fixture.users.alpha)
 	require.NoError(t, err)
 
-	tasks, err := fixture.taskService.GetTasks(ctx, resolvedTeam)
+	tasks, err := fixture.readTasks(ctx, resolvedTeam)
 	require.NoError(t, err)
 	assert.Empty(t, tasks)
-	_, err = fixture.taskService.CreateTask(ctx, resolvedTeam, "revoked write", "todo")
+	err = fixture.executor.WithinTeam(ctx, resolvedTeam, func(queries *tenantdb.Queries) error {
+		_, err := queries.CreateTask(ctx, tenantdb.CreateTaskParams{Description: "revoked write", Status: "todo"})
+		return err
+	})
 	require.Error(t, err)
 	_, err = fixture.resolver.ResolveTeam(ctx, resolvedOrganization, team.publicID)
 	require.ErrorIs(t, err, tenancy.ErrTeamUnavailable)
@@ -106,7 +109,7 @@ func TestTenantBoundaryRejectsForgedRegistryAndRechecksRevokedMembership(t *test
 	_, err = fixture.adminPool.Exec(ctx, `INSERT INTO `+membersTable+`
 		(team_id, user_public_id, role) VALUES ($1, $2, 'viewer')`, team.id, fixture.users.alpha)
 	require.NoError(t, err)
-	tasks, err = fixture.taskService.GetTasks(ctx, resolvedTeam)
+	tasks, err = fixture.readTasks(ctx, resolvedTeam)
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, team.taskID, tasks[0].PublicID)
@@ -156,11 +159,11 @@ func TestTenantBoundaryExecutorFaultsRollbackAndLeavesPoolReusable(t *testing.T)
 	assertTaskDescriptionAbsent(t, fixture, alpha, "cancellation rollback")
 	assertRuntimePoolClean(t, fixture.runtimePool)
 
-	alphaTasks, err := fixture.taskService.GetTasks(ctx, alphaTeam)
+	alphaTasks, err := fixture.readTasks(ctx, alphaTeam)
 	require.NoError(t, err)
 	require.Len(t, alphaTasks, 1)
 	assert.Equal(t, alpha.teams[0].taskID, alphaTasks[0].PublicID)
-	betaTasks, err := fixture.taskService.GetTasks(ctx, betaTeam)
+	betaTasks, err := fixture.readTasks(ctx, betaTeam)
 	require.NoError(t, err)
 	require.Len(t, betaTasks, 1)
 	assert.Equal(t, beta.teams[1].taskID, betaTasks[0].PublicID)

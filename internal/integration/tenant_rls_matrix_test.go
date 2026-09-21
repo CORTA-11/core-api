@@ -64,20 +64,37 @@ func TestTenantRLSMatrix(t *testing.T) {
 		})
 	}
 
-	alphaTeams, err := fixture.teamService.GetTeams(ctx, alphaSpecific)
+	var alphaTeams []tenantdb.Team
+	err := fixture.executor.WithinOrganization(ctx, alphaSpecific, func(queries *tenantdb.Queries) error {
+		var err error
+		alphaTeams, err = queries.GetTeams(ctx, 100)
+		return err
+	})
 	require.NoError(t, err)
 	require.Len(t, alphaTeams, 2)
 	assert.ElementsMatch(t, []uuid.UUID{alpha.teams[0].publicID, alpha.teams[1].publicID}, []uuid.UUID{
 		alphaTeams[0].PublicID, alphaTeams[1].PublicID,
 	})
-	betaTeams, err := fixture.teamService.GetTeams(ctx, betaSpecific)
+	var betaTeams []tenantdb.Team
+	err = fixture.executor.WithinOrganization(ctx, betaSpecific, func(queries *tenantdb.Queries) error {
+		var err error
+		betaTeams, err = queries.GetTeams(ctx, 100)
+		return err
+	})
 	require.NoError(t, err)
 	require.Len(t, betaTeams, 2)
 	assert.ElementsMatch(t, []uuid.UUID{beta.teams[0].publicID, beta.teams[1].publicID}, []uuid.UUID{
 		betaTeams[0].PublicID, betaTeams[1].PublicID,
 	})
 
-	createdTeam, err := fixture.teamService.CreateTeam(ctx, alphaShared, "Alpha Runtime Team", "shared@tenant-boundary.example.test")
+	var createdTeam tenantdb.Team
+	err = fixture.executor.WithinOrganization(ctx, alphaShared, func(queries *tenantdb.Queries) error {
+		var err error
+		createdTeam, err = queries.CreateTeamWithCreator(ctx, tenantdb.CreateTeamWithCreatorParams{
+			Name: "Alpha Runtime Team", Slug: "alpha-runtime-team", LeaderEmail: "shared@tenant-boundary.example.test",
+		})
+		return err
+	})
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, createdTeam.PublicID)
 	_, err = fixture.resolver.ResolveTeam(ctx, alphaShared, createdTeam.PublicID)
@@ -90,14 +107,29 @@ func TestTenantRLSMatrix(t *testing.T) {
 	assertTaskScope(t, fixture, betaTeamOne, beta.teams[0].taskID)
 	assertTaskScope(t, fixture, betaTeamTwo, beta.teams[1].taskID)
 
-	createdTask, err := fixture.taskService.CreateTask(ctx, alphaTeamOne, "same-team runtime write", "in_progress")
+	var createdTask tenantdb.Task
+	err = fixture.executor.WithinTeam(ctx, alphaTeamOne, func(queries *tenantdb.Queries) error {
+		var err error
+		createdTask, err = queries.CreateTask(ctx, tenantdb.CreateTaskParams{Description: "same-team runtime write", Status: "in_progress"})
+		return err
+	})
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, createdTask.PublicID)
-	updatedTask, err := fixture.taskService.UpdateTask(ctx, alphaTeamOne, createdTask.PublicID, "same-team runtime update", "done")
+	var updatedTask tenantdb.Task
+	err = fixture.executor.WithinTeam(ctx, alphaTeamOne, func(queries *tenantdb.Queries) error {
+		var err error
+		updatedTask, err = queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{PublicID: createdTask.PublicID, Description: "same-team runtime update", Status: "done"})
+		return err
+	})
 	require.NoError(t, err)
 	assert.Equal(t, "same-team runtime update", updatedTask.Description)
 	assert.Equal(t, "done", updatedTask.Status)
-	deletedTask, err := fixture.taskService.DeleteTask(ctx, alphaTeamOne, createdTask.PublicID)
+	var deletedTask tenantdb.Task
+	err = fixture.executor.WithinTeam(ctx, alphaTeamOne, func(queries *tenantdb.Queries) error {
+		var err error
+		deletedTask, err = queries.DeleteTask(ctx, createdTask.PublicID)
+		return err
+	})
 	require.NoError(t, err)
 	assert.Equal(t, createdTask.PublicID, deletedTask.PublicID)
 
@@ -110,9 +142,15 @@ func TestTenantRLSMatrix(t *testing.T) {
 		{"unknown", uuid.MustParse("40000000-0000-4000-8000-000000000099")},
 	} {
 		t.Run(denied.name+" task mutations are absent", func(t *testing.T) {
-			_, updateErr := fixture.taskService.UpdateTask(ctx, alphaTeamOne, denied.target, "forbidden update", "done")
+			updateErr := fixture.executor.WithinTeam(ctx, alphaTeamOne, func(queries *tenantdb.Queries) error {
+				_, err := queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{PublicID: denied.target, Description: "forbidden update", Status: "done"})
+				return err
+			})
 			require.True(t, errors.Is(updateErr, pgx.ErrNoRows), updateErr)
-			_, deleteErr := fixture.taskService.DeleteTask(ctx, alphaTeamOne, denied.target)
+			deleteErr := fixture.executor.WithinTeam(ctx, alphaTeamOne, func(queries *tenantdb.Queries) error {
+				_, err := queries.DeleteTask(ctx, denied.target)
+				return err
+			})
 			require.True(t, errors.Is(deleteErr, pgx.ErrNoRows), deleteErr)
 		})
 	}
@@ -125,19 +163,10 @@ func TestTenantRLSMatrix(t *testing.T) {
 func assertTaskScope(t *testing.T, fixture *tenantBoundaryFixture, team tenancy.TeamContext, wantTask uuid.UUID) {
 	t.Helper()
 	ctx := context.Background()
-	tasks, err := fixture.taskService.GetTasks(ctx, team)
+	tasks, err := fixture.readTasks(ctx, team)
 	require.NoError(t, err)
 	require.Len(t, tasks, 1)
 	assert.Equal(t, wantTask, tasks[0].PublicID)
-
-	var generatedRows []tenantdb.Task
-	require.NoError(t, fixture.executor.WithinTeam(ctx, team, func(queries *tenantdb.Queries) error {
-		var queryErr error
-		generatedRows, queryErr = queries.GetTasks(ctx, 100)
-		return queryErr
-	}))
-	require.Len(t, generatedRows, 1)
-	assert.Equal(t, wantTask, generatedRows[0].PublicID)
 }
 
 func assertPrivilegedTask(

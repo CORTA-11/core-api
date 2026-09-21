@@ -10,7 +10,6 @@ import (
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 )
 
-// main runs the command.
 func main() {
 	slog.SetDefault(logging.New("bootstrap"))
 	if err := run(context.Background()); err != nil {
@@ -19,7 +18,6 @@ func main() {
 	}
 }
 
-// run runs the command workflow.
 func run(ctx context.Context) error {
 	cfg, err := config.Load()
 	if err != nil {

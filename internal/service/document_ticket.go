@@ -14,16 +14,17 @@ import (
 )
 
 type DocumentSocketTicketClaims struct {
-	UserID     uuid.UUID `json:"user_id"`
-	OrgID      uuid.UUID `json:"org_id"`
-	TeamID     uuid.UUID `json:"team_id"`
-	DocumentID uuid.UUID `json:"document_id"`
-	Purpose    string    `json:"purpose"`
-	ExpiresAt  int64     `json:"exp"`
+	UserID      uuid.UUID `json:"user_id"`
+	DisplayName string    `json:"display_name"`
+	OrgID       uuid.UUID `json:"org_id"`
+	TeamID      uuid.UUID `json:"team_id"`
+	DocumentID  uuid.UUID `json:"document_id"`
+	Purpose     string    `json:"purpose"`
+	ExpiresAt   int64     `json:"exp"`
 }
 
 func (application *DocumentApplication) IssueSocketTicket(
-	ctx context.Context, principal session.Principal, organizationID, teamID, documentID uuid.UUID,
+	ctx context.Context, principal session.Principal, displayName string, organizationID, teamID, documentID uuid.UUID,
 ) (string, error) {
 	if application == nil || application.authorizer == nil || len(application.ticketSecret) < 32 {
 		return "", errors.New("document socket ticket is not configured")
@@ -53,7 +54,7 @@ func (application *DocumentApplication) IssueSocketTicket(
 		return "", fmt.Errorf("authorize Document Room ticket: %w", err)
 	}
 	ticket, err := signSocketTicket(DocumentSocketTicketClaims{
-		UserID: principal.UserID, OrgID: organizationID, TeamID: teamID,
+		UserID: principal.UserID, DisplayName: displayName, OrgID: organizationID, TeamID: teamID,
 		DocumentID: documentID, Purpose: "document", ExpiresAt: time.Now().Add(socketTicketTTL).Unix(),
 	}, application.ticketSecret)
 	if err != nil {

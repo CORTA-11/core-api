@@ -129,6 +129,23 @@ func TestInventoryPoliciesMatchOpenAPI(t *testing.T) {
 	}
 }
 
+func TestCollaborationPolicyMetadataMatchesOpenAPI(t *testing.T) {
+	document, err := Load(context.Background(), contractPath())
+	require.NoError(t, err)
+	for _, route := range Routes {
+		if !strings.Contains(route.Pattern, "/documents") && !strings.HasSuffix(route.Pattern, "/socket-ticket") {
+			continue
+		}
+		operation := document.Paths.Find(route.Pattern).GetOperation(route.Method)
+		require.NotNil(t, operation, "%s %s", route.Method, route.Pattern)
+		assert.Equal(t, string(route.Authentication), operation.Extensions["x-authentication"], "%s authentication metadata", route.OperationID)
+		assert.Equal(t, string(route.CSRF), operation.Extensions["x-csrf"], "%s CSRF metadata", route.OperationID)
+		assert.Equal(t, string(route.Permission), operation.Extensions["x-permission"], "%s permission metadata", route.OperationID)
+		assert.Equal(t, string(route.BodyLimit), operation.Extensions["x-body-limit"], "%s body-limit metadata", route.OperationID)
+		assert.Equal(t, string(route.RateLimit), operation.Extensions["x-rate-limit"], "%s rate-limit metadata", route.OperationID)
+	}
+}
+
 func TestInventoryMetadataUsesClosedValues(t *testing.T) {
 	for _, route := range Routes {
 		assert.Contains(t, []AuthenticationPolicy{AuthenticationPublic, AuthenticationRequired, AuthenticationLogout, AuthenticationService}, route.Authentication)

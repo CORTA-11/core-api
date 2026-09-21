@@ -34,7 +34,6 @@ type AuthHandler struct {
 	keys          KeyService
 }
 
-// NewAuthRouter creates an auth router.
 func NewAuthRouter(
 	manager *session.Manager,
 	verifier identity.CredentialVerifier,
@@ -45,7 +44,6 @@ func NewAuthRouter(
 	return NewRateLimitedAuthRouter(manager, verifier, hasher, environment, allowedOrigins, nil)
 }
 
-// NewRateLimitedAuthRouter creates a rate limited auth router.
 func NewRateLimitedAuthRouter(
 	manager *session.Manager,
 	verifier identity.CredentialVerifier,
@@ -313,7 +311,6 @@ func (handler *AuthHandler) logout(writer http.ResponseWriter, request *http.Req
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-// list handles the list operation.
 func (handler *AuthHandler) list(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -330,7 +327,6 @@ func (handler *AuthHandler) list(
 	}{Sessions: items})
 }
 
-// revokeAll revokes all.
 func (handler *AuthHandler) revokeAll(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -345,7 +341,6 @@ func (handler *AuthHandler) revokeAll(
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-// revokeSpecific revokes specific.
 func (handler *AuthHandler) revokeSpecific(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -371,7 +366,6 @@ func (handler *AuthHandler) revokeSpecific(
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-// changePassword changes password.
 func (handler *AuthHandler) changePassword(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -402,19 +396,16 @@ func (handler *AuthHandler) changePassword(
 	_ = httpx.WriteJSON(writer, http.StatusOK, responseFor(issued.Authentication, issued.CSRFToken))
 }
 
-// validUnsafe checks whether unsafe is valid.
 func (handler *AuthHandler) validUnsafe(request *http.Request, authentication session.Authentication) bool {
 	return handler.validOrigin(request) &&
 		handler.manager.ValidCSRF(authentication, request.Header.Get("X-CSRF-Token"))
 }
 
-// validOrigin checks whether origin is valid.
 func (handler *AuthHandler) validOrigin(request *http.Request) bool {
 	_, ok := handler.allowedOrigin[request.Header.Get("Origin")]
 	return ok && request.Header.Get("Origin") != ""
 }
 
-// setCookie sets cookie.
 func (handler *AuthHandler) setCookie(writer http.ResponseWriter, token string) {
 	// #nosec G124 -- handler.cookie is the complete environment-derived policy.
 	cookie := handler.cookie
@@ -422,7 +413,6 @@ func (handler *AuthHandler) setCookie(writer http.ResponseWriter, token string) 
 	http.SetCookie(writer, &cookie)
 }
 
-// clearCookie clears cookie.
 func (handler *AuthHandler) clearCookie(writer http.ResponseWriter) {
 	// #nosec G124 -- clearing reuses the exact complete issuance policy.
 	cookie := handler.cookie

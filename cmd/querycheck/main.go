@@ -13,7 +13,6 @@ import (
 
 const queryDirectory = "db/queries"
 
-// main runs the command.
 func main() {
 	root, err := os.OpenRoot(queryDirectory)
 	if err != nil {

@@ -12,7 +12,7 @@ include tools.mk
 
 .PHONY: check build image fmt fmt-check mod-check static vet lint diagnostics sec secrets migrations-check queries-check contract-check \
 	test test-unit test-race test-integration test-isolation test-contract generate generate-check \
-	bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status seed run provisioner bootstrap assign-org-owner verify-org-owners tools clean-tools
+	bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status run provisioner bootstrap assign-org-owner verify-org-owners tools clean-tools
 
 check: fmt-check mod-check build generate-check migrations-check queries-check contract-check static sec
 
@@ -114,7 +114,7 @@ clean-tools:
 	rm -rf "$(TOOLS_DIR)"
 
 # Runtime targets alone load local environment values. Explicit URLs win.
-RUNTIME_GOALS := run provisioner seed bootstrap bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status assign-org-owner verify-org-owners
+RUNTIME_GOALS := run provisioner bootstrap bootstrap-db migrate-up-all migrate-down-all migrate-up migrate-down migrate-status assign-org-owner verify-org-owners
 ifneq ($(filter $(RUNTIME_GOALS),$(MAKECMDGOALS)),)
 -include .env
 
@@ -164,7 +164,7 @@ ifneq ($(filter provisioner,$(MAKECMDGOALS)),)
 export PROVISIONING_DATABASE_URL
 endif
 
-ifneq ($(filter seed migrate-up-all migrate-down-all migrate-up migrate-down migrate-status,$(MAKECMDGOALS)),)
+ifneq ($(filter migrate-up-all migrate-down-all migrate-up migrate-down migrate-status,$(MAKECMDGOALS)),)
 export MIGRATION_DATABASE_URL
 endif
 
@@ -194,9 +194,6 @@ migrate-down:
 migrate-status:
 	go run "$(PUBLIC_MIGRATION_PATH)" status
 
-seed:
-	go run ./cmd/seed
-
 run:
 	go run ./cmd/api
 
@@ -205,11 +202,3 @@ provisioner:
 
 bootstrap:
 	go run ./cmd/bootstrap
-
-verify-org-owners:
-	go run ./cmd/admin org owner verify
-
-assign-org-owner:
-	@test -n "$(ORG_ID)"
-	@test -n "$(USER_ID)"
-	go run ./cmd/admin org owner assign --org "$(ORG_ID)" --user "$(USER_ID)"

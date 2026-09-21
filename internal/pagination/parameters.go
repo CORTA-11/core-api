@@ -21,7 +21,6 @@ type Parameters struct {
 	Cursor   string
 }
 
-// Parse parses the supplied values.
 func Parse(values url.Values) (Parameters, error) {
 	result := Parameters{PageSize: DefaultPageSize}
 	if _, exists := values["offset"]; exists {

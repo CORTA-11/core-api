@@ -28,7 +28,6 @@ type parsedArgon2IDHash struct {
 	digest      []byte
 }
 
-// parseArgon2IDHash parses argon 2 idha sh.
 func parseArgon2IDHash(encoded string) (parsedArgon2IDHash, error) {
 	if len(encoded) == 0 || len(encoded) > maximumEncodedHashBytes {
 		return parsedArgon2IDHash{}, ErrInvalidPasswordHash
@@ -73,7 +72,6 @@ func parseArgon2IDHash(encoded string) (parsedArgon2IDHash, error) {
 	}, nil
 }
 
-// parseCanonicalUint parses canonical uint.
 func parseCanonicalUint(field, prefix string, maximum uint64) (uint64, bool) {
 	valueText, ok := strings.CutPrefix(field, prefix)
 	if !ok || valueText == "" || (len(valueText) > 1 && valueText[0] == '0') {
@@ -91,7 +89,6 @@ func parseCanonicalUint(field, prefix string, maximum uint64) (uint64, bool) {
 	return value, true
 }
 
-// decodeBoundedBase64 decodes bounded base 64.
 func decodeBoundedBase64(encoded string, maximumBytes int) ([]byte, bool) {
 	if len(encoded) < 2 || len(encoded) > base64.RawStdEncoding.EncodedLen(maximumBytes) {
 		return nil, false

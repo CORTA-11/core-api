@@ -41,12 +41,10 @@ type InvitationApplication struct {
 	random  io.Reader
 }
 
-// NewInvitationApplication creates an invitation application.
 func NewInvitationApplication(pool *pgxpool.Pool, binding *invitation.Binding) *InvitationApplication {
 	return &InvitationApplication{pool: pool, binding: binding, random: rand.Reader}
 }
 
-// Create creates the requested resource.
 func (application *InvitationApplication) Create(ctx context.Context, principal session.Principal, orgID uuid.UUID, email string) (InvitationCreatedView, error) {
 	if application == nil || application.pool == nil || application.binding == nil || !validPrincipal(principal) {
 		return InvitationCreatedView{}, authorization.ErrUnauthenticated
@@ -91,7 +89,6 @@ func (application *InvitationApplication) Create(ctx context.Context, principal 
 	return InvitationCreatedView{InvitationView: InvitationView{ID: row.PublicID, CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt}, Token: token}, nil
 }
 
-// Preview handles the preview operation.
 func (application *InvitationApplication) Preview(ctx context.Context, token string) (InvitationPreview, error) {
 	_, hash, err := application.binding.ParseToken(token)
 	if err != nil {
@@ -107,7 +104,6 @@ func (application *InvitationApplication) Preview(ctx context.Context, token str
 	return InvitationPreview{OrganizationID: row.OrganizationPublicID, OrganizationName: row.OrganizationName, ExpiresAt: row.ExpiresAt}, nil
 }
 
-// List lists the requested resources.
 func (application *InvitationApplication) List(ctx context.Context, principal session.Principal, orgID uuid.UUID) ([]InvitationView, error) {
 	tx, err := application.pool.Begin(ctx)
 	if err != nil {
@@ -136,7 +132,6 @@ func (application *InvitationApplication) List(ctx context.Context, principal se
 	return views, tx.Commit(ctx)
 }
 
-// Revoke handles the revoke operation.
 func (application *InvitationApplication) Revoke(ctx context.Context, principal session.Principal, orgID, invitationID uuid.UUID) error {
 	tx, err := application.pool.Begin(ctx)
 	if err != nil {
@@ -164,7 +159,6 @@ func (application *InvitationApplication) Revoke(ctx context.Context, principal 
 	return tx.Commit(ctx)
 }
 
-// Consume handles the consume operation.
 func (application *InvitationApplication) Consume(ctx context.Context, principal session.Principal, token string, accept bool) error {
 	if !validPrincipal(principal) {
 		return authorization.ErrUnauthenticated
@@ -211,7 +205,6 @@ func (application *InvitationApplication) Consume(ctx context.Context, principal
 	return tx.Commit(ctx)
 }
 
-// Cleanup handles the cleanup operation.
 func (application *InvitationApplication) Cleanup(ctx context.Context) (int64, error) {
 	return publicdb.New(application.pool).PurgeExpiredOrganizationInvitations(ctx, 100)
 }

@@ -23,7 +23,6 @@ type fileService struct {
 // MaxFileUploadBytes bounds both HTTP and service-level file ingestion.
 const MaxFileUploadBytes int64 = 10 << 20
 
-// NewFileService creates a new instance of FileService.
 func NewFileService(minioClient *miniogo.Client, bucket string, authorizer applicationAuthorizer) FileService {
 	return &fileService{
 		minioClient: minioClient,
@@ -32,7 +31,6 @@ func NewFileService(minioClient *miniogo.Client, bucket string, authorizer appli
 	}
 }
 
-// UploadFile uploads file.
 func (s *fileService) UploadFile(
 	ctx context.Context,
 	p session.Principal,
@@ -104,7 +102,6 @@ func (s *fileService) UploadFile(
 	}, nil
 }
 
-// DownloadFile downloads file.
 func (s *fileService) DownloadFile(
 	ctx context.Context,
 	p session.Principal,
@@ -156,7 +153,6 @@ func (s *fileService) DownloadFile(
 	return view, object, nil
 }
 
-// ListFiles lists files.
 func (s *fileService) ListFiles(
 	ctx context.Context,
 	p session.Principal,
@@ -201,7 +197,6 @@ func (s *fileService) ListFiles(
 	return views, nil
 }
 
-// DeleteFile deletes file.
 func (s *fileService) DeleteFile(
 	ctx context.Context,
 	p session.Principal,

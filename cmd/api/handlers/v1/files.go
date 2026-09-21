@@ -10,7 +10,6 @@ import (
 	"github.com/CORTA-11/core-api/internal/service"
 )
 
-// getPublicKeysForTeam gets public keys for team.
 func (handler *ResourceHandler) getPublicKeysForTeam(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -107,7 +106,6 @@ func (handler *ResourceHandler) addTeamKeyMemberWrap(writer http.ResponseWriter,
 	_ = httpx.WriteJSON(writer, http.StatusOK, key)
 }
 
-// uploadFile uploads file.
 func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -169,7 +167,6 @@ func (handler *ResourceHandler) uploadFile(writer http.ResponseWriter, request *
 	_ = httpx.WriteJSON(writer, http.StatusCreated, metadata)
 }
 
-// listFiles lists files.
 func (handler *ResourceHandler) listFiles(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -188,7 +185,6 @@ func (handler *ResourceHandler) listFiles(writer http.ResponseWriter, request *h
 	_ = httpx.WriteJSON(writer, http.StatusOK, files)
 }
 
-// downloadFile downloads file.
 func (handler *ResourceHandler) downloadFile(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
@@ -217,7 +213,6 @@ func (handler *ResourceHandler) downloadFile(writer http.ResponseWriter, request
 	_, _ = io.Copy(writer, stream)
 }
 
-// deleteFile deletes file.
 func (handler *ResourceHandler) deleteFile(writer http.ResponseWriter, request *http.Request) {
 	authentication, ok := authenticationFrom(request)
 	orgID, validOrg := routeUUID(request, "org_id")
