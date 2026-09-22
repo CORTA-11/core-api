@@ -4,3 +4,4 @@ checks.txt
 .env
 .cache/
 .local_secrets/
+dev_secrets/

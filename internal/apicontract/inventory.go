@@ -121,4 +121,5 @@ var Routes = [...]Route{
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket", "issueDocumentSocketTicket", AuthenticationRequired, CSRFRequired, authorization.PermissionRealtimeConnect, BodyNone, RateNone},
 	{http.MethodGet, "/internal/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/state", "loadDocumentState", AuthenticationService, CSRFNone, authorization.PermissionDocumentRead, BodyNone, RateNone},
 	{http.MethodPut, "/internal/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/state", "storeDocumentState", AuthenticationService, CSRFNone, authorization.PermissionDocumentUpdate, BodyCollaborationJSON, RateNone},
+	{http.MethodPost, "/api/v1/devices", "registerDevice", AuthenticationRequired, CSRFRequired, "", BodyJSON, RateNone},
 }

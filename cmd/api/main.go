@@ -21,6 +21,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/logging"
 	appMinio "github.com/CORTA-11/core-api/internal/minio"
 	"github.com/CORTA-11/core-api/internal/pagination"
+	"github.com/CORTA-11/core-api/internal/push"
 	"github.com/CORTA-11/core-api/internal/ratelimit"
 	"github.com/CORTA-11/core-api/internal/realtime"
 	"github.com/CORTA-11/core-api/internal/repository/publicdb"
@@ -149,7 +150,32 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	keyService := service.NewKeyService(pool, authorizer)
 	keyAccess := service.NewKeyAccessApplication(authorizer)
 	fileService := service.NewFileService(minioClient, cfg.MinIO.Bucket, authorizer)
-	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET")))
+
+	devices := service.NewDeviceApplication(publicQueries)
+
+	var pushService push.Service = &push.NoopService{}
+	firebaseCredPath := os.Getenv("FIREBASE_CREDENTIALS_FILE")
+	if firebaseCredPath == "" {
+		if _, err := os.Stat("secrets/firebase_service_account.json"); err == nil {
+			firebaseCredPath = "secrets/firebase_service_account.json"
+		} else if _, err := os.Stat("dev_secrets/firebase_service_account.json"); err == nil {
+			firebaseCredPath = "dev_secrets/firebase_service_account.json"
+		}
+	}
+	if firebaseCredPath != "" {
+		fcmSvc, err := push.NewFCMServiceFromFile(ctx, firebaseCredPath, publicQueries, logger)
+		if err != nil {
+			logger.Warn("unable to initialize FCM service", "path", firebaseCredPath, "error", err)
+		} else {
+			pushService = fcmSvc
+			logger.Info("initialized FCM push notification service", "path", firebaseCredPath)
+		}
+	} else {
+		logger.Info("no firebase credentials provided; push notifications disabled")
+	}
+
+	chat := service.NewChatApplication(authorizer, realtime.NewChatPublisherFromEnv(rdb), service.SocketTicketSecret(os.Getenv("JWT_SECRET"))).
+		WithPushNotification(publicQueries, pushService)
 	aiClient, err := service.NewHTTPAIClient(cfg.AIServiceURL, cfg.AIServiceToken, cfg.AIServiceTimeout)
 	if err != nil {
 		return fmt.Errorf("configure AI service client: %w", err)
@@ -167,6 +193,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Keys: keyService, Files: fileService, Chat: chat,
 		KeyAccess:                  keyAccess,
 		AI:                         ai,
+		Devices:                    devices,
 		Environment:                cfg.Environment,
 		Origins:                    cfg.HTTPOrigins,
 		TrustedProxies:             cfg.TrustedProxies,

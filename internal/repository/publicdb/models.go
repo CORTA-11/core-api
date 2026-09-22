@@ -73,6 +73,15 @@ type User struct {
 	PasswordNormalization string             `json:"password_normalization"`
 }
 
+type UserDeviceToken struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Token     string    `json:"token"`
+	Platform  string    `json:"platform"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type UserPublicKey struct {
 	UserID              uuid.UUID   `json:"user_id"`
 	PublicKey           string      `json:"public_key"`

@@ -110,6 +110,11 @@ type AIService interface {
 	Process(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.AIProcessInput) (service.AIProcessResult, error)
 }
 
+type DeviceService interface {
+	RegisterDevice(ctx context.Context, userID uuid.UUID, token string, platform string) error
+	DeleteDevice(ctx context.Context, token string) error
+}
+
 type RouterConfig struct {
 	Manager                    *session.Manager
 	Verifier                   identity.CredentialVerifier
@@ -125,6 +130,7 @@ type RouterConfig struct {
 	Files                      FileService
 	Chat                       ChatService
 	AI                         AIService
+	Devices                    DeviceService
 	Environment                string
 	Origins                    httpx.OriginPolicy
 	TrustedProxies             httpx.TrustedProxies
@@ -171,6 +177,7 @@ func NewRouter(config RouterConfig) *Router {
 		files:                      config.Files,
 		chat:                       config.Chat,
 		ai:                         config.AI,
+		devices:                    config.Devices,
 		collaborationServiceSecret: append([]byte(nil), config.CollaborationServiceSecret...),
 	}
 	router.compose()
@@ -341,6 +348,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.loadDocumentState)
 	case "storeDocumentState":
 		return http.HandlerFunc(router.resources.storeDocumentState)
+	case "registerDevice":
+		return http.HandlerFunc(router.resources.registerDevice)
 	default:
 		return problemHandler(httpx.ProblemInternalFailure)
 	}
@@ -437,6 +446,7 @@ var resourceOperationIDs = map[string]struct{}{
 	"updateDocument":                       {},
 	"deleteDocument":                       {},
 	"issueDocumentSocketTicket":            {},
+	"registerDevice":                       {},
 }
 
 func isResourceOperation(operationID string) bool {
@@ -467,7 +477,8 @@ func isResourceOperation(operationID string) bool {
 		operationID == "processAI" ||
 		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
 		operationID == "updateDocument" || operationID == "deleteDocument" ||
-		operationID == "issueDocumentSocketTicket"
+		operationID == "issueDocumentSocketTicket" ||
+		operationID == "registerDevice"
 }
 
 func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {

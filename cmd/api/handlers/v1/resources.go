@@ -30,6 +30,7 @@ type ResourceHandler struct {
 	chat                       ChatService
 	documents                  DocumentService
 	ai                         AIService
+	devices                    DeviceService
 	collaborationServiceSecret []byte
 }
 

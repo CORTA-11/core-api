@@ -1388,6 +1388,35 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
         '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/devices:
+    post:
+      tags: [Devices]
+      operationId: registerDevice
+      summary: Register or update device push token
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: {type: string}
+                platform: {type: string, default: 'android'}
+      responses:
+        '200':
+          description: Device token registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
 components:
   securitySchemes:
     sessionCookie:
