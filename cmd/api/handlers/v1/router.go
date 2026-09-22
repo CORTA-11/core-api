@@ -106,6 +106,10 @@ type ChatService interface {
 	IssueSocketTicket(context.Context, session.Principal, uuid.UUID, uuid.UUID) (string, error)
 }
 
+type AIService interface {
+	Process(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.AIProcessInput) (service.AIProcessResult, error)
+}
+
 type RouterConfig struct {
 	Manager                    *session.Manager
 	Verifier                   identity.CredentialVerifier
@@ -120,6 +124,7 @@ type RouterConfig struct {
 	KeyAccess                  KeyAccessService
 	Files                      FileService
 	Chat                       ChatService
+	AI                         AIService
 	Environment                string
 	Origins                    httpx.OriginPolicy
 	TrustedProxies             httpx.TrustedProxies
@@ -165,6 +170,7 @@ func NewRouter(config RouterConfig) *Router {
 		keyAccess:                  config.KeyAccess,
 		files:                      config.Files,
 		chat:                       config.Chat,
+		ai:                         config.AI,
 		collaborationServiceSecret: append([]byte(nil), config.CollaborationServiceSecret...),
 	}
 	router.compose()
@@ -317,6 +323,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.deleteChatMessage)
 	case "issueChatSocketTicket":
 		return http.HandlerFunc(router.resources.issueChatSocketTicket)
+	case "processAI":
+		return http.HandlerFunc(router.resources.processAI)
 	case "listDocuments":
 		return http.HandlerFunc(router.resources.listDocuments)
 	case "createDocument":
@@ -432,8 +440,34 @@ var resourceOperationIDs = map[string]struct{}{
 }
 
 func isResourceOperation(operationID string) bool {
-	_, exists := resourceOperationIDs[operationID]
-	return exists
+	return operationID == "listOrganizations" || operationID == "createOrganization" ||
+		operationID == "getOrganization" || operationID == "updateOrganization" ||
+		operationID == "deleteOrganization" || operationID == "restoreOrganization" ||
+		operationID == "listTeams" || operationID == "createTeam" || operationID == "listTasks" ||
+		operationID == "createTask" || operationID == "updateTask" || operationID == "deleteTask" ||
+		operationID == "listOrganizationInvitations" || operationID == "createOrganizationInvitation" ||
+		operationID == "listOrganizationMembers" ||
+		operationID == "revokeOrganizationInvitation" || operationID == "acceptCurrentOrganizationInvitation" ||
+		operationID == "declineCurrentOrganizationInvitation" ||
+		operationID == "listTeamMembers" || operationID == "addTeamMember" ||
+		operationID == "listResources" || operationID == "createResource" ||
+		operationID == "updateResource" || operationID == "deleteResource" ||
+		operationID == "listBookings" || operationID == "createResourceRequest" ||
+		operationID == "listResourceRequests" || operationID == "decideResourceRequest" ||
+		operationID == "upsertUserKeys" || operationID == "getUserKeys" ||
+		operationID == "getPublicKeysForTeam" ||
+		operationID == "createTeamKey" || operationID == "listTeamKeys" ||
+		operationID == "addTeamKeyMemberWrap" || operationID == "createKeyAccessRequest" ||
+		operationID == "listKeyAccessRequests" || operationID == "approveKeyAccessRequest" ||
+		operationID == "denyKeyAccessRequest" ||
+		operationID == "uploadFile" || operationID == "listFiles" ||
+		operationID == "downloadFile" || operationID == "deleteFile" ||
+		operationID == "listChatMessages" || operationID == "createChatMessage" ||
+		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
+		operationID == "processAI" ||
+		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
+		operationID == "updateDocument" || operationID == "deleteDocument" ||
+		operationID == "issueDocumentSocketTicket"
 }
 
 func (router *Router) ready(writer http.ResponseWriter, request *http.Request) {

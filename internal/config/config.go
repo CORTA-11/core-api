@@ -49,6 +49,9 @@ type Config struct {
 	RateLimits                 ratelimit.Policies
 	PprofEnabled               bool
 	PprofAddr                  string
+	AIServiceURL               string
+	AIServiceToken             string
+	AIServiceTimeout           time.Duration
 }
 
 type CursorKeys struct {
@@ -159,12 +162,23 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		HTTPIdleTimeout:       60 * time.Second,
 		ShutdownTimeout:       10 * time.Second,
 		DependencyTimeout:     3 * time.Second,
+		AIServiceURL:          valueOrDefault(lookup, "AI_SERVICE_URL", "http://127.0.0.1:8081"),
+		AIServiceToken:        value(lookup, "AI_SERVICE_TOKEN"),
+		AIServiceTimeout:      35 * time.Second,
 		MinIO: MinIO{
 			Endpoint:  value(lookup, "MINIO_ENDPOINT"),
 			AccessKey: value(lookup, "MINIO_ACCESS_KEY"),
 			SecretKey: value(lookup, "MINIO_SECRET_KEY"),
 			Bucket:    value(lookup, "MINIO_BUCKET_NAME"),
 		},
+	}
+	if raw, ok := lookup("AI_SERVICE_TIMEOUT"); ok && strings.TrimSpace(raw) != "" {
+		duration, parseErr := time.ParseDuration(raw)
+		if parseErr != nil || duration <= 0 || duration > 2*time.Minute {
+			problems = append(problems, errors.New("AI_SERVICE_TIMEOUT must be a duration between 0 and 2m"))
+		} else {
+			config.AIServiceTimeout = duration
+		}
 	}
 
 	var err error

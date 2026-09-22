@@ -1338,6 +1338,30 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/ai/process:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Chat]
+      operationId: processAI
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AIProcessRequest'}
+      responses:
+        '200':
+          description: Validated summary and candidate action items
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AIProcessResponse'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/chat/socket-ticket:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
     post:
@@ -1721,6 +1745,68 @@ components:
       required: [messages]
       properties:
         messages: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ChatMessage'}}
+    AIProviderConfig:
+      type: object
+      additionalProperties: false
+      required: [protocol, endpoint_url, model, api_token]
+      properties:
+        protocol: {type: string, enum: [openai_chat_completions_v1]}
+        endpoint_url: {type: string, format: uri, maxLength: 2048}
+        model: {type: string, minLength: 1, maxLength: 200}
+        api_token: {type: string, minLength: 1, maxLength: 8000, writeOnly: true}
+        structured_output: {type: boolean, default: true}
+    AIProcessOptions:
+      type: object
+      additionalProperties: false
+      required: [response_language, max_action_items]
+      properties:
+        response_language: {type: string, minLength: 2, maxLength: 20, default: en}
+        max_action_items: {type: integer, minimum: 0, maximum: 50, default: 10}
+    AIProcessRequest:
+      type: object
+      additionalProperties: false
+      required: [provider, options]
+      properties:
+        provider: {$ref: '#/components/schemas/AIProviderConfig'}
+        options: {$ref: '#/components/schemas/AIProcessOptions'}
+    AIDecision:
+      type: object
+      additionalProperties: false
+      required: [text, source_message_ids]
+      properties:
+        text: {type: string, minLength: 1, maxLength: 4000}
+        source_message_ids: {type: array, minItems: 1, maxItems: 100, items: {$ref: '#/components/schemas/PublicID'}}
+    AISummary:
+      type: object
+      additionalProperties: false
+      required: [overview, key_points, decisions, open_questions]
+      properties:
+        overview: {type: string, minLength: 1, maxLength: 4000}
+        key_points: {type: array, maxItems: 100, items: {type: string, minLength: 1, maxLength: 4000}}
+        decisions: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/AIDecision'}}
+        open_questions: {type: array, maxItems: 100, items: {type: string, minLength: 1, maxLength: 4000}}
+    AICandidateActionItem:
+      type: object
+      additionalProperties: false
+      required: [candidate_id, title, description, assignee_user_id, priority, due_date, source_message_ids, confidence]
+      properties:
+        candidate_id: {$ref: '#/components/schemas/PublicID'}
+        title: {type: string, minLength: 1, maxLength: 300}
+        description: {type: string, minLength: 1, maxLength: 4000}
+        assignee_user_id: {type: [string, 'null'], format: uuid}
+        priority: {type: [string, 'null'], enum: [low, medium, high, urgent, null]}
+        due_date: {type: [string, 'null'], format: date}
+        source_message_ids: {type: array, minItems: 1, maxItems: 100, items: {$ref: '#/components/schemas/PublicID'}}
+        confidence: {type: number, minimum: 0, maximum: 1}
+    AIProcessResponse:
+      type: object
+      additionalProperties: false
+      required: [schema_version, request_id, summary, action_items]
+      properties:
+        schema_version: {type: string, enum: ['1']}
+        request_id: {$ref: '#/components/schemas/PublicID'}
+        summary: {$ref: '#/components/schemas/AISummary'}
+        action_items: {type: array, maxItems: 50, items: {$ref: '#/components/schemas/AICandidateActionItem'}}
     SocketTicket:
       type: object
       additionalProperties: false

@@ -21,7 +21,7 @@ func TestOpenAPISourceContractIsValidAndClosed(t *testing.T) {
 	document, err := Load(context.Background(), contractPath())
 	require.NoError(t, err)
 	assert.Equal(t, "3.1.2", document.OpenAPI)
-	assert.Len(t, document.Paths.Map(), 40)
+	assert.Len(t, document.Paths.Map(), 41)
 
 	legacyFragments := []string{"/users", "/api/files", "/pprof", "/api/v1/user", "X-Org-ID", "bearer", "jwt"}
 	for path := range document.Paths.Map() {
@@ -73,7 +73,7 @@ func TestOpenAPIOperationIDsAreUnique(t *testing.T) {
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	assert.Len(t, seen, 63)
+	assert.Len(t, seen, 64)
 }
 
 func TestInventoryMatchesOpenAPIBidirectionally(t *testing.T) {
@@ -150,7 +150,7 @@ func TestInventoryMetadataUsesClosedValues(t *testing.T) {
 	for _, route := range Routes {
 		assert.Contains(t, []AuthenticationPolicy{AuthenticationPublic, AuthenticationRequired, AuthenticationLogout, AuthenticationService}, route.Authentication)
 		assert.Contains(t, []CSRFPolicy{CSRFNone, CSRFRequired}, route.CSRF)
-		assert.Contains(t, []BodyLimitClass{BodyNone, BodyAuthJSON, BodyJSON, BodyFile, BodyCollaborationJSON}, route.BodyLimit)
+		assert.Contains(t, []BodyLimitClass{BodyNone, BodyAuthJSON, BodyJSON, BodyFile, BodyCollaborationJSON, BodyAI}, route.BodyLimit)
 		assert.Contains(t, []RateLimitClass{RateNone, RateLogin, RateRegistration, RateAdministrative}, route.RateLimit)
 		if route.Permission != "" {
 			assert.True(t, authorization.ValidPermission(route.Permission), "%s permission", route.OperationID)

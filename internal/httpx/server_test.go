@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -65,6 +66,9 @@ func TestBodyLimitUsesReviewedRouteClass(t *testing.T) {
 }
 
 func TestServerRejectsOversizedAndPartialHeadersAndRemainsHealthy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix domain sockets are not supported by this Windows test environment")
+	}
 	server := NewServer("", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		_, _ = io.ReadAll(request.Body)
 		writer.WriteHeader(http.StatusNoContent)
