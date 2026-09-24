@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -51,6 +52,16 @@ func realMain() int {
 }
 
 func run(ctx context.Context, logger *slog.Logger) error {
+
+	// let's run some pprof. this is atrocious. need to refactor this
+	go func() {
+		err := http.ListenAndServe(":6060", http.DefaultServeMux)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+	}()
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
