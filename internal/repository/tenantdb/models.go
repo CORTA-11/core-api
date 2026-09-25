@@ -99,6 +99,13 @@ type Team struct {
 	IsQuarantine bool      `json:"is_quarantine"`
 }
 
+type TeamAiSetting struct {
+	TeamID      int64  `json:"team_id"`
+	EndpointUrl string `json:"endpoint_url"`
+	Model       string `json:"model"`
+	ApiToken    string `json:"api_token"`
+}
+
 type TeamKey struct {
 	ID        int64     `json:"id"`
 	TeamID    int64     `json:"team_id"`

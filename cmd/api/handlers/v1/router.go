@@ -107,6 +107,8 @@ type ChatService interface {
 }
 
 type AIService interface {
+	GetSettings(context.Context, session.Principal, uuid.UUID, uuid.UUID) (service.TeamAISettingsView, error)
+	SaveSettings(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.TeamAISettingsInput) (service.TeamAISettingsView, error)
 	Process(context.Context, session.Principal, uuid.UUID, uuid.UUID, service.AIProcessInput) (service.AIProcessResult, error)
 }
 
@@ -330,6 +332,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.deleteChatMessage)
 	case "issueChatSocketTicket":
 		return http.HandlerFunc(router.resources.issueChatSocketTicket)
+	case "getTeamAISettings", "saveTeamAISettings":
+		return http.HandlerFunc(router.resources.teamAISettings)
 	case "processAI":
 		return http.HandlerFunc(router.resources.processAI)
 	case "listDocuments":
@@ -474,7 +478,7 @@ func isResourceOperation(operationID string) bool {
 		operationID == "downloadFile" || operationID == "deleteFile" ||
 		operationID == "listChatMessages" || operationID == "createChatMessage" ||
 		operationID == "deleteChatMessage" || operationID == "issueChatSocketTicket" ||
-		operationID == "processAI" ||
+		operationID == "processAI" || operationID == "getTeamAISettings" || operationID == "saveTeamAISettings" ||
 		operationID == "listDocuments" || operationID == "createDocument" || operationID == "getDocument" ||
 		operationID == "updateDocument" || operationID == "deleteDocument" ||
 		operationID == "issueDocumentSocketTicket" ||

@@ -57,6 +57,8 @@ type Route struct {
 }
 
 var Routes = [...]Route{
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/ai/settings", "getTeamAISettings", AuthenticationRequired, CSRFNone, authorization.PermissionTeamUpdate, BodyNone, RateNone},
+	{http.MethodPut, "/api/v1/orgs/{org_id}/teams/{team_id}/ai/settings", "saveTeamAISettings", AuthenticationRequired, CSRFRequired, authorization.PermissionTeamUpdate, BodyJSON, RateNone},
 	{http.MethodPost, "/api/v1/auth/register", "register", AuthenticationPublic, CSRFNone, "", BodyAuthJSON, RateRegistration},
 	{http.MethodPost, "/api/v1/auth/login", "login", AuthenticationPublic, CSRFNone, "", BodyAuthJSON, RateLogin},
 	{http.MethodGet, "/api/v1/auth/session", "getCurrentSession", AuthenticationRequired, CSRFNone, "", BodyNone, RateNone},

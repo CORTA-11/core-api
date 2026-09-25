@@ -1338,6 +1338,48 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/ai/settings:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    get:
+      tags: [Chat]
+      operationId: getTeamAISettings
+      summary: Read team AI settings (team admin only)
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Team settings with token presence only; never returns the API token
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TeamAISettings'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
+    put:
+      tags: [Chat]
+      operationId: saveTeamAISettings
+      summary: Save team AI settings (team admin only)
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TeamAISettingsInput'}
+      responses:
+        '200':
+          description: Team settings with token presence only; never returns the API token
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TeamAISettings'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/ai/process:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
     post:
@@ -1356,6 +1398,7 @@ paths:
           content:
             application/json:
               schema: {$ref: '#/components/schemas/AIProcessResponse'}
+        '409': {$ref: '#/components/responses/Conflict'}
         '400': {$ref: '#/components/responses/InvalidRequest'}
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '403': {$ref: '#/components/responses/Forbidden'}
@@ -1774,6 +1817,22 @@ components:
       required: [messages]
       properties:
         messages: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ChatMessage'}}
+    TeamAISettings:
+      type: object
+      additionalProperties: false
+      required: [endpoint_url, model, has_api_token]
+      properties:
+        endpoint_url: {type: string}
+        model: {type: string}
+        has_api_token: {type: boolean}
+    TeamAISettingsInput:
+      type: object
+      additionalProperties: false
+      required: [endpoint_url, model]
+      properties:
+        endpoint_url: {type: string, format: uri, maxLength: 2048}
+        model: {type: string, minLength: 1, maxLength: 200}
+        api_token: {type: string, maxLength: 8000, writeOnly: true, description: 'Omit or leave blank to keep the saved token. Required on first save.'}
     AIProviderConfig:
       type: object
       additionalProperties: false
@@ -1794,10 +1853,11 @@ components:
     AIProcessRequest:
       type: object
       additionalProperties: false
-      required: [provider, options]
+      required: [from, to]
       properties:
-        provider: {$ref: '#/components/schemas/AIProviderConfig'}
-        options: {$ref: '#/components/schemas/AIProcessOptions'}
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+      description: Uses the saved team provider settings. Includes messages within the inclusive date range; rejects ranges with more than 100 messages.
     AIDecision:
       type: object
       additionalProperties: false

@@ -14,6 +14,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 const (
@@ -35,8 +36,8 @@ type AIProcessOptions struct {
 }
 
 type AIProcessInput struct {
-	Provider AIProviderConfig `json:"provider"`
-	Options  AIProcessOptions `json:"options"`
+	From time.Time `json:"from"`
+	To   time.Time `json:"to"`
 }
 
 type AIContextParticipant struct {
@@ -116,8 +117,20 @@ func (application *AIApplication) Process(ctx context.Context, principal session
 	if application == nil || application.authorizer == nil || application.client == nil {
 		return AIProcessResult{}, ErrDependencyUnavailable
 	}
+	if input.From.IsZero() || input.To.IsZero() || input.From.After(input.To) {
+		return AIProcessResult{}, ErrInvalidInput
+	}
+	var provider AIProviderConfig
 	var contextData AIContext
 	err := application.authorizer.WithinTeam(ctx, principal, orgID, teamID, authorization.PermissionRealtimeConnect, func(queries *tenantdb.Queries) error {
+		settings, err := queries.GetTeamAISettings(ctx)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrAISettingsMissing
+		}
+		if err != nil {
+			return err
+		}
+		provider = AIProviderConfig{Protocol: "openai_chat_completions_v1", EndpointURL: settings.EndpointUrl, Model: settings.Model, APIToken: settings.ApiToken, StructuredOutput: true}
 		members, err := queries.ListBoundTeamMembers(ctx, 10000)
 		if err != nil {
 			return err
@@ -128,14 +141,17 @@ func (application *AIApplication) Process(ctx context.Context, principal session
 				PublicUserID: member.UserPublicID.String(), DisplayName: member.DisplayName,
 			})
 		}
-		rows, err := queries.ListChatMessages(ctx, tenantdb.ListChatMessagesParams{Limit: maxAIContextMessages})
+		rows, err := queries.ListAIChatMessages(ctx, tenantdb.ListAIChatMessagesParams{FromTime: input.From, ToTime: input.To, Limit: maxAIContextMessages + 1})
 		if err != nil {
 			return err
 		}
+		if len(rows) > maxAIContextMessages {
+			return ErrInvalidInput
+		}
 		contextData.Messages = make([]AIContextMessage, 0, len(rows))
-		for index := len(rows) - 1; index >= 0; index-- {
+		for index := 0; index < len(rows); index++ {
 			row := rows[index]
-			if row.DeletedAt.Valid || strings.TrimSpace(row.Message) == "" {
+			if strings.TrimSpace(row.Message) == "" {
 				continue
 			}
 			contextData.Messages = append(contextData.Messages, AIContextMessage{
@@ -157,7 +173,7 @@ func (application *AIApplication) Process(ctx context.Context, principal session
 	}
 	return application.client.Process(ctx, AIProcessRequest{
 		SchemaVersion: "1", RequestID: uuid.New(), Operation: "chat_summary_and_actions",
-		Provider: input.Provider, Context: contextData, Options: input.Options,
+		Provider: provider, Context: contextData, Options: AIProcessOptions{ResponseLanguage: "en", MaxActionItems: 10},
 	})
 }
 
@@ -191,7 +207,7 @@ func (client *HTTPAIClient) Process(ctx context.Context, request AIProcessReques
 	if err != nil {
 		return AIProcessResult{}, ErrDependencyUnavailable
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	limited := io.LimitReader(response.Body, maxAIResponseBytes)
 	responseBody, err := io.ReadAll(limited)
 	if err != nil || len(responseBody) == maxAIResponseBytes {

@@ -22,6 +22,7 @@ const (
 	ProblemForbidden             ProblemKind = "forbidden"
 	ProblemNotFound              ProblemKind = "not-found"
 	ProblemConflict              ProblemKind = "conflict"
+	ProblemAISettingsRequired    ProblemKind = "ai-settings-required"
 	ProblemPreconditionFailed    ProblemKind = "precondition-failed"
 	ProblemRateLimited           ProblemKind = "rate-limited"
 	ProblemInternalFailure       ProblemKind = "internal-failure"
@@ -35,6 +36,7 @@ type problemDefinition struct {
 }
 
 var problemRegistry = map[ProblemKind]problemDefinition{
+	ProblemAISettingsRequired:    {http.StatusConflict, "Ask your team admin to configure AI in Team settings.", "No AI provider has been configured for this team."},
 	ProblemInvalidRequest:        {http.StatusBadRequest, "Invalid request", "The request is invalid."},
 	ProblemUnauthenticated:       {http.StatusUnauthorized, "Authentication required", "Authentication is required."},
 	ProblemForbidden:             {http.StatusForbidden, "Forbidden", "The operation is not permitted."},
