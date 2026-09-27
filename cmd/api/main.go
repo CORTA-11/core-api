@@ -29,6 +29,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/CORTA-11/core-api/internal/tenancy"
+	"github.com/CORTA-11/core-api/internal/tracing"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
@@ -65,6 +66,19 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+	if cfg.TraceEnabled {
+		provider, err := tracing.Setup(ctx, cfg.TraceEndpoint, cfg.TraceSampleRatio)
+		if err != nil {
+			return fmt.Errorf("configure tracing: %w", err)
+		}
+		defer func() {
+			flushCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+			defer cancel()
+			if err := provider.Shutdown(flushCtx); err != nil {
+				logger.Warn("trace shutdown failed", "error", err)
+			}
+		}()
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -214,6 +228,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Administrative:             administrative,
 		ReadinessChecks:            readiness,
 		ReadinessTimeout:           cfg.DependencyTimeout,
+		TraceEnabled:               cfg.TraceEnabled,
 		CollaborationServiceSecret: []byte(cfg.CollaborationServiceSecret),
 	})
 

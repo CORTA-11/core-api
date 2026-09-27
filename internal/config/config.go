@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/netip"
 	"net/url"
@@ -52,6 +53,9 @@ type Config struct {
 	AIServiceURL               string
 	AIServiceToken             string
 	AIServiceTimeout           time.Duration
+	TraceEnabled               bool
+	TraceEndpoint              string
+	TraceSampleRatio           float64
 }
 
 type CursorKeys struct {
@@ -165,6 +169,8 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		AIServiceURL:          valueOrDefault(lookup, "AI_SERVICE_URL", "http://127.0.0.1:8085"),
 		AIServiceToken:        value(lookup, "AI_SERVICE_TOKEN"),
 		AIServiceTimeout:      80 * time.Second,
+		TraceEndpoint:         valueOrDefault(lookup, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "http://localhost:4318/v1/traces"),
+		TraceSampleRatio:      1,
 		MinIO: MinIO{
 			Endpoint:  value(lookup, "MINIO_ENDPOINT"),
 			AccessKey: value(lookup, "MINIO_ACCESS_KEY"),
@@ -234,6 +240,28 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 			problems = append(problems, errors.New("PPROF_ENABLED must be a boolean"))
 		} else {
 			config.PprofEnabled = parsed
+		}
+	}
+	if raw, ok := lookup("OTEL_TRACES_ENABLED"); ok && strings.TrimSpace(raw) != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			problems = append(problems, errors.New("OTEL_TRACES_ENABLED must be a boolean"))
+		} else {
+			config.TraceEnabled = parsed
+		}
+	}
+	if raw, ok := lookup("OTEL_TRACES_SAMPLE_RATIO"); ok && strings.TrimSpace(raw) != "" {
+		ratio, err := strconv.ParseFloat(raw, 64)
+		if err != nil || ratio < 0 || ratio > 1 || math.IsNaN(ratio) {
+			problems = append(problems, errors.New("OTEL_TRACES_SAMPLE_RATIO must be between 0 and 1"))
+		} else {
+			config.TraceSampleRatio = ratio
+		}
+	}
+	if config.TraceEnabled {
+		endpoint, err := url.Parse(config.TraceEndpoint)
+		if err != nil || endpoint.Scheme != "http" && endpoint.Scheme != "https" || endpoint.Host == "" {
+			problems = append(problems, errors.New("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT must be an HTTP URL"))
 		}
 	}
 

@@ -269,3 +269,25 @@ because a message sent through core-api must reach clients connected to any
 replica.
 
 The project uses `sqlc` for code generation using migration files.
+
+## API tracing pilot
+
+Local Compose enables OpenTelemetry traces for the sign-in and organisation
+overview API requests: `POST /api/v1/auth/login`, session retrieval, user key
+lookup and setup, organisation listing and lookup, team listing, resource
+listing, booking listing, resource request listing, and task listing. The task
+update route remains in the pilot.
+Only those selected API routes create server spans. Start the sibling `infra`
+Compose stack to run Jaeger, then open <http://localhost:16686> and select the
+`core-api` service. Jaeger keeps traces only in memory.
+
+Set `OTEL_TRACES_ENABLED=false` before starting the API to disable this pilot.
+Outside Compose, tracing is disabled by default. To enable it there, set
+`OTEL_TRACES_ENABLED=true` and point `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` at
+an OTLP/HTTP traces URL such as `http://localhost:4318/v1/traces`.
+`OTEL_TRACES_SAMPLE_RATIO` accepts a value from 0 to 1 and defaults to 1.
+The sampler applies to the selected server traces and their child spans.
+Production Compose enables tracing with a default ratio of 0.1, which can be
+overridden through the infra `.env` file. The production collector endpoint is
+`http://jaeger:4318/v1/traces` on the private application network; see the
+[infra tracing instructions](../infra/README.md#production-api-tracing).

@@ -16,6 +16,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/pagination"
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
+	"github.com/CORTA-11/core-api/internal/tracing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -246,17 +247,19 @@ func (application *TeamTaskApplication) ListTasks(
 	var rows []tenantdb.Task
 	err = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTaskRead,
 		func(queries *tenantdb.Queries) error {
+			dbCtx, dbSpan := tracing.Start(ctx, "task database list")
+			defer dbSpan.End()
 			// #nosec G115 -- PageSize was validated at no more than 100 above.
 			limit := int32(parameters.PageSize + 1)
 			if cursor.Direction == pagination.DirectionPrevious {
 				var queryErr error
-				rows, queryErr = queries.GetTasksBefore(ctx, tenantdb.GetTasksBeforeParams{
+				rows, queryErr = queries.GetTasksBefore(dbCtx, tenantdb.GetTasksBeforeParams{
 					BeforeCreatedAt: cursor.Sort.Timestamp, BeforePublicID: cursor.Sort.ID, Limit: limit,
 				})
 				return queryErr
 			}
 			var queryErr error
-			rows, queryErr = queries.GetTasksAfter(ctx, tenantdb.GetTasksAfterParams{
+			rows, queryErr = queries.GetTasksAfter(dbCtx, tenantdb.GetTasksAfterParams{
 				AfterCreatedAt: cursor.Sort.Timestamp, AfterPublicID: cursor.Sort.ID, Limit: limit,
 			})
 			return queryErr
@@ -333,14 +336,16 @@ func (application *TeamTaskApplication) UpdateTask(
 	var row tenantdb.Task
 	err = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTaskUpdate,
 		func(queries *tenantdb.Queries) error {
+			dbCtx, dbSpan := tracing.Start(ctx, "task database update")
+			defer dbSpan.End()
 			var queryErr error
 			if setAssignee && assigneeID == nil {
-				row, queryErr = queries.UnassignTask(ctx, taskID)
+				row, queryErr = queries.UnassignTask(dbCtx, taskID)
 			} else {
-				if queryErr = validateAssigneeMembership(ctx, queries, assigneeID); queryErr != nil {
+				if queryErr = validateAssigneeMembership(dbCtx, queries, assigneeID); queryErr != nil {
 					return queryErr
 				}
-				row, queryErr = queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{
+				row, queryErr = queries.UpdateTask(dbCtx, tenantdb.UpdateTaskParams{
 					PublicID: taskID, Description: description, Status: status, AssigneePublicID: assigneeValue(assigneeID),
 				})
 			}

@@ -29,6 +29,8 @@ services:
       COLLABORATION_INTERNAL_URL: http://collaboration-server:8082
       AI_SERVICE_URL: http://ai-service:8080
       AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:-}
+      OTEL_TRACES_ENABLED: ${OTEL_TRACES_ENABLED:-true}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://jaeger:4318/v1/traces
       MINIO_ENDPOINT: minio:9000
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-synodus-files}
       MINIO_USE_SSL: "false"

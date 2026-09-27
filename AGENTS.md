@@ -72,6 +72,11 @@ These instructions apply to the entire `core-api` repository.
 - Chat summarisation calls `ai-service` over the private Compose network.
   Keep `AI_SERVICE_URL` pointed at `http://ai-service:8080` in Compose and share
   any `AI_SERVICE_TOKEN` value between the API and AI service.
+- The tracing pilot is opt-in outside Compose and instruments selected sign-in,
+  organisation overview, and task routes. Local Compose samples all selected
+  requests; production Compose uses a configurable sample ratio. Keep span names
+  templated and omit credentials, request content, and raw database errors from
+  trace attributes.
 
 ## Agent skills
 

@@ -87,6 +87,35 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Empty(t, config.TrustedProxies.CIDRs())
 	assert.False(t, config.PprofEnabled)
 	assert.Equal(t, "127.0.0.1:6060", config.PprofAddr)
+	assert.False(t, config.TraceEnabled)
+	assert.Equal(t, 1.0, config.TraceSampleRatio)
+}
+
+func TestLoadTracingSwitchAndEndpoint(t *testing.T) {
+	values := validEnvironment()
+	values["OTEL_TRACES_ENABLED"] = "true"
+	values["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = "http://jaeger:4318/v1/traces"
+	config, err := loadMap(values)
+	require.NoError(t, err)
+	assert.True(t, config.TraceEnabled)
+	assert.Equal(t, "http://jaeger:4318/v1/traces", config.TraceEndpoint)
+	values["OTEL_TRACES_SAMPLE_RATIO"] = "0.1"
+	config, err = loadMap(values)
+	require.NoError(t, err)
+	assert.Equal(t, 0.1, config.TraceSampleRatio)
+	for _, ratio := range []string{"-0.1", "1.1", "NaN", "invalid"} {
+		values["OTEL_TRACES_SAMPLE_RATIO"] = ratio
+		_, err = loadMap(values)
+		require.ErrorContains(t, err, "OTEL_TRACES_SAMPLE_RATIO")
+	}
+	delete(values, "OTEL_TRACES_SAMPLE_RATIO")
+
+	values["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = "not-a-url"
+	_, err = loadMap(values)
+	require.ErrorContains(t, err, "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	values["OTEL_TRACES_ENABLED"] = "invalid"
+	_, err = loadMap(values)
+	require.ErrorContains(t, err, "OTEL_TRACES_ENABLED")
 }
 
 func TestLoadRejectsWriteTimeoutShorterThanAIRequest(t *testing.T) {

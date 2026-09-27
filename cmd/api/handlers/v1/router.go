@@ -17,6 +17,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/ratelimit"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
+	"github.com/CORTA-11/core-api/internal/tracing"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -143,6 +144,7 @@ type RouterConfig struct {
 	ReadinessChecks            map[string]ReadinessCheck
 	ReadinessTimeout           time.Duration
 	CollaborationServiceSecret []byte
+	TraceEnabled               bool
 }
 
 type Router struct {
@@ -215,6 +217,9 @@ func (router *Router) compose() {
 		}
 		if isResourceOperation(route.OperationID) {
 			handler = router.authenticate(route.CSRF == apicontract.CSRFRequired, handler)
+		}
+		if router.config.TraceEnabled && pilotRoute(route.OperationID) {
+			handler = tracing.Server(route.Method, route.Pattern, handler)
 		}
 		router.mux.Method(route.Method, route.Pattern, handler)
 	}
@@ -372,7 +377,9 @@ func (router *Router) authenticate(unsafe bool, next http.Handler) http.Handler 
 			writeProblem(writer, request, httpx.ProblemUnauthenticated, err)
 			return
 		}
-		authentication, err := router.config.Manager.Authenticate(request.Context(), cookie.Value)
+		lookupCtx, lookupSpan := tracing.Start(request.Context(), "session lookup")
+		authentication, err := router.config.Manager.Authenticate(lookupCtx, cookie.Value)
+		lookupSpan.End()
 		if err != nil {
 			if errors.Is(err, session.ErrSessionDependency) {
 				writeProblem(writer, request, httpx.ProblemDependencyUnavailable, err)
@@ -390,6 +397,18 @@ func (router *Router) authenticate(unsafe bool, next http.Handler) http.Handler 
 		ctx = context.WithValue(ctx, authenticationContextKey{}, authentication)
 		next.ServeHTTP(writer, request.WithContext(ctx))
 	})
+}
+
+func pilotRoute(operationID string) bool {
+	switch operationID {
+	case "login", "getCurrentSession", "getUserKeys", "upsertUserKeys",
+		"listOrganizations", "getOrganization",
+		"listTeams", "listResources", "listBookings", "listResourceRequests",
+		"listTasks", "updateTask":
+		return true
+	default:
+		return false
+	}
 }
 
 func authenticationFrom(request *http.Request) (session.Authentication, bool) {

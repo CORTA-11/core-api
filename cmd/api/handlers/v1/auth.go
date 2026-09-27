@@ -13,6 +13,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/ratelimit"
 	"github.com/CORTA-11/core-api/internal/service"
 	"github.com/CORTA-11/core-api/internal/session"
+	"github.com/CORTA-11/core-api/internal/tracing"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -205,7 +206,9 @@ func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Requ
 			return
 		}
 	}
-	principal, err := handler.verifier.Verify(request.Context(), input.Email, input.Password)
+	verifyCtx, verifySpan := tracing.Start(request.Context(), "credential verification")
+	principal, err := handler.verifier.Verify(verifyCtx, input.Email, input.Password)
+	verifySpan.End()
 	if err != nil {
 		if errors.Is(err, identity.ErrInvalidCredentials) {
 			if handler.loginGuard != nil {
@@ -231,7 +234,9 @@ func (handler *AuthHandler) login(writer http.ResponseWriter, request *http.Requ
 	if cookie, cookieErr := request.Cookie(handler.cookie.Name); cookieErr == nil {
 		oldToken = cookie.Value
 	}
-	issued, err := handler.manager.Rotate(request.Context(), principal.UserPublicID, oldToken, request.UserAgent())
+	sessionCtx, sessionSpan := tracing.Start(request.Context(), "session issuance")
+	issued, err := handler.manager.Rotate(sessionCtx, principal.UserPublicID, oldToken, request.UserAgent())
+	sessionSpan.End()
 	if err != nil {
 		handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)
 		return
@@ -261,7 +266,9 @@ func (handler *AuthHandler) authenticated(unsafe bool, next authenticatedHandler
 			handler.problem(writer, request, httpx.ProblemUnauthenticated, err)
 			return
 		}
-		authentication, err := handler.manager.Authenticate(request.Context(), cookie.Value)
+		lookupCtx, lookupSpan := tracing.Start(request.Context(), "session lookup")
+		authentication, err := handler.manager.Authenticate(lookupCtx, cookie.Value)
+		lookupSpan.End()
 		if err != nil {
 			if errors.Is(err, session.ErrSessionDependency) {
 				handler.problem(writer, request, httpx.ProblemDependencyUnavailable, err)

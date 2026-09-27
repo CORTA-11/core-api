@@ -8,6 +8,7 @@ import (
 	"github.com/CORTA-11/core-api/internal/repository/tenantdb"
 	"github.com/CORTA-11/core-api/internal/session"
 	"github.com/CORTA-11/core-api/internal/tenancy"
+	"github.com/CORTA-11/core-api/internal/tracing"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -101,16 +102,20 @@ func (authorizer *Authorizer) WithinTeam(
 		organizationID == uuid.Nil || teamID == uuid.Nil || !ValidPermission(permission) || callback == nil {
 		return ErrOperationDenied
 	}
-	organization, err := authorizer.resolver.ResolveOrganization(ctx, principal.UserID, organizationID)
+	resolveCtx, resolveSpan := tracing.Start(ctx, "tenant resolution")
+	organization, err := authorizer.resolver.ResolveOrganization(resolveCtx, principal.UserID, organizationID)
 	if err != nil {
+		resolveSpan.End()
 		return ErrResourceNotFound
 	}
-	team, err := authorizer.resolver.ResolveTeam(ctx, organization, teamID)
+	team, err := authorizer.resolver.ResolveTeam(resolveCtx, organization, teamID)
+	resolveSpan.End()
 	if err != nil {
 		return ErrResourceNotFound
 	}
 	invoked := false
-	err = authorizer.executor.WithinTeamQueries(ctx, team,
+	authCtx, authSpan := tracing.Start(ctx, "team authorization")
+	err = authorizer.executor.WithinTeamQueries(authCtx, team,
 		func(_ *publicdb.Queries, tenantQueries *tenantdb.Queries) error {
 			membership, lookupErr := tenantQueries.RevalidateTeamAuthorization(ctx, tenantdb.RevalidateTeamAuthorizationParams{
 				TeamPublicID: teamID,
@@ -125,6 +130,7 @@ func (authorizer *Authorizer) WithinTeam(
 			invoked = true
 			return callback(tenantQueries)
 		})
+	authSpan.End()
 	if err != nil && !invoked && !errors.Is(err, ErrOperationDenied) && !errors.Is(err, ErrResourceNotFound) {
 		return ErrResourceNotFound
 	}
