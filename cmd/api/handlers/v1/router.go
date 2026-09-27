@@ -396,8 +396,6 @@ func authenticationFrom(request *http.Request) (session.Authentication, bool) {
 	authentication, ok := request.Context().Value(authenticationContextKey{}).(session.Authentication)
 	return authentication, ok
 }
-
-
 func isResourceOperation(operationID string) bool {
 	return operationID == "listOrganizations" || operationID == "createOrganization" ||
 		operationID == "getOrganization" || operationID == "updateOrganization" ||
