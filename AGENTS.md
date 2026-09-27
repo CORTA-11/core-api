@@ -69,6 +69,9 @@ These instructions apply to the entire `core-api` repository.
   credential split with an administrator connection.
 - Keep shared values such as `JWT_SECRET` and `REDIS_CHAT_CHANNEL` compatible
   with `socket-server` and keep exposed routes compatible with `infra`.
+- Chat summarisation calls `ai-service` over the private Compose network.
+  Keep `AI_SERVICE_URL` pointed at `http://ai-service:8080` in Compose and share
+  any `AI_SERVICE_TOKEN` value between the API and AI service.
 
 ## Agent skills
 

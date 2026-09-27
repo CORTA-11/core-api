@@ -162,7 +162,7 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		HTTPIdleTimeout:       60 * time.Second,
 		ShutdownTimeout:       10 * time.Second,
 		DependencyTimeout:     3 * time.Second,
-		AIServiceURL:          valueOrDefault(lookup, "AI_SERVICE_URL", "http://127.0.0.1:8081"),
+		AIServiceURL:          valueOrDefault(lookup, "AI_SERVICE_URL", "http://127.0.0.1:8085"),
 		AIServiceToken:        value(lookup, "AI_SERVICE_TOKEN"),
 		AIServiceTimeout:      35 * time.Second,
 		MinIO: MinIO{

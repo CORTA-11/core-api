@@ -79,9 +79,12 @@
    ```
 
    The API is available on `http://localhost:8080`. Compose also starts the
-   long-running tenant provisioner, mounts a separate least-privilege database
-   secret into each service, and waits for infrastructure dependencies to
-   become healthy.
+   long-running tenant provisioner and the AI context service, mounts a separate
+   least-privilege database secret into each service, and waits for infrastructure
+   dependencies to become healthy. The API reaches the AI context service at
+   `http://ai-service:8080`; set `AI_SERVICE_TOKEN` in `.env` to require the same
+   internal token on both services. For direct process startup, run `ai-service`
+   on port 8085 as described in its README.
 
    Verify startup with `curl -i http://localhost:8080/health/ready`; a ready
    development stack returns HTTP 204.
