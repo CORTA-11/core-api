@@ -158,13 +158,13 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 		RedisURL:              value(lookup, "REDIS_URL"),
 		HTTPReadHeaderTimeout: 5 * time.Second,
 		HTTPReadTimeout:       15 * time.Second,
-		HTTPWriteTimeout:      30 * time.Second,
+		HTTPWriteTimeout:      85 * time.Second,
 		HTTPIdleTimeout:       60 * time.Second,
 		ShutdownTimeout:       10 * time.Second,
 		DependencyTimeout:     3 * time.Second,
 		AIServiceURL:          valueOrDefault(lookup, "AI_SERVICE_URL", "http://127.0.0.1:8085"),
 		AIServiceToken:        value(lookup, "AI_SERVICE_TOKEN"),
-		AIServiceTimeout:      35 * time.Second,
+		AIServiceTimeout:      80 * time.Second,
 		MinIO: MinIO{
 			Endpoint:  value(lookup, "MINIO_ENDPOINT"),
 			AccessKey: value(lookup, "MINIO_ACCESS_KEY"),
@@ -203,6 +203,9 @@ func LoadFrom(lookup lookupFunc) (Config, error) {
 			}
 			*setting.target = duration
 		}
+	}
+	if config.HTTPWriteTimeout <= config.AIServiceTimeout {
+		problems = append(problems, errors.New("HTTP_WRITE_TIMEOUT must exceed AI_SERVICE_TIMEOUT"))
 	}
 	if raw, ok := lookup("RATE_LIMIT_TIMEOUT"); ok && strings.TrimSpace(raw) != "" {
 		duration, parseErr := time.ParseDuration(raw)

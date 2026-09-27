@@ -71,7 +71,9 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Equal(t, DevelopmentCursorSecret, config.Cursor.ActiveSecret)
 	assert.Equal(t, 5*time.Second, config.HTTPReadHeaderTimeout)
 	assert.Equal(t, 15*time.Second, config.HTTPReadTimeout)
-	assert.Equal(t, 30*time.Second, config.HTTPWriteTimeout)
+	assert.Equal(t, 85*time.Second, config.HTTPWriteTimeout)
+	assert.Equal(t, 80*time.Second, config.AIServiceTimeout)
+	assert.Greater(t, config.HTTPWriteTimeout, config.AIServiceTimeout)
 	assert.Equal(t, DevelopmentRateLimitSecret, config.RateLimitSecret)
 	assert.Equal(t, DevelopmentInvitationSecret, config.InvitationBindingSecret)
 	assert.Equal(t, DevelopmentCollaborationSecret, config.CollaborationServiceSecret)
@@ -85,6 +87,14 @@ func TestLoadUsesSafeDevelopmentDefaults(t *testing.T) {
 	assert.Empty(t, config.TrustedProxies.CIDRs())
 	assert.False(t, config.PprofEnabled)
 	assert.Equal(t, "127.0.0.1:6060", config.PprofAddr)
+}
+
+func TestLoadRejectsWriteTimeoutShorterThanAIRequest(t *testing.T) {
+	values := validEnvironment()
+	values["HTTP_WRITE_TIMEOUT"] = "35s"
+	_, err := loadMap(values)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "HTTP_WRITE_TIMEOUT must exceed AI_SERVICE_TIMEOUT")
 }
 
 func TestLoadAllowsPprofOnlyOnDistinctDevelopmentLoopback(t *testing.T) {

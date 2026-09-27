@@ -65,6 +65,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
+            set -eu
             cd /opt/corta/infra
+            git pull --ff-only https://github.com/CORTA-11/infra.git main
             ./deploy.sh api
+            docker compose -f docker-compose.prod.yaml up -d --force-recreate --no-deps envoy
             ./deploy.sh provisioner
