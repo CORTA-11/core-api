@@ -83,7 +83,9 @@ func NewFCMService(ctx context.Context, credentialsJSON []byte, pruner TokenPrun
 	if logger == nil {
 		logger = slog.Default()
 	}
-	creds, err := google.CredentialsFromJSON(ctx, credentialsJSON, "https://www.googleapis.com/auth/firebase.messaging")
+	creds, err := google.CredentialsFromJSONWithTypeAndParams(ctx, credentialsJSON, google.ServiceAccount, google.CredentialsParams{
+		Scopes: []string{"https://www.googleapis.com/auth/firebase.messaging"},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("parse firebase credentials: %w", err)
 	}
@@ -170,7 +172,11 @@ func (f *FCMService) SendMulticast(ctx context.Context, tokens []string, payload
 				f.logger.Warn("FCM request error", "token", t, "error", err)
 				return
 			}
-			defer resp.Body.Close()
+			defer func() {
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					f.logger.Warn("failed to close FCM response body", "error", closeErr)
+				}
+			}()
 
 			if resp.StatusCode == http.StatusOK {
 				return
