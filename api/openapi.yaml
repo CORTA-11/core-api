@@ -1761,6 +1761,7 @@ components:
         updated_by: {$ref: '#/components/schemas/PublicID'}
         created_at: {$ref: '#/components/schemas/Timestamp'}
         updated_at: {$ref: '#/components/schemas/Timestamp'}
+        updated_by_name: {type: string, description: 'Display name of the last editor, included in document lists.'}
     DocumentProjection:
       type: object
       additionalProperties: false
@@ -1773,6 +1774,7 @@ components:
         created_at: {$ref: '#/components/schemas/Timestamp'}
         updated_at: {$ref: '#/components/schemas/Timestamp'}
         body_html: {type: string}
+        updated_by_name: {type: string, description: 'Display name of the last editor when available.'}
     DocumentWrite:
       type: object
       additionalProperties: false

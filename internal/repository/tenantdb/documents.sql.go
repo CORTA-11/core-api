@@ -84,7 +84,8 @@ func (q *Queries) GetDocumentForTeam(ctx context.Context, arg GetDocumentForTeam
 }
 
 const listDocumentsForTeam = `-- name: ListDocumentsForTeam :many
-SELECT id, public_id, team_id, title, body_html, last_updated_by, created_at, updated_at
+SELECT id, public_id, team_id, title, body_html, last_updated_by, created_at, updated_at,
+       coalesce(synodus_user_display_name(last_updated_by), '')::text AS updated_by_name
 FROM documents
 WHERE team_id = $1
 ORDER BY updated_at DESC, public_id DESC
@@ -105,6 +106,7 @@ type ListDocumentsForTeamRow struct {
 	LastUpdatedBy uuid.UUID `json:"last_updated_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	UpdatedByName string    `json:"updated_by_name"`
 }
 
 func (q *Queries) ListDocumentsForTeam(ctx context.Context, arg ListDocumentsForTeamParams) ([]ListDocumentsForTeamRow, error) {
@@ -125,6 +127,7 @@ func (q *Queries) ListDocumentsForTeam(ctx context.Context, arg ListDocumentsFor
 			&i.LastUpdatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UpdatedByName,
 		); err != nil {
 			return nil, err
 		}
