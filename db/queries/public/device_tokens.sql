@@ -10,7 +10,8 @@ RETURNING id, user_id, token, platform, created_at, updated_at;
 -- name: GetDeviceTokensForUsers :many
 SELECT user_id, token, platform
 FROM public.user_device_tokens
-WHERE user_id = ANY(sqlc.arg('user_ids')::uuid[]);
+WHERE user_id = ANY(sqlc.arg('user_ids')::uuid[])
+ORDER BY user_id, token;
 
 -- name: DeleteDeviceToken :exec
 DELETE FROM public.user_device_tokens

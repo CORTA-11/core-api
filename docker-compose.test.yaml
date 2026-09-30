@@ -28,7 +28,9 @@ services:
       - redis-data:/data
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z
+    build:
+      context: .
+      dockerfile: docker/minio-test.Dockerfile
     command: server /data
     environment:
       MINIO_ROOT_USER: integration

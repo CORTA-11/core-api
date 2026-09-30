@@ -25,6 +25,7 @@ const getDeviceTokensForUsers = `-- name: GetDeviceTokensForUsers :many
 SELECT user_id, token, platform
 FROM public.user_device_tokens
 WHERE user_id = ANY($1::uuid[])
+ORDER BY user_id, token
 `
 
 type GetDeviceTokensForUsersRow struct {

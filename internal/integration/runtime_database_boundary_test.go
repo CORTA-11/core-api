@@ -72,12 +72,13 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 		SELECT concat_ws(':', tablename, tableowner)
 		FROM pg_tables
 		WHERE schemaname = 'public' AND tablename = ANY($1)
-		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "organization_invitations", "schema_migrations", "sessions", "user_public_keys"}}, []string{
+		ORDER BY tablename`, []any{[]string{"orgs", "users", "org_user", "organization_invitations", "schema_migrations", "sessions", "user_device_tokens", "user_public_keys"}}, []string{
 		"org_user:synodus_owner",
 		"organization_invitations:synodus_owner",
 		"orgs:synodus_owner",
 		"schema_migrations:synodus_owner",
 		"sessions:synodus_owner",
+		"user_device_tokens:synodus_owner",
 		"user_public_keys:synodus_owner",
 		"users:synodus_owner",
 	})
@@ -87,6 +88,7 @@ func (fixture *tenantBoundaryFixture) assertPublicCatalog(t *testing.T) {
 		"public:organization_invitations:SELECT", "public:organization_invitations:UPDATE",
 		"public:orgs:DELETE", "public:orgs:INSERT", "public:orgs:SELECT", "public:orgs:UPDATE",
 		"public:sessions:DELETE", "public:sessions:INSERT", "public:sessions:SELECT", "public:sessions:UPDATE",
+		"public:user_device_tokens:DELETE", "public:user_device_tokens:INSERT", "public:user_device_tokens:SELECT", "public:user_device_tokens:UPDATE",
 		"public:user_public_keys:DELETE", "public:user_public_keys:INSERT", "public:user_public_keys:SELECT", "public:user_public_keys:UPDATE",
 		"public:users:DELETE", "public:users:INSERT", "public:users:SELECT", "public:users:UPDATE",
 	})

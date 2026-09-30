@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
+	"net/http/pprof" // #nosec G108 -- handlers are exposed only on the opt-in, validated loopback listener below.
 	"os"
 	"os/signal"
 	"syscall"
@@ -52,16 +52,6 @@ func realMain() int {
 }
 
 func run(ctx context.Context, logger *slog.Logger) error {
-
-	// let's run some pprof. this is atrocious. need to refactor this
-	go func() {
-		err := http.ListenAndServe(":6060", http.DefaultServeMux)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-	}()
-
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -227,7 +217,28 @@ func run(ctx context.Context, logger *slog.Logger) error {
 	}
 	slog.Info("core-api listening", "addr", listener.Addr().String())
 	bindings := []serverBinding{{name: "API", server: server, listener: listener}}
+	if cfg.PprofEnabled {
+		diagnosticListener, err := net.Listen("tcp", cfg.PprofAddr)
+		if err != nil {
+			_ = listener.Close()
+			return fmt.Errorf("listen on diagnostic address: %w", err)
+		}
+		bindings = append(bindings, serverBinding{name: "diagnostics", server: diagnosticServer(cfg, logger), listener: diagnosticListener})
+	}
 	return serveAll(ctx, bindings, cfg.ShutdownTimeout)
+}
+
+func diagnosticServer(cfg config.Config, logger *slog.Logger) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	return httpx.NewServer(cfg.PprofAddr, mux, httpx.ServerTimeouts{
+		ReadHeader: cfg.HTTPReadHeaderTimeout, Read: cfg.HTTPReadTimeout,
+		Write: cfg.HTTPWriteTimeout, Idle: cfg.HTTPIdleTimeout,
+	}, logger)
 }
 
 func runInvitationCleanup(ctx context.Context, logger *slog.Logger, invitations *service.InvitationApplication) {

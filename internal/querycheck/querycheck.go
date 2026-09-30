@@ -70,7 +70,11 @@ func Check(path string, source []byte) []Issue {
 		if !orderByPattern.Match(query) {
 			issues = append(issues, Issue{Path: path, Query: name, Message: "missing ORDER BY"})
 		}
-		if !parameterLimitPattern.Match(query) {
+		// Push fan-out needs every device for the supplied recipient IDs. A
+		// pagination limit would silently omit notifications. Keep this exception
+		// scoped to its source and query; ordering and projection checks still apply.
+		deviceFanout := path == "db/queries/public/device_tokens.sql" && name == "GetDeviceTokensForUsers"
+		if !parameterLimitPattern.Match(query) && !deviceFanout {
 			issues = append(issues, Issue{Path: path, Query: name, Message: "missing parameterized LIMIT"})
 		}
 	}
