@@ -336,7 +336,8 @@ paths:
     get:
       tags: [Teams]
       operationId: listTeams
-      summary: List teams in an organization
+      summary: List visible teams in an organization
+      description: Organization owners and administrators see all teams. Other organization members see only teams they belong to. This does not grant access to team content.
       security: [{sessionCookie: []}]
       parameters:
         - {$ref: '#/components/parameters/PageSize'}
