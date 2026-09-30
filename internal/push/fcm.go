@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -106,7 +107,12 @@ func NewFCMService(ctx context.Context, credentialsJSON []byte, pruner TokenPrun
 
 // NewFCMServiceFromFile creates an FCM push service from a credentials file path.
 func NewFCMServiceFromFile(ctx context.Context, filePath string, pruner TokenPruner, logger *slog.Logger) (*FCMService, error) {
-	data, err := os.ReadFile(filePath)
+	root, err := os.OpenRoot(filepath.Dir(filePath))
+	if err != nil {
+		return nil, fmt.Errorf("open firebase credentials directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	data, err := root.ReadFile(filepath.Base(filePath))
 	if err != nil {
 		return nil, fmt.Errorf("read firebase credentials file: %w", err)
 	}
@@ -191,7 +197,7 @@ func (f *FCMService) SendMulticast(ctx context.Context, tokens []string, payload
 			// Clean up unregistered or invalid tokens
 			if resp.StatusCode == http.StatusNotFound || errResp.Error.Status == "UNREGISTERED" || errResp.Error.Status == "NOT_FOUND" {
 				if f.pruner != nil {
-					pruneCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					pruneCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 					defer cancel()
 					if pruneErr := f.pruner.DeleteDeviceToken(pruneCtx, t); pruneErr != nil {
 						f.logger.Warn("failed to prune stale device token", "token", t, "error", pruneErr)

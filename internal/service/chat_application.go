@@ -104,14 +104,15 @@ func (application *ChatApplication) SendMessage(ctx context.Context, principal s
 	if err == nil {
 		application.publish(ctx, ChatEvent{TeamID: eventTeamID, Type: chatEventCreated, Data: result})
 		if application.pushNotifier != nil && application.deviceFinder != nil && len(recipientUserIDs) > 0 {
-			go application.dispatchPushNotification(senderName, message, teamID, orgID, recipientUserIDs)
+			go application.dispatchPushNotification(context.WithoutCancel(ctx), senderName, message, teamID, orgID, recipientUserIDs)
 		}
 	}
 	return result, err
 }
 
-func (application *ChatApplication) dispatchPushNotification(senderName, message string, teamID, orgID uuid.UUID, recipientIDs []uuid.UUID) {
-	bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (application *ChatApplication) dispatchPushNotification(ctx context.Context, senderName, message string, teamID, orgID uuid.UUID, recipientIDs []uuid.UUID) {
+	// Delivery survives request completion but remains bounded by its own timeout.
+	bgCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	rows, err := application.deviceFinder.GetDeviceTokensForUsers(bgCtx, recipientIDs)

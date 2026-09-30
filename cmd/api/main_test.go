@@ -5,13 +5,36 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/CORTA-11/core-api/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDiagnosticServerUsesDedicatedMuxAndTimeouts(t *testing.T) {
+	cfg := config.Config{
+		PprofAddr: "127.0.0.1:6060", HTTPReadHeaderTimeout: time.Second,
+		HTTPReadTimeout: 2 * time.Second, HTTPWriteTimeout: time.Minute, HTTPIdleTimeout: 3 * time.Second,
+	}
+	server := diagnosticServer(cfg, nil)
+	assert.Equal(t, cfg.PprofAddr, server.Addr)
+	assert.Equal(t, cfg.HTTPReadHeaderTimeout, server.ReadHeaderTimeout)
+	assert.Equal(t, cfg.HTTPReadTimeout, server.ReadTimeout)
+	assert.Equal(t, cfg.HTTPWriteTimeout, server.WriteTimeout)
+	assert.Equal(t, cfg.HTTPIdleTimeout, server.IdleTimeout)
+	for _, path := range []string{"/debug/pprof/", "/debug/pprof/goroutine"} {
+		response := httptest.NewRecorder()
+		server.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+		assert.Equal(t, http.StatusOK, response.Code)
+	}
+	response := httptest.NewRecorder()
+	server.Handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, http.StatusNotFound, response.Code)
+}
 
 type failingListener struct{ err error }
 

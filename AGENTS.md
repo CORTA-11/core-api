@@ -25,6 +25,9 @@ These instructions apply to the entire `core-api` repository.
   route, payload, status, or error change.
 - Realtime chat writes remain authoritative in this service; Redis publication
   is fan-out for `socket-server`, not durable storage.
+- Device-token lookup for push fan-out must return every device for the supplied
+  recipient IDs. Its query-check limit exemption is scoped to that lookup;
+  ordering and explicit projection checks still apply.
 
 ## Database changes
 

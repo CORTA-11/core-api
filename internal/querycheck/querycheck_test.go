@@ -104,6 +104,30 @@ func TestCheckReportsQueryName(t *testing.T) {
 	}
 }
 
+func TestCheckDeviceTokenFanout(t *testing.T) {
+	t.Parallel()
+	const path = "db/queries/public/device_tokens.sql"
+	const query = "-- name: GetDeviceTokensForUsers :many\nSELECT user_id, token, platform FROM public.user_device_tokens WHERE user_id = ANY(sqlc.arg('user_ids')::uuid[]) ORDER BY user_id, token;"
+	if issues := Check(path, []byte(query)); len(issues) != 0 {
+		t.Fatalf("fan-out lookup issues = %v, want none", issues)
+	}
+	for _, tc := range []struct {
+		name, path, query, want string
+	}{
+		{"other path", "other.sql", query, "parameterized LIMIT"},
+		{"other query", path, strings.ReplaceAll(query, "GetDeviceTokensForUsers", "ListDeviceTokens"), "parameterized LIMIT"},
+		{"missing order", path, strings.ReplaceAll(query, " ORDER BY user_id, token", ""), "ORDER BY"},
+		{"wildcard", path, strings.ReplaceAll(query, "user_id, token, platform", "*"), "wildcard projection"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			issues := Check(tc.path, []byte(tc.query))
+			if len(issues) == 0 || !strings.Contains(issues[0].Error(), tc.want) {
+				t.Fatalf("issues = %v, want %q", issues, tc.want)
+			}
+		})
+	}
+}
+
 func TestCheckSchemaBoundaryRejectsProductionBypassAndAllowsOwnedPaths(t *testing.T) {
 	t.Parallel()
 	unsafe := []byte("func bypass() { tx.Exec(ctx, `SET LOCAL search_path TO org_forged`) }")
