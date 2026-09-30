@@ -8,6 +8,7 @@ LIMIT sqlc.arg('limit');
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
 FROM teams
 WHERE NOT is_quarantine
+  AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
   AND (created_at, public_id) > (sqlc.arg('after_created_at'), sqlc.arg('after_public_id')::uuid)
 ORDER BY created_at ASC, public_id ASC
 LIMIT sqlc.arg('limit');
@@ -16,6 +17,7 @@ LIMIT sqlc.arg('limit');
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
 FROM teams
 WHERE NOT is_quarantine
+  AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
   AND (created_at, public_id) < (sqlc.arg('before_created_at'), sqlc.arg('before_public_id')::uuid)
 ORDER BY created_at DESC, public_id DESC
 LIMIT sqlc.arg('limit');
