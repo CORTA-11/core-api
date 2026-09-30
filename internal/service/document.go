@@ -19,12 +19,13 @@ import (
 const maximumDocumentTitleLength = 255
 
 type DocumentView struct {
-	ID        uuid.UUID `json:"id"`
-	TeamID    uuid.UUID `json:"team_id"`
-	Title     string    `json:"title"`
-	UpdatedBy uuid.UUID `json:"updated_by"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID            uuid.UUID `json:"id"`
+	TeamID        uuid.UUID `json:"team_id"`
+	Title         string    `json:"title"`
+	UpdatedBy     uuid.UUID `json:"updated_by"`
+	UpdatedByName string    `json:"updated_by_name,omitempty"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type DocumentProjection struct {
@@ -118,7 +119,7 @@ func (application *DocumentApplication) List(
 	}
 	views := make([]DocumentView, 0, len(rows))
 	for _, row := range rows {
-		views = append(views, DocumentView{ID: row.PublicID, TeamID: teamID, Title: row.Title, UpdatedBy: row.LastUpdatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
+		views = append(views, DocumentView{ID: row.PublicID, TeamID: teamID, Title: row.Title, UpdatedBy: row.LastUpdatedBy, UpdatedByName: row.UpdatedByName, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt})
 	}
 	return views, nil
 }
