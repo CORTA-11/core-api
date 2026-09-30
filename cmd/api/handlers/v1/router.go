@@ -238,6 +238,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.auth.authenticated(true, router.auth.revokeSpecific))
 	case "changePassword":
 		return http.HandlerFunc(router.auth.authenticated(true, router.auth.changePassword))
+	case "streamOrganizations":
+		return http.HandlerFunc(router.resources.organizationEvents)
 	case "listOrganizations":
 		return http.HandlerFunc(router.resources.listOrganizations)
 	case "createOrganization":
@@ -397,7 +399,7 @@ func authenticationFrom(request *http.Request) (session.Authentication, bool) {
 	return authentication, ok
 }
 func isResourceOperation(operationID string) bool {
-	return operationID == "listOrganizations" || operationID == "createOrganization" ||
+	return operationID == "streamOrganizations" || operationID == "listOrganizations" || operationID == "createOrganization" ||
 		operationID == "getOrganization" || operationID == "updateOrganization" ||
 		operationID == "deleteOrganization" || operationID == "restoreOrganization" ||
 		operationID == "listTeams" || operationID == "createTeam" || operationID == "listTasks" ||

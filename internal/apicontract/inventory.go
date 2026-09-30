@@ -67,6 +67,7 @@ var Routes = [...]Route{
 	{http.MethodDelete, "/api/v1/auth/sessions", "revokeAllSessions", AuthenticationRequired, CSRFRequired, "", BodyNone, RateNone},
 	{http.MethodDelete, "/api/v1/auth/sessions/{session_id}", "revokeSession", AuthenticationRequired, CSRFRequired, "", BodyNone, RateNone},
 	{http.MethodPut, "/api/v1/auth/password", "changePassword", AuthenticationRequired, CSRFRequired, "", BodyAuthJSON, RateNone},
+	{http.MethodGet, "/api/v1/orgs/events", "streamOrganizations", AuthenticationRequired, CSRFNone, "", BodyNone, RateNone},
 	{http.MethodGet, "/api/v1/orgs", "listOrganizations", AuthenticationRequired, CSRFNone, "", BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs", "createOrganization", AuthenticationRequired, CSRFRequired, "", BodyJSON, RateAdministrative},
 	{http.MethodGet, "/api/v1/orgs/{org_id}", "getOrganization", AuthenticationRequired, CSRFNone, authorization.PermissionOrgRead, BodyNone, RateNone},

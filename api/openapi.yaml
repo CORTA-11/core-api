@@ -221,6 +221,33 @@ paths:
         '429': {$ref: '#/components/responses/RateLimited'}
         '500': {$ref: '#/components/responses/InternalFailure'}
         '503': {$ref: '#/components/responses/DependencyUnavailable'}
+  /api/v1/orgs/events:
+    get:
+      tags: [Organizations]
+      operationId: streamOrganizations
+      summary: Stream changes to organizations visible to the user
+      description: |
+        Sends an initial `organizations` event and another when the visible rows
+        change (checked every two seconds). Each data field is a JSON array of
+        Organization objects, scoped and paginated exactly like listOrganizations.
+        Heartbeat comments keep the connection active. Connections close after
+        30 seconds; EventSource reconnects and receives a fresh snapshot, with
+        session authentication checked again. No Last-Event-ID is required.
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/PageSize'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Organization snapshots and heartbeat comments
+          content:
+            text/event-stream:
+              schema: {type: string}
+              example: "event: organizations\ndata: []\n\n"
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}]
     get:
