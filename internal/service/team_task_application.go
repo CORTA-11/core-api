@@ -109,6 +109,8 @@ type TaskView struct {
 	Description string     `json:"description"`
 	Status      string     `json:"status"`
 	AssigneeID  *uuid.UUID `json:"assignee_id"`
+	StartDate   *time.Time `json:"start_date"`
+	DueDate     *time.Time `json:"due_date"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
@@ -287,7 +289,7 @@ func (application *TeamTaskApplication) ListTasks(
 
 func (application *TeamTaskApplication) CreateTask(
 	ctx context.Context, principal session.Principal, organizationID, teamID uuid.UUID, description, status string,
-	assigneeID *uuid.UUID,
+	assigneeID *uuid.UUID, dates TaskDates,
 ) (TaskView, error) {
 	description, status, err := validateTaskWrite(description, status)
 	if err != nil {
@@ -306,6 +308,7 @@ func (application *TeamTaskApplication) CreateTask(
 			var queryErr error
 			row, queryErr = queries.CreateTask(ctx, tenantdb.CreateTaskParams{
 				Description: description, Status: status, AssigneePublicID: assigneeValue(assigneeID),
+				StartDate: taskDateValue(dates.StartDate), DueDate: taskDateValue(dates.DueDate),
 			})
 			return classifyConflict(queryErr)
 		})
@@ -317,7 +320,7 @@ func (application *TeamTaskApplication) CreateTask(
 
 func (application *TeamTaskApplication) UpdateTask(
 	ctx context.Context, principal session.Principal, organizationID, teamID, taskID uuid.UUID, description, status string,
-	assigneeID *uuid.UUID, setAssignee bool,
+	assigneeID *uuid.UUID, setAssignee bool, dates TaskDates,
 ) (TaskView, error) {
 	description, status, err := validateTaskWrite(description, status)
 	if err != nil {
@@ -334,16 +337,15 @@ func (application *TeamTaskApplication) UpdateTask(
 	err = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTaskUpdate,
 		func(queries *tenantdb.Queries) error {
 			var queryErr error
-			if setAssignee && assigneeID == nil {
-				row, queryErr = queries.UnassignTask(ctx, taskID)
-			} else {
-				if queryErr = validateAssigneeMembership(ctx, queries, assigneeID); queryErr != nil {
-					return queryErr
-				}
-				row, queryErr = queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{
-					PublicID: taskID, Description: description, Status: status, AssigneePublicID: assigneeValue(assigneeID),
-				})
+			if queryErr = validateAssigneeMembership(ctx, queries, assigneeID); queryErr != nil {
+				return queryErr
 			}
+			row, queryErr = queries.UpdateTask(ctx, tenantdb.UpdateTaskParams{
+				PublicID: taskID, Description: description, Status: status,
+				SetAssignee: setAssignee, AssigneePublicID: assigneeValue(assigneeID),
+				SetStartDate: dates.SetStartDate, StartDate: taskDateValue(dates.StartDate),
+				SetDueDate: dates.SetDueDate, DueDate: taskDateValue(dates.DueDate),
+			})
 			if errors.Is(queryErr, pgx.ErrNoRows) {
 				return authorization.ErrResourceNotFound
 			}
@@ -521,7 +523,8 @@ func teamView(row tenantdb.Team) TeamView {
 func taskView(row tenantdb.Task) TaskView {
 	return TaskView{ID: row.PublicID, Description: row.Description, Status: row.Status,
 		AssigneeID: publicIDOf(row.AssigneePublicID),
-		CreatedAt:  row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		StartDate:  taskDateView(row.StartDate), DueDate: taskDateView(row.DueDate),
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func publicIDOf(value pgtype.UUID) *uuid.UUID {

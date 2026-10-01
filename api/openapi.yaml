@@ -684,7 +684,7 @@ paths:
               schema: {$ref: '#/components/schemas/TaskPage'}
               example:
                 items:
-                  - {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+                  - {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: null, start_date: null, due_date: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
                 next_cursor: null
                 previous_cursor: null
         '400': {$ref: '#/components/responses/InvalidRequest'}
@@ -1755,12 +1755,14 @@ components:
     Task:
       type: object
       additionalProperties: false
-      required: [id, description, status, assignee_id, created_at, updated_at]
+      required: [id, description, status, assignee_id, start_date, due_date, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/PublicID'}
         description: {type: string, minLength: 1, maxLength: 4096}
         status: {type: string, enum: [todo, in_progress, done]}
         assignee_id: {type: [string, 'null'], format: uuid}
+        start_date: {type: [string, 'null'], format: date-time}
+        due_date: {type: [string, 'null'], format: date-time}
         created_at: {$ref: '#/components/schemas/Timestamp'}
         updated_at: {$ref: '#/components/schemas/Timestamp'}
     TaskWrite:
@@ -1772,6 +1774,9 @@ components:
         status: {type: string, enum: [todo, in_progress, done]}
         # Absent keeps the current assignee; null unassigns; a value reassigns.
         assignee_id: {type: [string, 'null'], format: uuid}
+        # Absent keeps the current date on PATCH; null clears it.
+        start_date: {type: [string, 'null'], format: date-time}
+        due_date: {type: [string, 'null'], format: date-time}
     Document:
       type: object
       additionalProperties: false
@@ -2101,7 +2106,7 @@ components:
     Team:
       value: {id: 22222222-2222-4222-8222-222222222222, name: Reproducibility Group, slug: reproducibility-group, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
     Task:
-      value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: 44444444-4444-4444-8444-444444444444, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+      value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: 44444444-4444-4444-8444-444444444444, start_date: null, due_date: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
     ChatMessage:
       value: {id: 66666666-6666-4666-8666-666666666666, channel_id: 22222222-2222-4222-8222-222222222222, sender: {id: 12345, name: Researcher}, message: I pushed the latest notes., mentions: [], reply_to_id: null, deleted_at: null, created_at: '2026-08-27T09:00:00Z'}
     ChatMessagePage:
