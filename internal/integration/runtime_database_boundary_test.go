@@ -113,6 +113,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		WHERE schemaname = $1
 		ORDER BY tablename`, []any{schema}, []string{
 		"chat_messages:synodus_owner",
+		"content_access_requests:synodus_owner",
+		"content_owners:synodus_owner",
 		"documents:synodus_owner",
 		"files:synodus_owner",
 		"resource_requests:synodus_owner",
@@ -127,6 +129,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 	})
 	assertCatalogRows(t, fixture, runtimeTableGrantsSQL, []any{[]string{schema}}, []string{
 		schema + ":chat_messages:INSERT", schema + ":chat_messages:SELECT", schema + ":chat_messages:UPDATE",
+		schema + ":content_access_requests:INSERT", schema + ":content_access_requests:SELECT", schema + ":content_access_requests:UPDATE",
+		schema + ":content_owners:SELECT",
 		schema + ":documents:DELETE", schema + ":documents:INSERT", schema + ":documents:SELECT", schema + ":documents:UPDATE",
 		schema + ":files:DELETE", schema + ":files:INSERT", schema + ":files:SELECT", schema + ":files:UPDATE",
 		schema + ":resource_requests:DELETE", schema + ":resource_requests:INSERT", schema + ":resource_requests:SELECT", schema + ":resource_requests:UPDATE",
@@ -143,8 +147,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		FROM pg_class AS relation
 		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
 		WHERE namespace.nspname = $1 AND relation.relname = ANY($2)
-		ORDER BY relation.relname`, []any{schema, []string{"chat_messages", "documents", "teams", "team_members", "tasks", "resources", "resource_requests", "team_key_access_requests", "team_ai_settings"}}, []string{
-		"chat_messages:t:t", "documents:t:t", "resource_requests:t:t", "resources:t:t", "tasks:t:t", "team_ai_settings:t:t", "team_key_access_requests:t:t", "team_members:t:t", "teams:t:t",
+		ORDER BY relation.relname`, []any{schema, []string{"chat_messages", "content_access_requests", "content_owners", "documents", "teams", "team_members", "tasks", "resources", "resource_requests", "team_key_access_requests", "team_ai_settings"}}, []string{
+		"chat_messages:t:t", "content_access_requests:t:t", "content_owners:t:t", "documents:t:t", "resource_requests:t:t", "resources:t:t", "tasks:t:t", "team_ai_settings:t:t", "team_key_access_requests:t:t", "team_members:t:t", "teams:t:t",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', tablename, policyname, cmd, array_to_string(roles, ','))
@@ -153,6 +157,12 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		ORDER BY tablename, policyname`, []any{schema}, []string{
 		"chat_messages:chat_messages_owner_maintenance:ALL:synodus_owner",
 		"chat_messages:chat_messages_runtime_access:ALL:synodus_runtime",
+		"content_access_requests:content_requests_insert:INSERT:synodus_runtime",
+		"content_access_requests:content_requests_maintenance:ALL:synodus_owner",
+		"content_access_requests:content_requests_read:SELECT:synodus_runtime",
+		"content_access_requests:content_requests_update:UPDATE:synodus_runtime",
+		"content_owners:content_owners_maintenance:ALL:synodus_owner",
+		"content_owners:content_owners_read:SELECT:synodus_runtime",
 		"documents:documents_owner_maintenance:ALL:synodus_owner",
 		"documents:documents_runtime_access:ALL:synodus_runtime",
 		"files:files_owner_maintenance:ALL:synodus_owner",
@@ -217,6 +227,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"list_bound_team_members:EXECUTE",
 		"synodus_app_user_public_id:EXECUTE",
 		"synodus_append_team_key_wrap:EXECUTE",
+		"synodus_can_access_content:EXECUTE",
 		"synodus_commit_team_key:EXECUTE",
 		"synodus_current_organization_role:EXECUTE",
 		"synodus_has_organization_membership:EXECUTE",

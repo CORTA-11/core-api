@@ -129,6 +129,7 @@ type RouterConfig struct {
 	ResourceBookings           ResourceBookingService
 	Keys                       KeyService
 	KeyAccess                  KeyAccessService
+	ContentAccess              service.ContentAccessService
 	Files                      FileService
 	Chat                       ChatService
 	AI                         AIService
@@ -176,6 +177,7 @@ func NewRouter(config RouterConfig) *Router {
 		resourceBookings:           config.ResourceBookings,
 		keys:                       config.Keys,
 		keyAccess:                  config.KeyAccess,
+		contentAccess:              config.ContentAccess,
 		files:                      config.Files,
 		chat:                       config.Chat,
 		ai:                         config.AI,
@@ -310,6 +312,18 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.listTeamKeys)
 	case "addTeamKeyMemberWrap":
 		return http.HandlerFunc(router.resources.addTeamKeyMemberWrap)
+	case "listContentAccess":
+		return http.HandlerFunc(router.resources.listContentAccess)
+	case "streamContentAccess":
+		return http.HandlerFunc(router.resources.contentAccessEvents)
+	case "requestContentAccess":
+		return http.HandlerFunc(router.resources.requestContentAccess)
+	case "grantContentAccess":
+		return http.HandlerFunc(router.resources.grantContentAccess)
+	case "approveContentAccess":
+		return http.HandlerFunc(router.resources.approveContentAccess)
+	case "denyContentAccess":
+		return http.HandlerFunc(router.resources.denyContentAccess)
 	case "streamKeyAccessRequests":
 		return http.HandlerFunc(router.resources.keyAccessEvents)
 	case "createKeyAccessRequest":
@@ -401,6 +415,9 @@ func authenticationFrom(request *http.Request) (session.Authentication, bool) {
 	return authentication, ok
 }
 func isResourceOperation(operationID string) bool {
+	if operationID == "listContentAccess" || operationID == "streamContentAccess" || operationID == "requestContentAccess" || operationID == "grantContentAccess" || operationID == "approveContentAccess" || operationID == "denyContentAccess" {
+		return true
+	}
 	return operationID == "streamOrganizations" || operationID == "listOrganizations" || operationID == "createOrganization" ||
 		operationID == "getOrganization" || operationID == "updateOrganization" ||
 		operationID == "deleteOrganization" || operationID == "restoreOrganization" ||

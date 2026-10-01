@@ -59,6 +59,7 @@ const getDocumentForTeam = `-- name: GetDocumentForTeam :one
 SELECT id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at
 FROM documents
 WHERE team_id = $1 AND public_id = $2
+  AND synodus_can_access_content('document', public_id)
 `
 
 type GetDocumentForTeamParams struct {
@@ -84,7 +85,7 @@ func (q *Queries) GetDocumentForTeam(ctx context.Context, arg GetDocumentForTeam
 }
 
 const listDocumentsForTeam = `-- name: ListDocumentsForTeam :many
-SELECT id, public_id, team_id, title, body_html, last_updated_by, created_at, updated_at,
+SELECT id, public_id, team_id, title, last_updated_by, created_at, updated_at,
        coalesce(synodus_user_display_name(last_updated_by), '')::text AS updated_by_name
 FROM documents
 WHERE team_id = $1
@@ -102,7 +103,6 @@ type ListDocumentsForTeamRow struct {
 	PublicID      uuid.UUID `json:"public_id"`
 	TeamID        int64     `json:"team_id"`
 	Title         string    `json:"title"`
-	BodyHtml      string    `json:"body_html"`
 	LastUpdatedBy uuid.UUID `json:"last_updated_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -123,7 +123,6 @@ func (q *Queries) ListDocumentsForTeam(ctx context.Context, arg ListDocumentsFor
 			&i.PublicID,
 			&i.TeamID,
 			&i.Title,
-			&i.BodyHtml,
 			&i.LastUpdatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -147,6 +146,7 @@ SET canonical_state = $1,
     last_updated_by = $4,
     updated_at = NOW()
 WHERE team_id = $5 AND public_id = $6
+  AND synodus_can_access_content('document', public_id)
 RETURNING id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at
 `
 
@@ -190,6 +190,7 @@ SET title = COALESCE($1, title),
     last_updated_by = $3,
     updated_at = NOW()
 WHERE public_id = $4
+  AND synodus_can_access_content('document', public_id)
 RETURNING id, public_id, team_id, canonical_state, title, body_html, last_updated_by, created_at, updated_at
 `
 

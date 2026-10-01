@@ -155,7 +155,11 @@ func TestE2EEKeysAndFilesRoundTrip(t *testing.T) {
 	require.Len(t, files, 1)
 	assert.Equal(t, fileMeta.ID, files[0].ID)
 
-	// 10. Member Downloads File
+	// 10. A key wrap alone does not grant permission to fetch ciphertext.
+	_, _, err = fileSvc.DownloadFile(ctx, member, org.publicID, team.publicID, fileMeta.ID)
+	require.Error(t, err)
+	contentAccess := service.NewContentAccessApplication(authorizer)
+	require.NoError(t, contentAccess.Grant(ctx, owner, org.publicID, team.publicID, "file", fileMeta.ID, member.UserID))
 	downMeta, stream, err := fileSvc.DownloadFile(ctx, member, org.publicID, team.publicID, fileMeta.ID)
 	require.NoError(t, err)
 	defer stream.Close()

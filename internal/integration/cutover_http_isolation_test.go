@@ -73,6 +73,7 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 		Organizations: service.NewOrganizationApplication(fixture.runtimePool, codec),
 		TeamTasks:     service.NewTeamTaskApplication(authorizer, codec),
 		Documents:     documents,
+		ContentAccess: service.NewContentAccessApplication(authorizer),
 		Chat:          chatService,
 		Environment:   "test", Origins: origins, TrustedProxies: trusted,
 		LoginGuard: loginGuard, Administrative: administrative,
@@ -92,6 +93,7 @@ func TestCutoverRouterBrowserOrganizationTeamTaskFlowAndAuthorizationNegatives(t
 	}
 	require.NoError(t, json.Unmarshal(loginResponse.body, &loginBody))
 	require.NotEmpty(t, loginBody.CSRFToken)
+	exerciseContentAccessHTTP(t, server.URL, client, loginBody.CSRFToken, organization.publicID, organization.teams[0].publicID)
 
 	organizations := cutoverRequest(t, client, http.MethodGet, server.URL+"/api/v1/orgs?page_size=1", "", "", "")
 	require.Equal(t, http.StatusOK, organizations.status)

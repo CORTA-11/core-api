@@ -21,6 +21,9 @@ These instructions apply to the entire `core-api` repository.
   queries, migrations, tests, and operational commands.
 - Authorization must be enforced server-side. Do not infer access from a UI
   state or grant organization administrators implicit access to team content.
+- For document/file authorization, ownership changes, or access-request SSE,
+  read `docs/content-access.md`; creator permission is separate from team
+  membership and encryption-key possession.
 - `api/openapi.yaml` is the HTTP contract. Update it with any externally visible
   route, payload, status, or error change.
 - Realtime chat writes remain authoritative in this service; Redis publication

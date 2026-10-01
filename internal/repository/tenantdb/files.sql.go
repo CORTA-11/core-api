@@ -62,6 +62,7 @@ const getFileByID = `-- name: GetFileByID :one
 SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at
 FROM files
 WHERE team_id = $1 AND public_id = $2 AND deleted_at IS NULL
+  AND synodus_can_access_content('file', public_id)
 `
 
 type GetFileByIDParams struct {

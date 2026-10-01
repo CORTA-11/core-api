@@ -23,6 +23,22 @@ type ChatMessage struct {
 	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type ContentAccessRequest struct {
+	PublicID    uuid.UUID `json:"public_id"`
+	Kind        string    `json:"kind"`
+	ResourceID  uuid.UUID `json:"resource_id"`
+	RequestedBy uuid.UUID `json:"requested_by"`
+	Status      string    `json:"status"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type ContentOwner struct {
+	Kind       string    `json:"kind"`
+	ResourceID uuid.UUID `json:"resource_id"`
+	TeamID     int64     `json:"team_id"`
+	CreatorID  uuid.UUID `json:"creator_id"`
+}
+
 type Document struct {
 	ID             int64     `json:"id"`
 	PublicID       uuid.UUID `json:"public_id"`
