@@ -1108,6 +1108,27 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/events:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    get:
+      tags: [Teams]
+      operationId: streamKeyAccessRequests
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: >-
+            Cookie-authenticated SSE stream. The key-access-requests event contains
+            a JSON array with the same request views as the list endpoint, newest
+            first. Sends an initial snapshot and changes checked every two seconds,
+            with heartbeat comments when unchanged. Connections close after thirty
+            seconds; clients reconnect for a fresh snapshot. Membership is checked
+            for every snapshot and the stream closes if access is revoked.
+          content:
+            text/event-stream:
+              schema: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
   /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
     post:

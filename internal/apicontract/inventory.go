@@ -103,6 +103,7 @@ var Routes = [...]Route{
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/keys", "createTeamKey", AuthenticationRequired, CSRFRequired, authorization.PermissionFileUpload, BodyJSON, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/keys", "listTeamKeys", AuthenticationRequired, CSRFNone, authorization.PermissionTeamRead, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/keys/{version}/wraps", "addTeamKeyMemberWrap", AuthenticationRequired, CSRFRequired, authorization.PermissionFileUpload, BodyJSON, RateNone},
+	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/events", "streamKeyAccessRequests", AuthenticationRequired, CSRFNone, authorization.PermissionFileRead, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests", "createKeyAccessRequest", AuthenticationRequired, CSRFRequired, authorization.PermissionFileRead, BodyNone, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests", "listKeyAccessRequests", AuthenticationRequired, CSRFNone, authorization.PermissionFileRead, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/{request_id}/approve", "approveKeyAccessRequest", AuthenticationRequired, CSRFRequired, authorization.PermissionKeyAccessDecide, BodyNone, RateAdministrative},

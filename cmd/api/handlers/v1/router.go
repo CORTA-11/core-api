@@ -310,6 +310,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.listTeamKeys)
 	case "addTeamKeyMemberWrap":
 		return http.HandlerFunc(router.resources.addTeamKeyMemberWrap)
+	case "streamKeyAccessRequests":
+		return http.HandlerFunc(router.resources.keyAccessEvents)
 	case "createKeyAccessRequest":
 		return http.HandlerFunc(router.resources.createKeyAccessRequest)
 	case "listKeyAccessRequests":
@@ -417,7 +419,7 @@ func isResourceOperation(operationID string) bool {
 		operationID == "getPublicKeysForTeam" ||
 		operationID == "createTeamKey" || operationID == "listTeamKeys" ||
 		operationID == "addTeamKeyMemberWrap" || operationID == "createKeyAccessRequest" ||
-		operationID == "listKeyAccessRequests" || operationID == "approveKeyAccessRequest" ||
+		operationID == "streamKeyAccessRequests" || operationID == "listKeyAccessRequests" || operationID == "approveKeyAccessRequest" ||
 		operationID == "denyKeyAccessRequest" ||
 		operationID == "uploadFile" || operationID == "listFiles" ||
 		operationID == "downloadFile" || operationID == "deleteFile" ||

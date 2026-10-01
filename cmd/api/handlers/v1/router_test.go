@@ -52,6 +52,7 @@ func TestIsResourceOperation(t *testing.T) {
 		"addTeamKeyMemberWrap",
 		"createKeyAccessRequest",
 		"listKeyAccessRequests",
+		"streamKeyAccessRequests",
 		"approveKeyAccessRequest",
 		"denyKeyAccessRequest",
 		"uploadFile",
