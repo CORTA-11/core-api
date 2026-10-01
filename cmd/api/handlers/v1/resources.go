@@ -50,6 +50,7 @@ type taskRequest struct {
 	// assigneeSet separates an omitted field (keep current) from an explicit
 	// null (unassign); encoding/json cannot express that on a plain pointer.
 	assigneeSet bool
+	dates       service.TaskDates
 }
 
 type documentRequest struct {
@@ -173,12 +174,22 @@ func (task *taskRequest) UnmarshalJSON(data []byte) error {
 		Description string          `json:"description"`
 		Status      string          `json:"status"`
 		AssigneeID  json.RawMessage `json:"assignee_id"`
+		StartDate   json.RawMessage `json:"start_date"`
+		DueDate     json.RawMessage `json:"due_date"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	task.Description = raw.Description
-	task.Status = raw.Status
+	*task = taskRequest{Description: raw.Description, Status: raw.Status}
+	var err error
+	task.dates.StartDate, task.dates.SetStartDate, err = decodeTaskDate(raw.StartDate)
+	if err != nil {
+		return err
+	}
+	task.dates.DueDate, task.dates.SetDueDate, err = decodeTaskDate(raw.DueDate)
+	if err != nil {
+		return err
+	}
 	if raw.AssigneeID == nil {
 		return nil
 	}
@@ -516,7 +527,7 @@ func (handler *ResourceHandler) createTask(writer http.ResponseWriter, request *
 		return
 	}
 	task, err := handler.teamTasks.CreateTask(request.Context(), authentication.Principal,
-		organizationID, teamID, input.Description, input.Status, input.AssigneeID)
+		organizationID, teamID, input.Description, input.Status, input.AssigneeID, input.dates)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return
@@ -537,7 +548,7 @@ func (handler *ResourceHandler) updateTask(writer http.ResponseWriter, request *
 		return
 	}
 	task, err := handler.teamTasks.UpdateTask(request.Context(), authentication.Principal,
-		organizationID, teamID, taskID, input.Description, input.Status, input.AssigneeID, input.assigneeSet)
+		organizationID, teamID, taskID, input.Description, input.Status, input.AssigneeID, input.assigneeSet, input.dates)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return
