@@ -140,6 +140,11 @@ func TestE2EKeyAccessRequestAndGrant(t *testing.T) {
 	require.Len(t, visible[0].Wraps, 1)
 	assert.Equal(t, latecomer.UserID, visible[0].Wraps[0].UserID)
 
+	// A team-key wrap is not permission to fetch any individual file.
+	_, _, err = fileSvc.DownloadFile(ctx, latecomer, org.publicID, team.publicID, fileMeta.ID)
+	require.Error(t, err)
+	contentAccess := service.NewContentAccessApplication(authorizer)
+	require.NoError(t, contentAccess.Grant(ctx, owner, org.publicID, team.publicID, "file", fileMeta.ID, latecomer.UserID))
 	downMeta, stream, err := fileSvc.DownloadFile(ctx, latecomer, org.publicID, team.publicID, fileMeta.ID)
 	require.NoError(t, err)
 	defer stream.Close()

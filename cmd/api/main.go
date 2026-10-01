@@ -193,6 +193,7 @@ func run(ctx context.Context, logger *slog.Logger) error {
 		Organizations: organizations, OrganizationMembers: organizations, TeamTasks: teamTasks, Documents: documents, Invitations: invitations, ResourceBookings: resourceBookings,
 		Keys: keyService, Files: fileService, Chat: chat,
 		KeyAccess:                  keyAccess,
+		ContentAccess:              service.NewContentAccessApplication(authorizer),
 		AI:                         ai,
 		Devices:                    devices,
 		Environment:                cfg.Environment,

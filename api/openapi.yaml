@@ -1108,6 +1108,110 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/content-access:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    get:
+      tags: [Teams]
+      operationId: listContentAccess
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Metadata for team content, and requests visible only to the requester and creator. Membership never implies permission to open content.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ContentAccessSnapshot'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/content-access/events:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    get:
+      tags: [Teams]
+      operationId: streamContentAccess
+      security: [{sessionCookie: []}]
+      responses:
+        '200':
+          description: Cookie-authenticated SSE. The content-access event contains ContentAccessSnapshot, initially and on changes polled every two seconds. Heartbeat comments keep idle streams alive. Connections end after thirty seconds for session revalidation; clients reconnect. Each poll rechecks team membership and request privacy. Use request status and updated_at to deduplicate notifications across reconnects.
+          content:
+            text/event-stream:
+              schema: {type: string}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/content-access/requests:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: requestContentAccess
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ContentAccessInput'}
+      responses:
+        '204': {description: Request created or denied request retried. Pending and granted requests cannot be retried.}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/content-access/grants:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: grantContentAccess
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - {$ref: '#/components/schemas/ContentAccessInput'}
+                - type: object
+                  required: [member_id]
+                  properties:
+                    member_id: {type: string, format: uuid}
+      responses:
+        '204': {description: 'Creator granted access to a current team member, without requiring a request.'}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/content-access/requests/{request_id}/approve:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: approveContentAccess
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: request_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Creator approved a pending request for a current member. Only this resource becomes accessible.}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+  /api/v1/orgs/{org_id}/teams/{team_id}/content-access/requests/{request_id}/deny:
+    parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
+    post:
+      tags: [Teams]
+      operationId: denyContentAccess
+      security: [{sessionCookie: []}]
+      parameters:
+        - {$ref: '#/components/parameters/CSRFToken'}
+        - {name: request_id, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '204': {description: Creator denied a pending request. The requester can retry.}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
   /api/v1/orgs/{org_id}/teams/{team_id}/key-access-requests/events:
     parameters: [{$ref: '#/components/parameters/OrganizationID'}, {$ref: '#/components/parameters/TeamID'}]
     get:
@@ -1656,6 +1760,39 @@ components:
           schema: {$ref: '#/components/schemas/Problem'}
           examples: {standard: {$ref: '#/components/examples/DependencyProblem'}}
   schemas:
+    ContentAccessInput:
+      type: object
+      required: [kind, resource_id]
+      properties:
+        kind: {type: string, enum: [file, document]}
+        resource_id: {type: string, format: uuid}
+    ContentAccessSnapshot:
+      type: object
+      required: [items, requests]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [kind, resource_id, creator_id, can_access]
+            properties:
+              kind: {type: string, enum: [file, document]}
+              resource_id: {type: string, format: uuid}
+              creator_id: {type: string, format: uuid}
+              can_access: {type: boolean}
+        requests:
+          type: array
+          items:
+            type: object
+            required: [public_id, kind, resource_id, requested_by, status, updated_at, requester_name]
+            properties:
+              public_id: {type: string, format: uuid}
+              kind: {type: string, enum: [file, document]}
+              resource_id: {type: string, format: uuid}
+              requested_by: {type: string, format: uuid}
+              status: {type: string, enum: [pending, granted, denied]}
+              updated_at: {type: string, format: date-time}
+              requester_name: {type: string}
     PublicID: {type: string, format: uuid}
     Timestamp: {type: string, format: date-time}
     CursorValue: {type: [string, 'null'], minLength: 1, maxLength: 512}

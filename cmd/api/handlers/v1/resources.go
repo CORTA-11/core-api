@@ -26,6 +26,7 @@ type ResourceHandler struct {
 	resourceBookings           ResourceBookingService
 	keys                       KeyService
 	keyAccess                  KeyAccessService
+	contentAccess              service.ContentAccessService
 	files                      FileService
 	chat                       ChatService
 	documents                  DocumentService

@@ -28,8 +28,8 @@ func TestDocumentListIncludesLastEditorDisplayName(t *testing.T) {
 			pool.ExpectQuery("coalesce\\(synodus_user_display_name\\(last_updated_by\\), ''\\)::text AS updated_by_name").
 				WithArgs(int64(1), int32(maximumListResults)).
 				WillReturnRows(pgxmock.NewRows([]string{
-					"id", "public_id", "team_id", "title", "body_html", "last_updated_by", "created_at", "updated_at", "updated_by_name",
-				}).AddRow(int64(2), documentID, int64(1), "Notes", "", editorID, time.Time{}, time.Time{}, name))
+					"id", "public_id", "team_id", "title", "last_updated_by", "created_at", "updated_at", "updated_by_name",
+				}).AddRow(int64(2), documentID, int64(1), "Notes", editorID, time.Time{}, time.Time{}, name))
 			authorizer := new(mockAuthorizer)
 			authorizer.queries = tenantdb.New(pool)
 			authorizer.On("WithinTeam", mock.Anything, principal, organizationID, teamID,
