@@ -7,8 +7,10 @@ package tenantdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createFile = `-- name: CreateFile :one
@@ -92,7 +94,8 @@ func (q *Queries) GetFileByID(ctx context.Context, arg GetFileByIDParams) (File,
 }
 
 const listFilesForTeam = `-- name: ListFilesForTeam :many
-SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at
+SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at,
+       coalesce(synodus_user_display_name(uploaded_by), '')::text AS uploaded_by_name
 FROM files
 WHERE team_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC, public_id
@@ -104,15 +107,32 @@ type ListFilesForTeamParams struct {
 	Limit  int32 `json:"limit"`
 }
 
-func (q *Queries) ListFilesForTeam(ctx context.Context, arg ListFilesForTeamParams) ([]File, error) {
+type ListFilesForTeamRow struct {
+	ID             int64              `json:"id"`
+	PublicID       uuid.UUID          `json:"public_id"`
+	TeamID         int64              `json:"team_id"`
+	Name           string             `json:"name"`
+	Size           int64              `json:"size"`
+	ContentType    string             `json:"content_type"`
+	ObjectKey      string             `json:"object_key"`
+	Iv             []byte             `json:"iv"`
+	KeyVersion     int32              `json:"key_version"`
+	UploadedBy     uuid.UUID          `json:"uploaded_by"`
+	CreatedAt      time.Time          `json:"created_at"`
+	UpdatedAt      time.Time          `json:"updated_at"`
+	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	UploadedByName string             `json:"uploaded_by_name"`
+}
+
+func (q *Queries) ListFilesForTeam(ctx context.Context, arg ListFilesForTeamParams) ([]ListFilesForTeamRow, error) {
 	rows, err := q.db.Query(ctx, listFilesForTeam, arg.TeamID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []File
+	var items []ListFilesForTeamRow
 	for rows.Next() {
-		var i File
+		var i ListFilesForTeamRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PublicID,
@@ -127,6 +147,7 @@ func (q *Queries) ListFilesForTeam(ctx context.Context, arg ListFilesForTeamPara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.UploadedByName,
 		); err != nil {
 			return nil, err
 		}

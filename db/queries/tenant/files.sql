@@ -10,7 +10,8 @@ WHERE team_id = $1 AND public_id = $2 AND deleted_at IS NULL
   AND synodus_can_access_content('file', public_id);
 
 -- name: ListFilesForTeam :many
-SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at
+SELECT id, public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by, created_at, updated_at, deleted_at,
+       coalesce(synodus_user_display_name(uploaded_by), '')::text AS uploaded_by_name
 FROM files
 WHERE team_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC, public_id

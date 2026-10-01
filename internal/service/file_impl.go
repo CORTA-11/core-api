@@ -159,7 +159,7 @@ func (s *fileService) ListFiles(
 	orgID uuid.UUID,
 	teamID uuid.UUID,
 ) ([]FileView, error) {
-	var rows []tenantdb.File
+	var rows []tenantdb.ListFilesForTeamRow
 	err := s.authorizer.WithinTeam(ctx, p, orgID, teamID, authorization.PermissionFileRead, func(queries *tenantdb.Queries) error {
 		resolvedTeam, err := queries.ResolveTeamContext(ctx, tenantdb.ResolveTeamContextParams{
 			PublicID:     teamID,
@@ -183,15 +183,16 @@ func (s *fileService) ListFiles(
 	views := make([]FileView, len(rows))
 	for i, row := range rows {
 		views[i] = FileView{
-			ID:          row.PublicID,
-			Name:        row.Name,
-			Size:        row.Size,
-			ContentType: row.ContentType,
-			IV:          row.Iv,
-			KeyVersion:  row.KeyVersion,
-			UploadedBy:  row.UploadedBy,
-			CreatedAt:   row.CreatedAt,
-			UpdatedAt:   row.UpdatedAt,
+			ID:             row.PublicID,
+			Name:           row.Name,
+			Size:           row.Size,
+			ContentType:    row.ContentType,
+			IV:             row.Iv,
+			KeyVersion:     row.KeyVersion,
+			UploadedBy:     row.UploadedBy,
+			UploadedByName: row.UploadedByName,
+			CreatedAt:      row.CreatedAt,
+			UpdatedAt:      row.UpdatedAt,
 		}
 	}
 	return views, nil

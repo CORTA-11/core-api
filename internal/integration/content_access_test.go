@@ -83,6 +83,15 @@ func TestContentCreatorControlsAccessAndDeniedRequestsCanRetry(t *testing.T) {
 	_, err = f.adminPool.Exec(ctx, "INSERT INTO "+files+` (public_id, team_id, name, size, content_type, object_key, iv, key_version, uploaded_by)
  VALUES ($1, $2, 'private.txt', 16, 'application/octet-stream', 'test-object', '\x00', 1, $3)`, fileID, team.id, creator.UserID)
 	require.NoError(t, err)
+	fileService := service.NewFileService(nil, "unused-for-listing", auth)
+	listed, err := fileService.ListFiles(ctx, member, org.publicID, team.publicID)
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	require.Equal(t, creator.UserID, listed[0].UploadedBy)
+	require.Equal(t, "Shared User", listed[0].UploadedByName)
+	otherTeamFiles, err := fileService.ListFiles(ctx, creator, org.publicID, org.teams[1].publicID)
+	require.NoError(t, err)
+	require.Empty(t, otherTeamFiles)
 	getFile := func(p session.Principal) error {
 		return auth.WithinTeam(ctx, p, org.publicID, team.publicID, authorization.PermissionFileRead, func(q *tenantdb.Queries) error {
 			_, err := q.GetFileByID(ctx, tenantdb.GetFileByIDParams{TeamID: team.id, PublicID: fileID})

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -75,14 +76,17 @@ func TestFileService_ListFiles(t *testing.T) {
 		mockPool.ExpectQuery(`(?s)ListFilesForTeam.*SELECT`).
 			WithArgs(internalTeamID, maximumListResults).
 			WillReturnRows(pgxmock.NewRows([]string{
-				"id", "public_id", "team_id", "name", "size", "content_type", "object_key", "iv", "key_version", "uploaded_by", "created_at", "updated_at", "deleted_at",
-			}).AddRow(int64(1), uuid.New(), internalTeamID, "doc.pdf", int64(1024), "application/pdf", "key", []byte("iv"), int32(1), p.UserID, now, now, nil))
+				"id", "public_id", "team_id", "name", "size", "content_type", "object_key", "iv", "key_version", "uploaded_by", "created_at", "updated_at", "deleted_at", "uploaded_by_name",
+			}).AddRow(int64(1), uuid.New(), internalTeamID, "doc.pdf", int64(1024), "application/pdf", "key", []byte("iv"), int32(1), p.UserID, now, now, nil, "Alex Smith"))
 
 		files, err := svc.ListFiles(context.Background(), p, orgID, teamID)
 		require.NoError(t, err)
 		require.Len(t, files, 1)
 		assert.Equal(t, "doc.pdf", files[0].Name)
 		assert.Equal(t, int64(1024), files[0].Size)
+		payload, err := json.Marshal(files)
+		require.NoError(t, err)
+		assert.Contains(t, string(payload), `"uploaded_by_name":"Alex Smith"`)
 		auth.AssertExpectations(t)
 	})
 }

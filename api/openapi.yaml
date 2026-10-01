@@ -1394,6 +1394,12 @@ paths:
                     content_type: {type: string}
                     iv: {type: string}
                     key_version: {type: integer}
+                    uploaded_by: {type: string, format: uuid}
+                    uploaded_by_name:
+                      type: string
+                      description: Current display name of the original uploader. Omitted if the uploader's profile is unavailable.
+                    created_at: {type: string, format: date-time}
+                    updated_at: {type: string, format: date-time}
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '404': {$ref: '#/components/responses/NotFound'}
         '500': {$ref: '#/components/responses/InternalFailure'}
