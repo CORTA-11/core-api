@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const addTeamContributor = `-- name: AddTeamContributor :one
@@ -33,7 +34,7 @@ func (q *Queries) AddTeamContributor(ctx context.Context, email string) (TeamMem
 const createTeam = `-- name: CreateTeam :one
 INSERT INTO teams (name, slug)
 VALUES ($1, $2)
-RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine
+RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 `
 
 type CreateTeamParams struct {
@@ -52,12 +53,13 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		&i.UpdatedAt,
 		&i.PublicID,
 		&i.IsQuarantine,
+		&i.Description,
 	)
 	return i, err
 }
 
 const createTeamWithCreator = `-- name: CreateTeamWithCreator :one
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM create_team_with_creator($1, $2, $3)
 `
 
@@ -78,6 +80,7 @@ func (q *Queries) CreateTeamWithCreator(ctx context.Context, arg CreateTeamWithC
 		&i.UpdatedAt,
 		&i.PublicID,
 		&i.IsQuarantine,
+		&i.Description,
 	)
 	return i, err
 }
@@ -107,7 +110,7 @@ func (q *Queries) GetCurrentTeamRole(ctx context.Context, teamID int64) (string,
 }
 
 const getTeams = `-- name: GetTeams :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM teams
 ORDER BY created_at ASC, id ASC
 LIMIT $1
@@ -130,6 +133,7 @@ func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
 			&i.UpdatedAt,
 			&i.PublicID,
 			&i.IsQuarantine,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -142,7 +146,7 @@ func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
 }
 
 const getTeamsAfter = `-- name: GetTeamsAfter :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -174,6 +178,7 @@ func (q *Queries) GetTeamsAfter(ctx context.Context, arg GetTeamsAfterParams) ([
 			&i.UpdatedAt,
 			&i.PublicID,
 			&i.IsQuarantine,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -186,7 +191,7 @@ func (q *Queries) GetTeamsAfter(ctx context.Context, arg GetTeamsAfterParams) ([
 }
 
 const getTeamsBefore = `-- name: GetTeamsBefore :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -218,6 +223,7 @@ func (q *Queries) GetTeamsBefore(ctx context.Context, arg GetTeamsBeforeParams) 
 			&i.UpdatedAt,
 			&i.PublicID,
 			&i.IsQuarantine,
+			&i.Description,
 		); err != nil {
 			return nil, err
 		}
@@ -314,5 +320,32 @@ func (q *Queries) RevalidateTeamAuthorization(ctx context.Context, arg Revalidat
 	row := q.db.QueryRow(ctx, revalidateTeamAuthorization, arg.TeamPublicID, arg.UserPublicID)
 	var i RevalidateTeamAuthorizationRow
 	err := row.Scan(&i.PublicID, &i.Role)
+	return i, err
+}
+
+const updateTeam = `-- name: UpdateTeam :one
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+FROM update_team($1, $2, $3)
+`
+
+type UpdateTeamParams struct {
+	Name        pgtype.Text `json:"name"`
+	Slug        pgtype.Text `json:"slug"`
+	Description pgtype.Text `json:"description"`
+}
+
+func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, error) {
+	row := q.db.QueryRow(ctx, updateTeam, arg.Name, arg.Slug, arg.Description)
+	var i Team
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PublicID,
+		&i.IsQuarantine,
+		&i.Description,
+	)
 	return i, err
 }

@@ -83,6 +83,7 @@ var Routes = [...]Route{
 	{http.MethodDelete, "/api/v1/organization-invitations/current", "declineCurrentOrganizationInvitation", AuthenticationRequired, CSRFRequired, "", BodyNone, RateAdministrative},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams", "listTeams", AuthenticationRequired, CSRFNone, authorization.PermissionOrgRead, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams", "createTeam", AuthenticationRequired, CSRFRequired, authorization.PermissionTeamCreate, BodyJSON, RateAdministrative},
+	{http.MethodPatch, "/api/v1/orgs/{org_id}/teams/{team_id}", "updateTeam", AuthenticationRequired, CSRFRequired, authorization.PermissionTeamUpdate, BodyJSON, RateNone},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/members", "listTeamMembers", AuthenticationRequired, CSRFNone, authorization.PermissionTeamMembersRead, BodyNone, RateNone},
 	{http.MethodPost, "/api/v1/orgs/{org_id}/teams/{team_id}/members", "addTeamMember", AuthenticationRequired, CSRFRequired, authorization.PermissionTeamMembersManage, BodyJSON, RateAdministrative},
 	{http.MethodGet, "/api/v1/orgs/{org_id}/teams/{team_id}/tasks", "listTasks", AuthenticationRequired, CSRFNone, authorization.PermissionTaskRead, BodyNone, RateNone},

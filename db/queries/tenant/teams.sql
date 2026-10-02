@@ -1,11 +1,11 @@
 -- name: GetTeams :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM teams
 ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('limit');
 
 -- name: GetTeamsAfter :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -14,7 +14,7 @@ ORDER BY created_at ASC, public_id ASC
 LIMIT sqlc.arg('limit');
 
 -- name: GetTeamsBefore :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -25,11 +25,15 @@ LIMIT sqlc.arg('limit');
 -- name: CreateTeam :one
 INSERT INTO teams (name, slug)
 VALUES ($1, $2)
-RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine;
+RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine, description;
 
 -- name: CreateTeamWithCreator :one
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
 FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'), sqlc.arg('leader_email'));
+
+-- name: UpdateTeam :one
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+FROM update_team(sqlc.narg('name'), sqlc.narg('slug'), sqlc.narg('description'));
 
 -- name: ResolveTeamContext :one
 SELECT teams.id, teams.public_id

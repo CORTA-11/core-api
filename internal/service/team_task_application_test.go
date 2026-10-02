@@ -5,6 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/CORTA-11/core-api/internal/authorization"
+	"github.com/CORTA-11/core-api/internal/session"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,3 +36,22 @@ func TestValidateTaskWriteEnforcesOpenAPIContract(t *testing.T) {
 		assert.ErrorIs(t, err, ErrInvalidInput)
 	}
 }
+
+func TestUpdateTeamValidatesInputs(t *testing.T) {
+	t.Parallel()
+	auth := new(mockAuthorizer)
+	app := NewTeamTaskApplication(auth, nil)
+	// Missing principal or IDs
+	_, err := app.UpdateTeam(t.Context(), session.Principal{}, uuid.Nil, uuid.Nil, nil, nil)
+	assert.ErrorIs(t, err, authorization.ErrResourceNotFound)
+
+	// Valid principal and IDs, but empty inputs
+	p := session.Principal{UserID: uuid.New(), SessionID: uuid.New()}
+	_, err = app.UpdateTeam(t.Context(), p, uuid.New(), uuid.New(), nil, nil)
+	assert.ErrorIs(t, err, ErrInvalidInput)
+
+	emptyName := "   "
+	_, err = app.UpdateTeam(t.Context(), p, uuid.New(), uuid.New(), &emptyName, nil)
+	assert.ErrorIs(t, err, ErrInvalidInput)
+}
+

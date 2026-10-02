@@ -435,6 +435,36 @@ paths:
         - {$ref: '#/components/parameters/CSRFToken'}
         - {$ref: '#/components/parameters/InvitationToken'}
       responses: {'200': {description: Invitation accepted}}
+  /api/v1/orgs/{org_id}/teams/{team_id}:
+    parameters:
+      - {$ref: '#/components/parameters/OrganizationID'}
+      - {$ref: '#/components/parameters/TeamID'}
+    patch:
+      tags: [Teams]
+      operationId: updateTeam
+      summary: Update team details
+      security: [{sessionCookie: []}]
+      parameters: [{$ref: '#/components/parameters/CSRFToken'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TeamPatch'}
+      responses:
+        '200':
+          description: Team updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Team'}
+              examples: {standard: {$ref: '#/components/examples/Team'}}
+        '400': {$ref: '#/components/responses/InvalidRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '500': {$ref: '#/components/responses/InternalFailure'}
+        '503': {$ref: '#/components/responses/DependencyUnavailable'}
   /api/v1/orgs/{org_id}/teams/{team_id}/members:
     parameters:
       - {$ref: '#/components/parameters/OrganizationID'}
@@ -1887,6 +1917,7 @@ components:
         id: {$ref: '#/components/schemas/PublicID'}
         name: {type: string, minLength: 1, maxLength: 200}
         slug: {type: string, minLength: 1, maxLength: 100, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$'}
+        description: {type: string}
         created_at: {$ref: '#/components/schemas/Timestamp'}
         updated_at: {$ref: '#/components/schemas/Timestamp'}
     TeamWrite:
@@ -1895,6 +1926,12 @@ components:
       required: [name]
       properties:
         name: {type: string, minLength: 1, maxLength: 200}
+    TeamPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string}
     Task:
       type: object
       additionalProperties: false

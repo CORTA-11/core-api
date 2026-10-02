@@ -33,12 +33,13 @@ type applicationAuthorizer interface {
 }
 
 type TeamView struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Slug      string    `json:"slug"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	MyRole    string    `json:"my_role"`
+	ID          uuid.UUID `json:"id"`
+	Name        string    `json:"name"`
+	Slug        string    `json:"slug"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	MyRole      string    `json:"my_role"`
 }
 
 type TeamPage struct {
@@ -224,6 +225,60 @@ func (application *TeamTaskApplication) CreateTeam(
 	}
 	view := teamView(row)
 	view.MyRole = ""
+	return view, nil
+}
+
+func (application *TeamTaskApplication) UpdateTeam(
+	ctx context.Context,
+	principal session.Principal,
+	organizationID uuid.UUID,
+	teamID uuid.UUID,
+	name *string,
+	description *string,
+) (TeamView, error) {
+	if application == nil || application.authorizer == nil || !validPrincipal(principal) || organizationID == uuid.Nil || teamID == uuid.Nil {
+		return TeamView{}, authorization.ErrResourceNotFound
+	}
+	var nameParam pgtype.Text
+	var slugParam pgtype.Text
+	if name != nil {
+		trimmedName := strings.TrimSpace(*name)
+		if trimmedName != "" {
+			normalized, err := normalizeResourceName(trimmedName)
+			if err != nil {
+				return TeamView{}, err
+			}
+			nameParam = pgtype.Text{String: normalized, Valid: true}
+			slugParam = pgtype.Text{String: deterministicTeamSlug(normalized), Valid: true}
+		}
+	}
+	var descParam pgtype.Text
+	if description != nil {
+		descParam = pgtype.Text{String: strings.TrimSpace(*description), Valid: true}
+	}
+	if !nameParam.Valid && !descParam.Valid {
+		return TeamView{}, ErrInvalidInput
+	}
+	var row tenantdb.Team
+	err := application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTeamUpdate,
+		func(queries *tenantdb.Queries) error {
+			var queryErr error
+			row, queryErr = queries.UpdateTeam(ctx, tenantdb.UpdateTeamParams{
+				Name:        nameParam,
+				Slug:        slugParam,
+				Description: descParam,
+			})
+			return classifyConflict(queryErr)
+		})
+	if err != nil {
+		return TeamView{}, err
+	}
+	view := teamView(row)
+	_ = application.authorizer.WithinTeam(ctx, principal, organizationID, teamID, authorization.PermissionTeamRead, func(queries *tenantdb.Queries) error {
+		role, roleErr := queries.GetCurrentTeamRole(ctx, row.ID)
+		view.MyRole = role
+		return roleErr
+	})
 	return view, nil
 }
 
@@ -517,6 +572,7 @@ func assigneeValue(assigneeID *uuid.UUID) pgtype.UUID {
 
 func teamView(row tenantdb.Team) TeamView {
 	return TeamView{ID: row.PublicID, Name: row.Name, Slug: row.Slug,
+		Description: row.Description,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 

@@ -115,6 +115,7 @@ type Team struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 	PublicID     uuid.UUID `json:"public_id"`
 	IsQuarantine bool      `json:"is_quarantine"`
+	Description  string    `json:"description"`
 }
 
 type TeamAiSetting struct {
