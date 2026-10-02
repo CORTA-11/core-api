@@ -50,6 +50,7 @@ type updateTeamRequest struct {
 }
 
 type taskRequest struct {
+	Details     *string    `json:"details"`
 	Description string     `json:"description"`
 	Status      string     `json:"status"`
 	AssigneeID  *uuid.UUID `json:"assignee_id"`
@@ -177,6 +178,7 @@ func (handler *ResourceHandler) issueDocumentSocketTicket(writer http.ResponseWr
 // UnmarshalJSON decodes JSON into the value.
 func (task *taskRequest) UnmarshalJSON(data []byte) error {
 	var raw struct {
+		Details     *string         `json:"details"`
 		Description string          `json:"description"`
 		Status      string          `json:"status"`
 		AssigneeID  json.RawMessage `json:"assignee_id"`
@@ -186,7 +188,7 @@ func (task *taskRequest) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	*task = taskRequest{Description: raw.Description, Status: raw.Status}
+	*task = taskRequest{Description: raw.Description, Details: raw.Details, Status: raw.Status}
 	var err error
 	task.dates.StartDate, task.dates.SetStartDate, err = decodeTaskDate(raw.StartDate)
 	if err != nil {
@@ -553,7 +555,7 @@ func (handler *ResourceHandler) createTask(writer http.ResponseWriter, request *
 		return
 	}
 	task, err := handler.teamTasks.CreateTask(request.Context(), authentication.Principal,
-		organizationID, teamID, input.Description, input.Status, input.AssigneeID, input.dates)
+		organizationID, teamID, input.Description, input.Status, input.AssigneeID, input.dates, input.Details)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return
@@ -574,7 +576,7 @@ func (handler *ResourceHandler) updateTask(writer http.ResponseWriter, request *
 		return
 	}
 	task, err := handler.teamTasks.UpdateTask(request.Context(), authentication.Principal,
-		organizationID, teamID, taskID, input.Description, input.Status, input.AssigneeID, input.assigneeSet, input.dates)
+		organizationID, teamID, taskID, input.Description, input.Status, input.AssigneeID, input.assigneeSet, input.dates, input.Details)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return

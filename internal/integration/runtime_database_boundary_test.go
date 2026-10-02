@@ -193,7 +193,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
 		WHERE namespace.nspname = $1 AND relation.relname = ANY($2)
 		ORDER BY relation.relname, constraint_name.conname`, []any{schema, []string{"teams", "team_members", "tasks"}}, []string{
-		"tasks:tasks_assignee_public_id_fk:f", "tasks:tasks_created_at_not_null:n", "tasks:tasks_description_not_null:n", "tasks:tasks_id_not_null:n",
+		"tasks:tasks_assignee_public_id_fk:f", "tasks:tasks_created_at_not_null:n", "tasks:tasks_description_not_null:n", "tasks:tasks_details_not_null:n", "tasks:tasks_id_not_null:n",
 		"tasks:tasks_pk:p", "tasks:tasks_public_id_not_null:n", "tasks:tasks_public_id_unique:u",
 		"tasks:tasks_status_check:c", "tasks:tasks_status_not_null:n", "tasks:tasks_team_fk:f",
 		"tasks:tasks_team_id_not_null:n", "tasks:tasks_updated_at_not_null:n",

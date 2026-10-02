@@ -29,9 +29,9 @@ func (q *Queries) AssigneeIsMember(ctx context.Context, userPublicID uuid.UUID) 
 }
 
 const createTask = `-- name: CreateTask :one
-INSERT INTO tasks (team_id, description, status, assignee_public_id, start_date, due_date)
-VALUES (NULLIF(current_setting('app.team_id', true), '')::BIGINT, $1, $2, $3, $4, $5)
-RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date
+INSERT INTO tasks (team_id, description, status, assignee_public_id, start_date, due_date, details)
+VALUES (NULLIF(current_setting('app.team_id', true), '')::BIGINT, $1, $2, $3, $4, $5, $6)
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date, details
 `
 
 type CreateTaskParams struct {
@@ -40,6 +40,7 @@ type CreateTaskParams struct {
 	AssigneePublicID pgtype.UUID        `json:"assignee_public_id"`
 	StartDate        pgtype.Timestamptz `json:"start_date"`
 	DueDate          pgtype.Timestamptz `json:"due_date"`
+	Details          string             `json:"details"`
 }
 
 func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error) {
@@ -49,6 +50,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		arg.AssigneePublicID,
 		arg.StartDate,
 		arg.DueDate,
+		arg.Details,
 	)
 	var i Task
 	err := row.Scan(
@@ -62,6 +64,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 		&i.AssigneePublicID,
 		&i.StartDate,
 		&i.DueDate,
+		&i.Details,
 	)
 	return i, err
 }
@@ -69,7 +72,7 @@ func (q *Queries) CreateTask(ctx context.Context, arg CreateTaskParams) (Task, e
 const deleteTask = `-- name: DeleteTask :one
 DELETE FROM tasks
 WHERE public_id = $1
-RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date, details
 `
 
 func (q *Queries) DeleteTask(ctx context.Context, publicID uuid.UUID) (Task, error) {
@@ -86,12 +89,13 @@ func (q *Queries) DeleteTask(ctx context.Context, publicID uuid.UUID) (Task, err
 		&i.AssigneePublicID,
 		&i.StartDate,
 		&i.DueDate,
+		&i.Details,
 	)
 	return i, err
 }
 
 const getTasks = `-- name: GetTasks :many
-SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id, tasks.start_date, tasks.due_date
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id, tasks.start_date, tasks.due_date, tasks.details
 FROM tasks
 ORDER BY tasks.created_at ASC, tasks.id ASC
 LIMIT $1
@@ -117,6 +121,7 @@ func (q *Queries) GetTasks(ctx context.Context, limit int32) ([]Task, error) {
 			&i.AssigneePublicID,
 			&i.StartDate,
 			&i.DueDate,
+			&i.Details,
 		); err != nil {
 			return nil, err
 		}
@@ -129,7 +134,7 @@ func (q *Queries) GetTasks(ctx context.Context, limit int32) ([]Task, error) {
 }
 
 const getTasksAfter = `-- name: GetTasksAfter :many
-SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id, tasks.start_date, tasks.due_date
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id, tasks.start_date, tasks.due_date, tasks.details
 FROM tasks
 WHERE (tasks.created_at, tasks.public_id) > ($1, $2::uuid)
 ORDER BY tasks.created_at ASC, tasks.public_id ASC
@@ -162,6 +167,7 @@ func (q *Queries) GetTasksAfter(ctx context.Context, arg GetTasksAfterParams) ([
 			&i.AssigneePublicID,
 			&i.StartDate,
 			&i.DueDate,
+			&i.Details,
 		); err != nil {
 			return nil, err
 		}
@@ -174,7 +180,7 @@ func (q *Queries) GetTasksAfter(ctx context.Context, arg GetTasksAfterParams) ([
 }
 
 const getTasksBefore = `-- name: GetTasksBefore :many
-SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id, tasks.start_date, tasks.due_date
+SELECT tasks.id, tasks.team_id, tasks.description, tasks.status, tasks.created_at, tasks.updated_at, tasks.public_id, tasks.assignee_public_id, tasks.start_date, tasks.due_date, tasks.details
 FROM tasks
 WHERE (tasks.created_at, tasks.public_id) < ($1, $2::uuid)
 ORDER BY tasks.created_at DESC, tasks.public_id DESC
@@ -207,6 +213,7 @@ func (q *Queries) GetTasksBefore(ctx context.Context, arg GetTasksBeforeParams) 
 			&i.AssigneePublicID,
 			&i.StartDate,
 			&i.DueDate,
+			&i.Details,
 		); err != nil {
 			return nil, err
 		}
@@ -219,7 +226,7 @@ func (q *Queries) GetTasksBefore(ctx context.Context, arg GetTasksBeforeParams) 
 }
 
 const isolationProbeTasks = `-- name: IsolationProbeTasks :many
-SELECT id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date
+SELECT id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date, details
 FROM tasks
 ORDER BY created_at ASC, id ASC
 LIMIT $1
@@ -247,6 +254,7 @@ func (q *Queries) IsolationProbeTasks(ctx context.Context, limit int32) ([]Task,
 			&i.AssigneePublicID,
 			&i.StartDate,
 			&i.DueDate,
+			&i.Details,
 		); err != nil {
 			return nil, err
 		}
@@ -263,7 +271,7 @@ UPDATE tasks
 SET assignee_public_id = NULL,
     updated_at = NOW()
 WHERE public_id = $1
-RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date, details
 `
 
 func (q *Queries) UnassignTask(ctx context.Context, publicID uuid.UUID) (Task, error) {
@@ -280,6 +288,7 @@ func (q *Queries) UnassignTask(ctx context.Context, publicID uuid.UUID) (Task, e
 		&i.AssigneePublicID,
 		&i.StartDate,
 		&i.DueDate,
+		&i.Details,
 	)
 	return i, err
 }
@@ -288,18 +297,21 @@ const updateTask = `-- name: UpdateTask :one
 UPDATE tasks
 SET description = $2,
     status = $3,
-    assignee_public_id = CASE WHEN $4::boolean THEN $5::uuid ELSE assignee_public_id END,
-    start_date = CASE WHEN $6::boolean THEN $7::timestamptz ELSE start_date END,
-    due_date = CASE WHEN $8::boolean THEN $9::timestamptz ELSE due_date END,
+    details = CASE WHEN $4::boolean THEN $5::text ELSE details END,
+    assignee_public_id = CASE WHEN $6::boolean THEN $7::uuid ELSE assignee_public_id END,
+    start_date = CASE WHEN $8::boolean THEN $9::timestamptz ELSE start_date END,
+    due_date = CASE WHEN $10::boolean THEN $11::timestamptz ELSE due_date END,
     updated_at = NOW()
 WHERE public_id = $1
-RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date
+RETURNING id, team_id, description, status, created_at, updated_at, public_id, assignee_public_id, start_date, due_date, details
 `
 
 type UpdateTaskParams struct {
 	PublicID         uuid.UUID          `json:"public_id"`
 	Description      string             `json:"description"`
 	Status           string             `json:"status"`
+	SetDetails       bool               `json:"set_details"`
+	Details          string             `json:"details"`
 	SetAssignee      bool               `json:"set_assignee"`
 	AssigneePublicID pgtype.UUID        `json:"assignee_public_id"`
 	SetStartDate     bool               `json:"set_start_date"`
@@ -313,6 +325,8 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		arg.PublicID,
 		arg.Description,
 		arg.Status,
+		arg.SetDetails,
+		arg.Details,
 		arg.SetAssignee,
 		arg.AssigneePublicID,
 		arg.SetStartDate,
@@ -332,6 +346,7 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (Task, e
 		&i.AssigneePublicID,
 		&i.StartDate,
 		&i.DueDate,
+		&i.Details,
 	)
 	return i, err
 }

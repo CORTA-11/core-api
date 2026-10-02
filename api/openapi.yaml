@@ -714,7 +714,7 @@ paths:
               schema: {$ref: '#/components/schemas/TaskPage'}
               example:
                 items:
-                  - {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: null, start_date: null, due_date: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+                  - {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, details: '', status: todo, assignee_id: null, start_date: null, due_date: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
                 next_cursor: null
                 previous_cursor: null
         '400': {$ref: '#/components/responses/InvalidRequest'}
@@ -1935,10 +1935,11 @@ components:
     Task:
       type: object
       additionalProperties: false
-      required: [id, description, status, assignee_id, start_date, due_date, created_at, updated_at]
+      required: [id, description, details, status, assignee_id, start_date, due_date, created_at, updated_at]
       properties:
         id: {$ref: '#/components/schemas/PublicID'}
-        description: {type: string, minLength: 1, maxLength: 4096}
+        description: {type: string, minLength: 1, maxLength: 4096, description: 'Task title (legacy field name).'}
+        details: {type: string, maxLength: 4096, description: 'Task description details, separate from the title.'}
         status: {type: string, enum: [todo, in_progress, done]}
         assignee_id: {type: [string, 'null'], format: uuid}
         start_date: {type: [string, 'null'], format: date-time}
@@ -1950,7 +1951,8 @@ components:
       additionalProperties: false
       required: [description, status]
       properties:
-        description: {type: string, minLength: 1, maxLength: 4096}
+        description: {type: string, minLength: 1, maxLength: 4096, description: 'Task title (legacy field name).'}
+        details: {type: string, maxLength: 4096, description: 'Omitted preserves existing details on PATCH; an empty string clears them.'}
         status: {type: string, enum: [todo, in_progress, done]}
         # Absent keeps the current assignee; null unassigns; a value reassigns.
         assignee_id: {type: [string, 'null'], format: uuid}
@@ -2286,7 +2288,7 @@ components:
     Team:
       value: {id: 22222222-2222-4222-8222-222222222222, name: Reproducibility Group, slug: reproducibility-group, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
     Task:
-      value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, status: todo, assignee_id: 44444444-4444-4444-8444-444444444444, start_date: null, due_date: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
+      value: {id: 33333333-3333-4333-8333-333333333333, description: Reproduce benchmark results, details: '', status: todo, assignee_id: 44444444-4444-4444-8444-444444444444, start_date: null, due_date: null, created_at: '2026-08-27T09:00:00Z', updated_at: '2026-08-27T09:00:00Z'}
     ChatMessage:
       value: {id: 66666666-6666-4666-8666-666666666666, channel_id: 22222222-2222-4222-8222-222222222222, sender: {id: 12345, name: Researcher}, message: I pushed the latest notes., mentions: [], reply_to_id: null, deleted_at: null, created_at: '2026-08-27T09:00:00Z'}
     ChatMessagePage:

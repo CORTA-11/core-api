@@ -32,11 +32,13 @@ func TestTaskDatesPersistAcrossWritesAndReload(t *testing.T) {
 	application := service.NewTeamTaskApplication(authorization.NewAuthorizer(fixture.resolver, fixture.executor), codec)
 	start := time.Date(2026, 8, 10, 9, 0, 0, 0, time.UTC)
 	due := start.AddDate(0, 0, 2)
+	details := "Detailed instructions\nwith a second line"
 	created, err := application.CreateTask(ctx, principal, org.publicID, team.publicID, "Dated task", "todo", &fixture.users.shared,
-		service.TaskDates{StartDate: &start, DueDate: &due})
+		service.TaskDates{StartDate: &start, DueDate: &due}, &details)
 	require.NoError(t, err)
 	assert.Equal(t, &start, created.StartDate)
 	assert.Equal(t, &due, created.DueDate)
+	assert.Equal(t, details, created.Details)
 
 	// Reload from the database, not just the write response.
 	page, err := application.ListTasks(ctx, principal, org.publicID, team.publicID, pagination.Parameters{PageSize: 100})
@@ -47,33 +49,46 @@ func TestTaskDatesPersistAcrossWritesAndReload(t *testing.T) {
 			found = true
 			assert.Equal(t, &start, item.StartDate)
 			assert.Equal(t, &due, item.DueDate)
+			assert.Equal(t, details, item.Details)
 		}
 	}
 	require.True(t, found)
 
-	moved, err := application.UpdateTask(ctx, principal, org.publicID, team.publicID, created.ID, "Dated task", "done", nil, false, service.TaskDates{})
+	moved, err := application.UpdateTask(ctx, principal, org.publicID, team.publicID, created.ID, "Dated task", "done", nil, false, service.TaskDates{}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &start, moved.StartDate)
 	assert.Equal(t, &due, moved.DueDate)
+	assert.Equal(t, details, moved.Details)
 	assert.Equal(t, &fixture.users.shared, moved.AssigneeID)
 
+	details = "Edited instructions"
 	newDue := due.AddDate(0, 0, 3)
 	updated, err := application.UpdateTask(ctx, principal, org.publicID, team.publicID, created.ID, "Edited and unassigned", "in_progress", nil, true,
-		service.TaskDates{SetStartDate: true, SetDueDate: true, DueDate: &newDue})
+		service.TaskDates{SetStartDate: true, SetDueDate: true, DueDate: &newDue}, &details)
 	require.NoError(t, err)
 	assert.Nil(t, updated.StartDate)
 	assert.Equal(t, &newDue, updated.DueDate)
 	assert.Nil(t, updated.AssigneeID)
 	assert.Equal(t, "Edited and unassigned", updated.Description)
 	assert.Equal(t, "in_progress", updated.Status)
+	assert.Equal(t, details, updated.Details)
 
+	details = ""
 	cleared, err := application.UpdateTask(ctx, principal, org.publicID, team.publicID, created.ID, "Dated task", "todo", nil, false,
-		service.TaskDates{SetDueDate: true})
+		service.TaskDates{SetDueDate: true}, &details)
 	require.NoError(t, err)
 	assert.Nil(t, cleared.StartDate)
 	assert.Nil(t, cleared.DueDate)
+	page, err = application.ListTasks(ctx, principal, org.publicID, team.publicID, pagination.Parameters{PageSize: 100})
+	require.NoError(t, err)
+	for _, item := range page.Items {
+		if item.ID == created.ID {
+			assert.Empty(t, item.Details)
+			assert.Equal(t, "Dated task", item.Description)
+		}
+	}
 
 	_, err = application.UpdateTask(ctx, principal, fixture.orgs[1].publicID, fixture.orgs[1].teams[0].publicID,
-		created.ID, "Forbidden", "todo", nil, false, service.TaskDates{SetDueDate: true, DueDate: &due})
+		created.ID, "Forbidden", "todo", nil, false, service.TaskDates{SetDueDate: true, DueDate: &due}, &details)
 	require.Error(t, err)
 }

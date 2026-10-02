@@ -41,8 +41,8 @@ type TeamTaskService interface {
 	CreateTeam(context.Context, session.Principal, uuid.UUID, string, string) (service.TeamView, error)
 	UpdateTeam(context.Context, session.Principal, uuid.UUID, uuid.UUID, *string, *string) (service.TeamView, error)
 	ListTasks(context.Context, session.Principal, uuid.UUID, uuid.UUID, pagination.Parameters) (service.TaskPage, error)
-	CreateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, service.TaskDates) (service.TaskView, error)
-	UpdateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, bool, service.TaskDates) (service.TaskView, error)
+	CreateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, service.TaskDates, *string) (service.TaskView, error)
+	UpdateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, bool, service.TaskDates, *string) (service.TaskView, error)
 	DeleteTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID) error
 	ListTeamMembers(context.Context, session.Principal, uuid.UUID, uuid.UUID) ([]service.TeamMemberView, error)
 	AddTeamMember(context.Context, session.Principal, uuid.UUID, uuid.UUID, string) (service.TeamMemberView, error)

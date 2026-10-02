@@ -105,6 +105,7 @@ type Task struct {
 	AssigneePublicID pgtype.UUID        `json:"assignee_public_id"`
 	StartDate        pgtype.Timestamptz `json:"start_date"`
 	DueDate          pgtype.Timestamptz `json:"due_date"`
+	Details          string             `json:"details"`
 }
 
 type Team struct {
