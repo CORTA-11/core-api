@@ -183,6 +183,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"team_members:team_members_owner_maintenance:ALL:synodus_owner",
 		"team_members:team_members_runtime_select:SELECT:synodus_runtime",
 		"teams:teams_owner_maintenance:ALL:synodus_owner",
+		"teams:teams_runtime_active:SELECT:synodus_runtime",
 		"teams:teams_runtime_organization_select:SELECT:synodus_runtime",
 		"teams:teams_runtime_select:SELECT:synodus_runtime",
 	})
@@ -225,6 +226,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"create_team_with_creator:EXECUTE",
 		"create_team_with_creator:EXECUTE",
 		"list_bound_team_members:EXECUTE",
+		"soft_delete_team:EXECUTE",
 		"synodus_app_user_public_id:EXECUTE",
 		"synodus_append_team_key_wrap:EXECUTE",
 		"synodus_can_access_content:EXECUTE",
@@ -241,12 +243,13 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
 		WHERE namespace.nspname = $1 AND procedure.proname = ANY($2)
 		ORDER BY procedure.proname`, []any{schema, []string{
-		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_append_team_key_wrap", "synodus_commit_team_key", "synodus_has_team_membership", "update_team",
+		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "soft_delete_team", "synodus_app_user_public_id", "synodus_append_team_key_wrap", "synodus_commit_team_key", "synodus_has_team_membership", "update_team",
 	}}, []string{
 		"add_team_contributor:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"list_bound_team_members:synodus_owner",
+		"soft_delete_team:synodus_owner",
 		"synodus_app_user_public_id:synodus_owner",
 		"synodus_append_team_key_wrap:synodus_owner",
 		"synodus_commit_team_key:synodus_owner",

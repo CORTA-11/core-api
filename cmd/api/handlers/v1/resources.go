@@ -508,6 +508,19 @@ func (handler *ResourceHandler) createTeam(writer http.ResponseWriter, request *
 	_ = httpx.WriteJSON(writer, http.StatusCreated, team)
 }
 
+func (handler *ResourceHandler) deleteTeam(writer http.ResponseWriter, request *http.Request) {
+	authentication, organizationID, teamID, ok := handler.scoped(request, true)
+	if !ok || handler.teamTasks == nil {
+		handler.problem(writer, request, authorization.ErrResourceNotFound)
+		return
+	}
+	if err := handler.teamTasks.DeleteTeam(request.Context(), authentication.Principal, organizationID, teamID); err != nil {
+		handler.problem(writer, request, err)
+		return
+	}
+	writer.WriteHeader(http.StatusNoContent)
+}
+
 func (handler *ResourceHandler) updateTeam(writer http.ResponseWriter, request *http.Request) {
 	authentication, organizationID, teamID, ok := handler.scoped(request, true)
 	if !ok || handler.teamTasks == nil {

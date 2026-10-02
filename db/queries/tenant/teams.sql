@@ -1,11 +1,14 @@
+-- name: SoftDeleteTeam :one
+SELECT soft_delete_team(sqlc.arg('public_id'))::uuid AS public_id;
+
 -- name: GetTeams :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM teams
 ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg('limit');
 
 -- name: GetTeamsAfter :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -14,7 +17,7 @@ ORDER BY created_at ASC, public_id ASC
 LIMIT sqlc.arg('limit');
 
 -- name: GetTeamsBefore :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -25,14 +28,14 @@ LIMIT sqlc.arg('limit');
 -- name: CreateTeam :one
 INSERT INTO teams (name, slug)
 VALUES ($1, $2)
-RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine, description;
+RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at;
 
 -- name: CreateTeamWithCreator :one
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'), sqlc.arg('leader_email'));
 
 -- name: UpdateTeam :one
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM update_team(sqlc.narg('name'), sqlc.narg('slug'), sqlc.narg('description'));
 
 -- name: ResolveTeamContext :one
@@ -42,7 +45,7 @@ JOIN team_members
   ON team_members.team_id = teams.id
 WHERE teams.public_id = sqlc.arg('public_id')
   AND team_members.user_public_id = sqlc.arg('user_public_id')
-  AND NOT teams.is_quarantine;
+  AND NOT teams.is_quarantine AND teams.deleted_at IS NULL;
 
 -- name: RevalidateTeamAuthorization :one
 SELECT teams.public_id, team_members.role
@@ -51,7 +54,7 @@ JOIN team_members ON team_members.team_id = teams.id
 WHERE teams.id = nullif(current_setting('app.team_id', true), '')::bigint
   AND teams.public_id = sqlc.arg('team_public_id')
   AND team_members.user_public_id = sqlc.arg('user_public_id')
-  AND NOT teams.is_quarantine;
+  AND NOT teams.is_quarantine AND teams.deleted_at IS NULL;
 
 -- name: GetCurrentTeamRole :one
 SELECT role FROM team_members

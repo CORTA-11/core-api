@@ -9,14 +9,14 @@ func OrganizationAllows(role OrganizationRole, permission Permission) bool {
 	case OrganizationRoleOwner:
 		switch permission {
 		case PermissionOrgRead, PermissionOrgUpdate, PermissionOrgDelete, PermissionOrgRestore,
-			PermissionOrgMembersRead, PermissionOrgMembersManage, PermissionOrgOwnersManage, PermissionTeamCreate,
+			PermissionOrgMembersRead, PermissionOrgMembersManage, PermissionOrgOwnersManage, PermissionTeamCreate, PermissionTeamDelete,
 			PermissionResourceRead, PermissionResourceManage, PermissionResourceDecide:
 			return true
 		}
 	case OrganizationRoleAdministrator:
 		switch permission {
 		case PermissionOrgRead, PermissionOrgUpdate, PermissionOrgMembersRead,
-			PermissionOrgMembersManage, PermissionTeamCreate,
+			PermissionOrgMembersManage, PermissionTeamCreate, PermissionTeamDelete,
 			PermissionResourceRead, PermissionResourceManage, PermissionResourceDecide:
 			return true
 		}

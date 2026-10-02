@@ -73,7 +73,7 @@ func TestOpenAPIOperationIDsAreUnique(t *testing.T) {
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	assert.Len(t, seen, 76)
+	assert.Len(t, seen, 77)
 }
 
 func TestInventoryMatchesOpenAPIBidirectionally(t *testing.T) {

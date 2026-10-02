@@ -109,14 +109,15 @@ type Task struct {
 }
 
 type Team struct {
-	ID           int64     `json:"id"`
-	Name         string    `json:"name"`
-	Slug         string    `json:"slug"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	PublicID     uuid.UUID `json:"public_id"`
-	IsQuarantine bool      `json:"is_quarantine"`
-	Description  string    `json:"description"`
+	ID           int64              `json:"id"`
+	Name         string             `json:"name"`
+	Slug         string             `json:"slug"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+	PublicID     uuid.UUID          `json:"public_id"`
+	IsQuarantine bool               `json:"is_quarantine"`
+	Description  string             `json:"description"`
+	DeletedAt    pgtype.Timestamptz `json:"deleted_at"`
 }
 
 type TeamAiSetting struct {

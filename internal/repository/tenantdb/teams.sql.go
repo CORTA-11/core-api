@@ -34,7 +34,7 @@ func (q *Queries) AddTeamContributor(ctx context.Context, email string) (TeamMem
 const createTeam = `-- name: CreateTeam :one
 INSERT INTO teams (name, slug)
 VALUES ($1, $2)
-RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 `
 
 type CreateTeamParams struct {
@@ -54,12 +54,13 @@ func (q *Queries) CreateTeam(ctx context.Context, arg CreateTeamParams) (Team, e
 		&i.PublicID,
 		&i.IsQuarantine,
 		&i.Description,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const createTeamWithCreator = `-- name: CreateTeamWithCreator :one
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM create_team_with_creator($1, $2, $3)
 `
 
@@ -81,6 +82,7 @@ func (q *Queries) CreateTeamWithCreator(ctx context.Context, arg CreateTeamWithC
 		&i.PublicID,
 		&i.IsQuarantine,
 		&i.Description,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -110,7 +112,7 @@ func (q *Queries) GetCurrentTeamRole(ctx context.Context, teamID int64) (string,
 }
 
 const getTeams = `-- name: GetTeams :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM teams
 ORDER BY created_at ASC, id ASC
 LIMIT $1
@@ -134,6 +136,7 @@ func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
 			&i.PublicID,
 			&i.IsQuarantine,
 			&i.Description,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -146,7 +149,7 @@ func (q *Queries) GetTeams(ctx context.Context, limit int32) ([]Team, error) {
 }
 
 const getTeamsAfter = `-- name: GetTeamsAfter :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -179,6 +182,7 @@ func (q *Queries) GetTeamsAfter(ctx context.Context, arg GetTeamsAfterParams) ([
 			&i.PublicID,
 			&i.IsQuarantine,
 			&i.Description,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -191,7 +195,7 @@ func (q *Queries) GetTeamsAfter(ctx context.Context, arg GetTeamsAfterParams) ([
 }
 
 const getTeamsBefore = `-- name: GetTeamsBefore :many
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM teams
 WHERE NOT is_quarantine
   AND (synodus_current_organization_role() IN ('owner', 'administrator') OR synodus_has_team_membership(id))
@@ -224,6 +228,7 @@ func (q *Queries) GetTeamsBefore(ctx context.Context, arg GetTeamsBeforeParams) 
 			&i.PublicID,
 			&i.IsQuarantine,
 			&i.Description,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -276,7 +281,7 @@ JOIN team_members
   ON team_members.team_id = teams.id
 WHERE teams.public_id = $1
   AND team_members.user_public_id = $2
-  AND NOT teams.is_quarantine
+  AND NOT teams.is_quarantine AND teams.deleted_at IS NULL
 `
 
 type ResolveTeamContextParams struct {
@@ -303,7 +308,7 @@ JOIN team_members ON team_members.team_id = teams.id
 WHERE teams.id = nullif(current_setting('app.team_id', true), '')::bigint
   AND teams.public_id = $1
   AND team_members.user_public_id = $2
-  AND NOT teams.is_quarantine
+  AND NOT teams.is_quarantine AND teams.deleted_at IS NULL
 `
 
 type RevalidateTeamAuthorizationParams struct {
@@ -323,8 +328,19 @@ func (q *Queries) RevalidateTeamAuthorization(ctx context.Context, arg Revalidat
 	return i, err
 }
 
+const softDeleteTeam = `-- name: SoftDeleteTeam :one
+SELECT soft_delete_team($1)::uuid AS public_id
+`
+
+func (q *Queries) SoftDeleteTeam(ctx context.Context, publicID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, softDeleteTeam, publicID)
+	var public_id uuid.UUID
+	err := row.Scan(&public_id)
+	return public_id, err
+}
+
 const updateTeam = `-- name: UpdateTeam :one
-SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description
+SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
 FROM update_team($1, $2, $3)
 `
 
@@ -346,6 +362,7 @@ func (q *Queries) UpdateTeam(ctx context.Context, arg UpdateTeamParams) (Team, e
 		&i.PublicID,
 		&i.IsQuarantine,
 		&i.Description,
+		&i.DeletedAt,
 	)
 	return i, err
 }

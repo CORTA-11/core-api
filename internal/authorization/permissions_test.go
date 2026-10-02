@@ -10,10 +10,10 @@ func TestRolePermissionMappingsAreClosedAndSeparated(t *testing.T) {
 	t.Parallel()
 	orgExpected := map[OrganizationRole]map[Permission]bool{
 		OrganizationRoleOwner: set(PermissionOrgRead, PermissionOrgUpdate, PermissionOrgDelete, PermissionOrgRestore,
-			PermissionOrgMembersRead, PermissionOrgMembersManage, PermissionOrgOwnersManage, PermissionTeamCreate,
+			PermissionOrgMembersRead, PermissionOrgMembersManage, PermissionOrgOwnersManage, PermissionTeamCreate, PermissionTeamDelete,
 			PermissionResourceRead, PermissionResourceManage, PermissionResourceDecide),
 		OrganizationRoleAdministrator: set(PermissionOrgRead, PermissionOrgUpdate, PermissionOrgMembersRead,
-			PermissionOrgMembersManage, PermissionTeamCreate, PermissionResourceRead, PermissionResourceManage, PermissionResourceDecide),
+			PermissionOrgMembersManage, PermissionTeamCreate, PermissionTeamDelete, PermissionResourceRead, PermissionResourceManage, PermissionResourceDecide),
 		OrganizationRoleMember: set(PermissionOrgRead, PermissionResourceRead),
 	}
 	teamExpected := map[TeamRole]map[Permission]bool{

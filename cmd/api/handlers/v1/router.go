@@ -40,6 +40,7 @@ type TeamTaskService interface {
 	ListTeams(context.Context, session.Principal, uuid.UUID, pagination.Parameters) (service.TeamPage, error)
 	CreateTeam(context.Context, session.Principal, uuid.UUID, string, string) (service.TeamView, error)
 	UpdateTeam(context.Context, session.Principal, uuid.UUID, uuid.UUID, *string, *string) (service.TeamView, error)
+	DeleteTeam(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
 	ListTasks(context.Context, session.Principal, uuid.UUID, uuid.UUID, pagination.Parameters) (service.TaskPage, error)
 	CreateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, service.TaskDates, *string) (service.TaskView, error)
 	UpdateTask(context.Context, session.Principal, uuid.UUID, uuid.UUID, uuid.UUID, string, string, *uuid.UUID, bool, service.TaskDates, *string) (service.TaskView, error)
@@ -259,6 +260,8 @@ func (router *Router) operation(operationID string) http.Handler {
 		return http.HandlerFunc(router.resources.listTeams)
 	case "createTeam":
 		return http.HandlerFunc(router.resources.createTeam)
+	case "deleteTeam":
+		return http.HandlerFunc(router.resources.deleteTeam)
 	case "updateTeam":
 		return http.HandlerFunc(router.resources.updateTeam)
 	case "listTasks":
@@ -424,7 +427,7 @@ func isResourceOperation(operationID string) bool {
 	return operationID == "streamOrganizations" || operationID == "listOrganizations" || operationID == "createOrganization" ||
 		operationID == "getOrganization" || operationID == "updateOrganization" ||
 		operationID == "deleteOrganization" || operationID == "restoreOrganization" ||
-		operationID == "listTeams" || operationID == "createTeam" || operationID == "updateTeam" || operationID == "listTasks" ||
+		operationID == "listTeams" || operationID == "createTeam" || operationID == "updateTeam" || operationID == "deleteTeam" || operationID == "listTasks" ||
 		operationID == "createTask" || operationID == "updateTask" || operationID == "deleteTask" ||
 		operationID == "listOrganizationInvitations" || operationID == "createOrganizationInvitation" ||
 		operationID == "listOrganizationMembers" ||
