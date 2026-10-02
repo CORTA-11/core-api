@@ -60,6 +60,7 @@ func CookiePolicy(environment string) http.Cookie {
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   false,
+		MaxAge:   int(AbsoluteLifetime.Seconds()),
 	}
 	if environment == "production" {
 		cookie.Name = "__Host-synodus_session"

@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	IdleLifetime     = 30 * time.Minute
-	AbsoluteLifetime = 12 * time.Hour
+	IdleLifetime     = 30 * 24 * time.Hour
+	AbsoluteLifetime = 90 * 24 * time.Hour
 	TouchInterval    = 5 * time.Minute
 	MaximumListSize  = 100
 	DefaultBatchSize = 500

@@ -410,6 +410,8 @@ func (handler *AuthHandler) setCookie(writer http.ResponseWriter, token string) 
 	// #nosec G124 -- handler.cookie is the complete environment-derived policy.
 	cookie := handler.cookie
 	cookie.Value = token
+	cookie.MaxAge = int(session.AbsoluteLifetime.Seconds())
+	cookie.Expires = time.Now().Add(session.AbsoluteLifetime)
 	http.SetCookie(writer, &cookie)
 }
 
