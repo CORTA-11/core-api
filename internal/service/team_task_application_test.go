@@ -54,4 +54,3 @@ func TestUpdateTeamValidatesInputs(t *testing.T) {
 	_, err = app.UpdateTeam(t.Context(), p, uuid.New(), uuid.New(), &emptyName, nil)
 	assert.ErrorIs(t, err, ErrInvalidInput)
 }
-

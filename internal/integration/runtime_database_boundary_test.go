@@ -202,7 +202,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"team_members:team_members_team_fk:f", "team_members:team_members_team_id_not_null:n",
 		"team_members:team_members_updated_at_not_null:n", "team_members:team_members_user_public_fk:f",
 		"team_members:team_members_user_public_id_not_null:n",
-		"teams:teams_created_at_not_null:n", "teams:teams_id_not_null:n", "teams:teams_is_quarantine_not_null:n",
+		"teams:teams_created_at_not_null:n", "teams:teams_description_not_null:n", "teams:teams_id_not_null:n", "teams:teams_is_quarantine_not_null:n",
 		"teams:teams_name_not_null:n", "teams:teams_name_unique:u", "teams:teams_pk:p",
 		"teams:teams_public_id_not_null:n", "teams:teams_public_id_unique:u", "teams:teams_slug_not_null:n",
 		"teams:teams_slug_unique:u", "teams:teams_updated_at_not_null:n",
@@ -233,6 +233,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"synodus_has_organization_membership:EXECUTE",
 		"synodus_has_team_membership:EXECUTE",
 		"synodus_user_display_name:EXECUTE",
+		"update_team:EXECUTE",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', procedure.proname, pg_get_userbyid(procedure.proowner))
@@ -240,7 +241,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		JOIN pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
 		WHERE namespace.nspname = $1 AND procedure.proname = ANY($2)
 		ORDER BY procedure.proname`, []any{schema, []string{
-		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_append_team_key_wrap", "synodus_commit_team_key", "synodus_has_team_membership",
+		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "synodus_app_user_public_id", "synodus_append_team_key_wrap", "synodus_commit_team_key", "synodus_has_team_membership", "update_team",
 	}}, []string{
 		"add_team_contributor:synodus_owner",
 		"create_team_with_creator:synodus_owner",
@@ -250,6 +251,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"synodus_append_team_key_wrap:synodus_owner",
 		"synodus_commit_team_key:synodus_owner",
 		"synodus_has_team_membership:synodus_owner",
+		"update_team:synodus_owner",
 	})
 	assertCatalogRows(t, fixture, `
 		SELECT concat_ws(':', sequencename, sequenceowner)

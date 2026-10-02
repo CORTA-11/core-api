@@ -583,7 +583,7 @@ func assigneeValue(assigneeID *uuid.UUID) pgtype.UUID {
 func teamView(row tenantdb.Team) TeamView {
 	return TeamView{ID: row.PublicID, Name: row.Name, Slug: row.Slug,
 		Description: row.Description,
-		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		CreatedAt:   row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func taskView(row tenantdb.Task) TaskView {
