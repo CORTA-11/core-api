@@ -42,6 +42,7 @@ type nameRequest struct {
 type createTeamRequest struct {
 	Name        string `json:"name"`
 	LeaderEmail string `json:"leader_email"`
+	Description string `json:"description"`
 }
 
 type updateTeamRequest struct {
@@ -500,7 +501,7 @@ func (handler *ResourceHandler) createTeam(writer http.ResponseWriter, request *
 		_ = httpx.WriteProblem(writer, request, httpx.DecodeProblem(err))
 		return
 	}
-	team, err := handler.teamTasks.CreateTeam(request.Context(), authentication.Principal, organizationID, input.Name, input.LeaderEmail)
+	team, err := handler.teamTasks.CreateTeam(request.Context(), authentication.Principal, organizationID, input.Name, input.LeaderEmail, input.Description)
 	if err != nil {
 		handler.problem(writer, request, err)
 		return

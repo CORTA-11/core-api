@@ -32,7 +32,7 @@ RETURNING id, name, slug, created_at, updated_at, public_id, is_quarantine, desc
 
 -- name: CreateTeamWithCreator :one
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at
-FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'), sqlc.arg('leader_email'));
+FROM create_team_with_creator(sqlc.arg('name'), sqlc.arg('slug'), sqlc.arg('leader_email'), sqlc.arg('description'));
 
 -- name: UpdateTeam :one
 SELECT id, name, slug, created_at, updated_at, public_id, is_quarantine, description, deleted_at

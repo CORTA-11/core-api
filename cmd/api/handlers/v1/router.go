@@ -38,7 +38,7 @@ type OrganizationMemberService interface {
 
 type TeamTaskService interface {
 	ListTeams(context.Context, session.Principal, uuid.UUID, pagination.Parameters) (service.TeamPage, error)
-	CreateTeam(context.Context, session.Principal, uuid.UUID, string, string) (service.TeamView, error)
+	CreateTeam(context.Context, session.Principal, uuid.UUID, string, string, string) (service.TeamView, error)
 	UpdateTeam(context.Context, session.Principal, uuid.UUID, uuid.UUID, *string, *string) (service.TeamView, error)
 	DeleteTeam(context.Context, session.Principal, uuid.UUID, uuid.UUID) error
 	ListTasks(context.Context, session.Principal, uuid.UUID, uuid.UUID, pagination.Parameters) (service.TaskPage, error)

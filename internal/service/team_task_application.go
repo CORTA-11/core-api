@@ -200,6 +200,7 @@ func (application *TeamTaskApplication) CreateTeam(
 	organizationID uuid.UUID,
 	name string,
 	leaderEmail string,
+	description string,
 ) (TeamView, error) {
 	name, err := normalizeResourceName(name)
 	if err != nil {
@@ -218,6 +219,7 @@ func (application *TeamTaskApplication) CreateTeam(
 			var queryErr error
 			row, queryErr = queries.CreateTeamWithCreator(ctx, tenantdb.CreateTeamWithCreatorParams{
 				Name: name, Slug: deterministicTeamSlug(name), LeaderEmail: leaderEmail,
+				Description: strings.TrimSpace(description),
 			})
 			return classifyConflict(queryErr)
 		})

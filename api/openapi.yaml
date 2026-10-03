@@ -370,7 +370,7 @@ paths:
         content:
           application/json:
             schema: {$ref: '#/components/schemas/TeamWrite'}
-            example: {name: Reproducibility Group}
+            example: {name: Reproducibility Group, leader_email: leader@example.test, description: Research notes}
       responses:
         '201':
           description: Team created
@@ -1936,9 +1936,11 @@ components:
     TeamWrite:
       type: object
       additionalProperties: false
-      required: [name]
+      required: [name, leader_email]
       properties:
         name: {type: string, minLength: 1, maxLength: 200}
+        leader_email: {type: string, format: email}
+        description: {type: string}
     TeamPatch:
       type: object
       additionalProperties: false
