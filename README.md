@@ -1,271 +1,79 @@
-# core-api
+# Synodus Core API
 
-## Development
+Go HTTP API for authentication, organizations, teams, tasks, chat, documents,
+and files. PostgreSQL holds identities and the organization registry in the
+public schema, with team data in per-organization schemas. Redis handles shared
+rate limits and realtime event delivery; MinIO stores file bytes.
 
-1. Copy the non-secret environment template and development secret templates:
+For the complete local stack with generated credentials and published images,
+use the [infra installer](https://github.com/CORTA-11/infra#local-setup).
 
-   ```bash
-   cp .env.example .env
-   cp -R dev_secrets .local_secrets
-   ```
+## Source development
 
-   `dev_secrets` contains development-only values and is safe to use only for a
-   local stack. `.local_secrets` is ignored by Git and is the active secret
-   directory used by Make, Docker Compose, and direct application startup.
-   Replace its values when needed; never use the development templates in a
-   deployed environment.
-
-   The required files are `db_admin_user.txt`, `db_admin_password.txt`,
-   `db_runtime_password.txt`, `db_migrator_password.txt`,
-   `db_provisioner_password.txt`, `minio_root_user.txt`,
-   `minio_root_password.txt`, `minio_access_key`, `minio_secret_key.txt`,
-   `redis_limit_secret.txt`, `redis_invitation_binding_secret.txt`, and
-   `csrf_secret.txt`.
-
-2. Start Postgres, Redis, and MinIO without starting the API yet:
-
-   ```bash
-   docker compose up -d postgres redis minio
-   ```
-
-3. Bootstrap the database roles and apply public migrations:
-
-   ```bash
-   make bootstrap-db
-   ```
-
-   This one-time/recovery command uses the admin secret files as administrator
-   credentials, applies the public role migration, and assigns the three
-   operational role passwords. Normal migrations, provisioning, and API traffic
-   use the separated migrator, provisioner, and runtime credentials afterward.
-
-4. Create the configured MinIO bucket.
-
-   ```bash
-   make bootstrap
-   ```
-
-5. Start the tenant provisioner in its own terminal. It is a long-running
-   process and should remain running. Wait for `status --all` to report each
-   organization as `"current":true` before calling tenant routes:
-
-   ```bash
-   make provisioner
-   # In another terminal:
-   go run ./cmd/provisioner status --all
-   ```
-
-6. Start the API in another terminal:
-
-   ```bash
-   make run
-   ```
-
-   To run the API in Docker instead, build and start its Compose service after
-   completing the database and MinIO bootstrap steps above:
-
-   ```bash
-   docker compose up --build -d api
-   docker compose ps
-   ```
-
-   For a fresh database, start dependencies and perform bootstrap first:
-
-   ```bash
-   docker compose up -d postgres redis minio
-   make bootstrap-db
-   make bootstrap
-   docker compose up --build -d api
-   ```
-
-   The API is available on `http://localhost:8080`. Compose also starts the
-   long-running tenant provisioner and the AI context service, mounts a separate
-   least-privilege database secret into each service, and waits for infrastructure
-   dependencies to become healthy. The API reaches the AI context service at
-   `http://ai-service:8080`; set `AI_SERVICE_TOKEN` in `.env` to require the same
-   internal token on both services. For direct process startup, run `ai-service`
-   on port 8085 as described in its README.
-
-   Verify startup with `curl -i http://localhost:8080/health/ready`; a ready
-   development stack returns HTTP 204.
-
-7. Start the realtime services if chat or collaborative Documents are needed:
-
-   ```bash
-   cd ../socket-server
-   cp -n .env.example .env
-   make run
-   ```
-
-   In another terminal:
-
-   ```bash
-   cd ../socket-server
-   npm --prefix collaboration ci
-   make collaboration-build
-   make collaboration-run
-   ```
-
-   Direct startup requires Node.js 22+ and `npm --prefix collaboration ci`
-   once before `make collaboration-run`. Docker Compose can build and run both
-   realtime processes with the API:
-
-   ```bash
-   docker compose up --build -d api socket-server collaboration-server
-   docker compose ps
-   curl -i http://localhost:8080/health/ready
-   curl -sS http://localhost:8081/health
-   curl -sS http://localhost:8082/health
-   ```
-
-   `api`, `socket-server`, and `collaboration-server` use the private Compose
-   network. The Document process reaches core-api at `http://api:8080`; only
-   browser REST and WebSocket traffic should be exposed through Envoy. Set the
-   same `JWT_SECRET`, `COLLABORATION_SERVICE_SECRET`, and allowed browser
-   origins in every process.
-
-For later public migrations use `make migrate-up-all`; do not rerun them with
-runtime credentials. `make bootstrap-db` is also the recovery command when an
-existing development `.env` receives new role passwords. If a password contains
-URL-reserved characters, set URL-encoded `BOOTSTRAP_DATABASE_URL`,
-`DATABASE_URL`, `MIGRATION_DATABASE_URL`, and `PROVISIONING_DATABASE_URL`
-explicitly instead of relying on the component-derived development URLs.
-
-## Tenant provisioning operations
-
-Creating or restoring an organization records durable provisioning intent and
-returns immediately. The dedicated provisioner creates/adopts its canonical
-schema and applies the embedded tenant migration set. Tenant routes remain
-unavailable until the organization is active at the exact embedded version and
-checksum.
+Requires Go matching `go.mod`, Make, and running PostgreSQL, Redis, and MinIO.
+Copy the local configuration once:
 
 ```bash
-go run ./cmd/provisioner run
-go run ./cmd/provisioner status --all
-go run ./cmd/provisioner status --organization ORGANIZATION_UUID
-go run ./cmd/provisioner reconcile --organization ORGANIZATION_UUID
-go run ./cmd/provisioner reconcile --all --concurrency 4
-go run ./cmd/provisioner retry --organization ORGANIZATION_UUID
-go run ./cmd/provisioner retry --all
+cp .env.example .env
+cp -R dev_secrets .local_secrets
+```
+
+Configure dependencies using `.env` and `.local_secrets`, then initialize them:
+
+```bash
+make bootstrap-db   # public migrations and database role passwords
+make bootstrap      # storage bucket
+```
+
+Run these in separate terminals:
+
+```bash
+make provisioner
+make run
+```
+
+The API listens on <http://localhost:8080>. Check readiness with
+`curl -i http://localhost:8080/health/ready` (HTTP 204). Source Compose configuration
+is in `docker-compose.yaml`; the AI and realtime services live in sibling repos.
+For direct API startup, run ai-service on port 8085.
+
+Development secrets are local-only. Runtime, migration, provisioning, and admin
+credentials are separate. Keep JWT and collaboration secrets aligned with
+socket-server, and share any `AI_SERVICE_TOKEN` with ai-service. Configuration
+options are listed in [`.env.example`](.env.example).
+
+## Database operations
+
+```bash
+make migrate-up-all       # later public migrations
 make migrate-status
+make bootstrap-db         # also reapplies database role passwords
+# Provisioner commands use PROVISIONING_DATABASE_URL:
+go run ./cmd/provisioner status --all
+go run ./cmd/provisioner retry --organization ORGANIZATION_UUID
 ```
 
-Commands accept public organization UUIDs only and write one bounded JSON
-object per line. `status` and `reconcile` exit nonzero if any selected tenant is
-not current. Transient reconciliation failures retry automatically up to five
-attempts with persisted exponential backoff; permanent catalog/checksum
-divergence fails immediately and requires operator repair followed by `retry`.
+Export `PROVISIONING_DATABASE_URL` when running provisioner commands directly;
+`make provisioner` supplies it from local secret files. Organization creation
+queues provisioning; tenant routes become available once provisioning completes.
+Before deploying a new tenant migration set, stop the old provisioner, apply
+public migrations, and require `status --all` to report every tenant current.
 
-Apply public migrations before deploying a new API/provisioner. Stop the old
-provisioner before starting a binary with a different embedded migration set.
-Before deploying application code that depends on the new tenant migration set,
-require `provisioner status --all` to report `"current":true` for every
-non-deleting organization. Back up the public registry before first adopting an
-existing legacy tenant fleet.
-
-## File storage
-
-MinIO remains a configured and readiness-checked dependency for the M05 storage
-work. The authenticated v1 API deliberately exposes no file HTTP routes yet;
-metadata-backed authorization and bounded transfer semantics must land before
-uploads or downloads become public.
-
-## Document collaboration
-
-Team Members request a short-lived Document Room ticket from
-`POST /api/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/socket-ticket`.
-The operation requires the browser session's CSRF token and verifies that the
-Document belongs to the requested team before signing the user, organization,
-team, and Document scope with `JWT_SECRET`. The collaboration process validates
-that ticket locally before loading a room. It then uses the private
-`GET|PUT /internal/v1/orgs/{org_id}/teams/{team_id}/documents/{document_id}/state`
-operations with `COLLABORATION_SERVICE_SECRET` and the ticket's Editor identity.
-The private calls recheck team membership and Document permission; the
-collaboration service never receives tenant database credentials.
-
-The browser connects through Envoy at
-`ws://localhost:10000/ws/docs?org_id={org_id}&team_id={team_id}`, using
-`{org_id}:{team_id}:{document_id}` as the Hocuspocus Document name and the
-issued token as its connection token. The collaboration process reports ready
-only when core-api and Redis room lifecycle checks succeed:
+## Checks and references
 
 ```bash
-curl -sS http://localhost:8082/health
-# {"ok":true,"service":"collaboration-server"}
+make test-unit
+make contract-check
+make test-integration     # local dependencies required
+make check
+make generate             # regenerate sqlc after query/schema changes
 ```
 
-The reviewed public route inventory is below. `none` means that the request is
-not rate-limited by an application policy; infrastructure-wide controls may
-still apply. Routes with a `none` body reject a supplied request body.
+- [OpenAPI contract](api/openapi.yaml): routes, payloads, and response statuses.
+- [Content access](docs/content-access.md): creator grants, membership checks,
+  and document/file authorization.
+- [Task dates](docs/task-dates.md): date and scheduling behavior.
 
-| Operation | Success | Error statuses | Permission | CSRF | Body limit | Rate limit |
-| --- | --- | --- | --- | --- | --- | --- |
-| `GET .../documents` | 200 | 401, 403, 404, 500, 503 | `document.read` | no | none | none |
-| `POST .../documents` | 201 | 400, 401, 403, 404, 500, 503 | `document.create` | yes | 64 KiB JSON | none |
-| `GET .../documents/{document_id}` | 200 | 401, 403, 404, 500, 503 | `document.read` | no | none | none |
-| `PATCH .../documents/{document_id}` | 200 | 400, 401, 403, 404, 500, 503 | `document.update` | yes | 64 KiB JSON | none |
-| `DELETE .../documents/{document_id}` | 204 | 401, 403, 404, 500, 503 | `document.delete` | yes | none | none |
-| `POST .../documents/{document_id}/socket-ticket` | 200 | 401, 403, 404, 500, 503 | `realtime.connect` | yes | none | none |
-| `POST .../chat/socket-ticket` | 200 | 401, 403, 404, 500, 503 | `realtime.connect` | yes | none | none |
-
-Every public route uses the browser session cookie. A 403 is returned when the
-authenticated user lacks the listed team permission; unknown, cross-team, and
-cross-organization resources are concealed as 404 where appropriate. Error
-bodies use `application/problem+json`. `api/openapi.yaml` is authoritative and
-the executable inventory in `internal/apicontract/inventory.go` is checked
-against it.
-
-The private state operations both require service bearer authentication and an
-`X-Synodus-Editor-ID`; they have no CSRF or rate-limit policy. `GET .../state`
-accepts no body and returns 200, while `PUT .../state` accepts up to 16 MiB of
-JSON and returns 200. Both declare 400, 401, 403, 404, 500, and 503 errors.
-
-### Backup and restore expectations
-
-Document title, HTML projection, and canonical Yjs state live in each tenant's
-Postgres `documents` table. Ordinary tenant-database backups therefore include
-Document content; restore it with the same database backup and restore process
-used for the rest of that tenant schema. Redis holds no authoritative Document
-content and is not a Document backup source.
-
-The application keeps only the latest canonical state. It has no custom
-Document version history, point-in-time Document restore, or application-level
-recovery protocol. Database-level point-in-time recovery, if configured by the
-operator, remains an infrastructure capability rather than a product feature.
-
-### First-release limits
-
-- Document Rooms run as a single collaboration-service replica. Distributed
-  room ownership and Redis-backed horizontal scaling are deferred.
-- Hocuspocus/Yjs protocol behavior is used as shipped; there is no custom
-  per-change durable acknowledgement or immediate membership-revocation push.
-  Authorization is rechecked when a ticket is issued and when state is loaded
-  or stored.
-- Every Team Member can read, create, and edit Documents; Team Admins and
-  Research Leads can also delete. Granular per-Document roles are deferred.
-- The editor supports the current title and rich-text paragraph/formatting
-  schema. Richer editor nodes and an application-level version history are out
-  of scope.
-
-## Realtime chat
-
-Team chat history, send, delete, and socket-ticket routes live in core-api.
-Each chat write commits to the tenant database, then publishes a small event to
-Redis on `REDIS_CHAT_CHANNEL` (`corta:chat:events` by default). The separate
-socket-server subscribes to that channel and fans events out to connected
-browser WebSockets for the matching team room.
-
-Set the same `JWT_SECRET` for core-api and socket-server. Core-api uses it to
-issue short-lived socket tickets from
-`POST /api/v1/orgs/{org_id}/teams/{team_id}/chat/socket-ticket`; socket-server
-validates those tickets locally when the browser connects to
-`ws://localhost:8081/ws?token=<socket_ticket>&team_id=<team_uuid>`.
-Through Envoy, use
-`ws://localhost:10000/ws?token=<socket_ticket>&team_id=<team_uuid>` instead.
-
-Redis is still used for shared login and administrative rate limits. WebSockets
-alone are not enough once there can be more than one socket-server replica,
-because a message sent through core-api must reach clients connected to any
-replica.
-
-The project uses `sqlc` for code generation using migration files.
+Chat writes and document state remain authoritative in this service and
+PostgreSQL. The realtime services authenticate tickets and deliver live updates;
+Redis is not a document backup.
