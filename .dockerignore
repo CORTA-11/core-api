@@ -1,7 +1,7 @@
 .git
 .github
 .cache
-.env
+.env*
 .local_secrets
 .idea
 .vscode

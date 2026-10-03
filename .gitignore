@@ -1,7 +1,10 @@
 .idea
 .vscode
 checks.txt
-.env
+.env*
+!.env.example
 .cache/
 .local_secrets/
 dev_secrets/
+
+/api-bin
