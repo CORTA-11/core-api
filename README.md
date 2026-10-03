@@ -70,9 +70,6 @@ make generate             # regenerate sqlc after query/schema changes
 ```
 
 - [OpenAPI contract](api/openapi.yaml): routes, payloads, and response statuses.
-- [Content access](docs/content-access.md): creator grants, membership checks,
-  and document/file authorization.
-- [Task dates](docs/task-dates.md): date and scheduling behavior.
 
 Chat writes and document state remain authoritative in this service and
 PostgreSQL. The realtime services authenticate tickets and deliver live updates;
