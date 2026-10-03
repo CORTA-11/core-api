@@ -18,9 +18,10 @@ cp .env.example .env
 cp -R dev_secrets .local_secrets
 ```
 
-Configure dependencies using `.env` and `.local_secrets`, then initialize them:
+Start the configured dependencies and initialize them:
 
 ```bash
+docker compose up -d --wait postgres redis minio
 make bootstrap-db   # public migrations and database role passwords
 make bootstrap      # storage bucket
 ```
