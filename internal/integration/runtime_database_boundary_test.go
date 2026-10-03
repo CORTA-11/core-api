@@ -223,6 +223,8 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		WHERE specific_schema = $1 AND grantee = 'synodus_runtime'
 		ORDER BY routine_name`, []any{schema}, []string{
 		"add_team_contributor:EXECUTE",
+		// Two-, three-, and four-argument creation overloads.
+		"create_team_with_creator:EXECUTE",
 		"create_team_with_creator:EXECUTE",
 		"create_team_with_creator:EXECUTE",
 		"list_bound_team_members:EXECUTE",
@@ -246,6 +248,7 @@ func (fixture *tenantBoundaryFixture) assertTenantCatalog(t *testing.T, organiza
 		"add_team_contributor", "create_team_with_creator", "list_bound_team_members", "soft_delete_team", "synodus_app_user_public_id", "synodus_append_team_key_wrap", "synodus_commit_team_key", "synodus_has_team_membership", "update_team",
 	}}, []string{
 		"add_team_contributor:synodus_owner",
+		"create_team_with_creator:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"create_team_with_creator:synodus_owner",
 		"list_bound_team_members:synodus_owner",
